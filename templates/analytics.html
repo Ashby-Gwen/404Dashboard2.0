@@ -1,0 +1,1965 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <style>
+        .analytics-container {
+            padding: 2rem;
+            background-color: var(--bg-canvas);
+            min-height: calc(100vh - 80px);
+        }
+
+        .analytics-header {
+            margin-bottom: 2rem;
+        }
+
+        .analytics-header h1 {
+            color: var(--text-main);
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .analytics-tabs {
+            display: flex;
+            gap: 1rem;
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .analytics-tab {
+            padding: 1rem 1.5rem;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            font-size: 1rem;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+            font-weight: 500;
+        }
+
+        .analytics-tab:hover {
+            color: var(--text-main);
+        }
+
+        .analytics-tab.active {
+            color: var(--brand-orange);
+            border-bottom-color: var(--brand-orange);
+        }
+
+        .recommendation-badge {
+            display: inline-grid;
+            min-width: 1.4rem;
+            height: 1.4rem;
+            margin-left: 0.35rem;
+            place-items: center;
+            border-radius: 999px;
+            background: #DC2626;
+            color: #fff;
+            font-size: 0.78rem;
+            font-weight: 800;
+        }
+
+        .recommendation-card {
+            text-align: left;
+            width: 100%;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid #F59E0B;
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            background: var(--bg-card, #fff);
+            cursor: pointer;
+        }
+
+        .recommendation-card:hover {
+            border-color: var(--brand-orange);
+        }
+
+        .recommendation-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 10030;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background: rgba(15, 23, 42, 0.56);
+        }
+
+        .recommendation-modal {
+            width: min(720px, 100%);
+            max-height: 86vh;
+            overflow: auto;
+            border-radius: var(--radius-lg);
+            background: var(--bg-card, #fff);
+            color: var(--text-main);
+            padding: 1.25rem;
+        }
+
+        #analytics-content {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+
+        .error-message {
+            padding: 1rem;
+            background-color: #FEE2E2;
+            color: #991B1B;
+            border-radius: var(--radius-lg);
+            margin-bottom: 1rem;
+        }
+
+        .client-table-scroll {
+            max-height: 420px;
+            overflow: auto;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+        }
+
+        .client-table {
+            width: 100%;
+            min-width: 1040px;
+            border-collapse: collapse;
+        }
+
+        .client-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            background: var(--bg-card, #fff);
+            border-bottom: 2px solid var(--border-color);
+            padding: 0.75rem;
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        .client-table tbody td {
+            padding: 0.75rem;
+            color: var(--text-main);
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-card, #fff);
+        }
+
+        .analytics-tools-content {
+            max-height: 760px;
+            opacity: 1;
+            overflow: hidden;
+            transition: max-height 0.28s ease, opacity 0.2s ease, margin 0.28s ease;
+        }
+
+        .analytics-tools-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin: 0;
+            pointer-events: none;
+        }
+
+        .analytics-toolbar {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: var(--bg-card, #fff);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+        }
+
+        .analytics-filter {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .filter-field {
+            display: grid;
+            gap: 0.35rem;
+            min-width: 140px;
+        }
+
+        .filter-field label {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .filter-field select {
+            min-height: 42px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--bg-card, #fff);
+            padding: 0.55rem 0.75rem;
+            color: var(--text-main);
+            font: inherit;
+        }
+
+        .analytics-actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .analytics-print-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 10050;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            background: rgba(15, 23, 42, 0.55);
+        }
+
+        .analytics-print-modal[hidden] {
+            display: none;
+        }
+
+        .analytics-preview-shell {
+            width: min(1180px, 100%);
+            height: min(92vh, 900px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--bg-card, #fff);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+        }
+
+        .analytics-preview-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .analytics-preview-actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .analytics-preview-viewport {
+            flex: 1;
+            overflow: auto;
+            padding: 1.5rem;
+            background: #E2E8F0;
+        }
+
+        .analytics-paper {
+            width: 279mm;
+            min-height: 216mm;
+            margin: 0 auto;
+            padding: 19.05mm;
+            box-sizing: border-box;
+            background: #fff;
+            color: #1F2937;
+            font: 10.5pt Arial, Helvetica, sans-serif;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
+        }
+
+        .analytics-paper h1,
+        .analytics-paper h2,
+        .analytics-paper p {
+            text-align: center;
+            margin: 0 0 6pt;
+        }
+
+        .analytics-paper table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .analytics-paper th,
+        .analytics-paper td {
+            border: 1px solid #CBD5E1;
+            padding: 6pt;
+            text-align: left;
+        }
+
+        @media print {
+            body > *:not(#analyticsPrintModal) { display: none !important; }
+            #analyticsPrintModal { position: static; display: block !important; padding: 0; background: #fff; }
+            .analytics-preview-shell { width: auto; height: auto; overflow: visible; border-radius: 0; box-shadow: none; }
+            .analytics-preview-toolbar { display: none !important; }
+            .analytics-preview-viewport { display: block; overflow: visible; padding: 0; background: #fff; }
+            .analytics-paper { width: 279mm; min-height: 216mm; margin: 0; box-shadow: none; }
+        }
+    </style>
+</head>
+
+<body>
+    <nav>
+        <div class="nav-logo" onclick="window.location.href='{{ url_for('dashboard') }}'">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+            Syluxent
+        </div>
+        {% set nav_links = {
+        'staff': [
+        ('sales_order', 'Sales Order'),
+        ('invoices', 'Invoice'),
+        ('purchase_orders', 'Purchase Order')
+        ],
+        'manager': [
+        ('analytics', 'Analytics'),
+        ('reports', 'Reports')
+        ],
+        'admin': [
+        ('sales_order', 'Sales Order'),
+        ('invoices', 'Invoice'),
+        ('purchase_orders', 'Purchase Order'),
+        ('analytics', 'Analytics'),
+        ('reports', 'Reports'),
+        ('database_interface', 'Database Interface')
+        ]
+        } %}
+
+        <div class="nav-menu">
+            <a href="{{ url_for('dashboard') }}"
+                class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}">Home</a>
+
+            {% for endpoint, label in nav_links.get(session.role, []) %}
+            <a href="{{ url_for(endpoint) }}" class="nav-link {{ 'active' if request.endpoint == endpoint }}">
+                {{ label }}
+            </a>
+            {% endfor %}
+        </div>
+        <div class="nav-user">
+            <span>{{ session.username }}</span>
+            <span id="datetime"></span>
+            <a href="{{ url_for('logout') }}" class="btn btn-outline btn-sm">Logout</a>
+        </div>
+    </nav>
+
+    <div id="toastContainer"
+        style="position: fixed; top: 1rem; right: 1rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;">
+    </div>
+
+    <div class="analytics-container">
+        <div class="analytics-header">
+            <h1>Analytics</h1>
+        </div>
+
+        <div class="analytics-tabs">
+            <button class="analytics-tab active" data-section="overview">Overview</button>
+            <button class="analytics-tab" data-section="clients">Clients Analysis</button>
+            <!-- <button class="analytics-tab" data-section="expenses">Expenses</button> -->
+            <button class="analytics-tab" data-section="sales">Revenue</button>
+            <button class="analytics-tab" data-section="recommendations">Recommendations <span id="recommendationBadge" class="recommendation-badge" hidden>0</span></button>
+            <button class="analytics-tab" data-section="evaluation">Evaluation</button>
+        </div>
+
+        <div class="analytics-toolbar" aria-label="Analytics date filter and actions">
+            <div class="analytics-filter">
+                <div class="filter-field">
+                    <label for="analyticsYear">Year</label>
+                    <select id="analyticsYear" onchange="onAnalyticsFilterChange()">
+                        {% for year in available_years %}
+                        <option value="{{ year }}">{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-field">
+                    <label for="analyticsPeriod">Date Range</label>
+                    <select id="analyticsPeriod" onchange="onAnalyticsPeriodChange()">
+                        <option value="year">Full Year</option>
+                        <option value="quarter">Quarter</option>
+                        <option value="month">Month</option>
+                    </select>
+                </div>
+                <div class="filter-field" id="analyticsQuarterField" hidden>
+                    <label for="analyticsQuarter">Quarter</label>
+                    <select id="analyticsQuarter" onchange="onAnalyticsFilterChange()">
+                        <option value="1">Q1 (Jan-Mar)</option>
+                        <option value="2">Q2 (Apr-Jun)</option>
+                        <option value="3">Q3 (Jul-Sep)</option>
+                        <option value="4">Q4 (Oct-Dec)</option>
+                    </select>
+                </div>
+                <div class="filter-field" id="analyticsMonthField" hidden>
+                    <label for="analyticsMonth">Month</label>
+                    <select id="analyticsMonth" onchange="onAnalyticsFilterChange()">
+                        <option value="1">January</option>
+                        <option value="2">February</option>
+                        <option value="3">March</option>
+                        <option value="4">April</option>
+                        <option value="5">May</option>
+                        <option value="6">June</option>
+                        <option value="7">July</option>
+                        <option value="8">August</option>
+                        <option value="9">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                    </select>
+                </div>
+            </div>
+            <div class="analytics-actions">
+                <button type="button" class="btn btn-outline" onclick="exportAnalyticsCsv()">Export CSV</button>
+                <button type="button" class="btn btn-primary" onclick="previewAnalyticsReport()">Preview PDF</button>
+            </div>
+        </div>
+
+        <div id="analytics-content">
+            <div class="loading">Loading analytics data...</div>
+        </div>
+    </div>
+
+    <div id="analyticsPrintModal" class="analytics-print-modal" hidden>
+        <div class="analytics-preview-shell">
+            <div class="analytics-preview-toolbar">
+                <div>
+                    <h2 style="margin:0;">Analytics Report Preview</h2>
+                    <p style="margin:0.2rem 0 0; color:var(--text-muted); font-size:0.88rem;">Review the active analytics tab, then print or save it as PDF.</p>
+                </div>
+                <div class="analytics-preview-actions">
+                    <button class="btn btn-outline" onclick="closeAnalyticsPreview()">Back</button>
+                    <button class="btn btn-primary" onclick="printAnalyticsReport()">Print / Save PDF</button>
+                </div>
+            </div>
+            <div class="analytics-preview-viewport">
+                <section id="analyticsPrintPaper" class="analytics-paper"></section>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const baseURL = '/api/analytics';
+        let currentCharts = [];
+        let pendingCsvClientResolutions = [];
+        let pendingUploadRequiresOutlierConfirmation = false;
+        let analyticsToolsHidden = true;
+        let overviewSelectedYear = null;
+        let salesMapeThreshold = 20;
+        let latestRecommendations = [];
+        let activeAnalyticsSection = 'overview';
+        let activeAnalyticsFilterLabel = '';
+        const initialAnalyticsYears = {{ available_years|tojson }};
+
+        function currentAnalyticsFilterParams(extra = {}) {
+            return {
+                year: document.getElementById('analyticsYear')?.value || new Date().getFullYear(),
+                period: document.getElementById('analyticsPeriod')?.value || 'year',
+                quarter: document.getElementById('analyticsQuarter')?.value || 1,
+                month: document.getElementById('analyticsMonth')?.value || 1,
+                ...extra
+            };
+        }
+
+        function onAnalyticsPeriodChange() {
+            const period = document.getElementById('analyticsPeriod').value;
+            document.getElementById('analyticsQuarterField').hidden = period !== 'quarter';
+            document.getElementById('analyticsMonthField').hidden = period !== 'month';
+            onAnalyticsFilterChange();
+        }
+
+        function onAnalyticsFilterChange() {
+            clearAnalyticsDataCache();
+            loadSection(activeAnalyticsSection);
+            refreshRecommendationBadge();
+        }
+
+        function syncAnalyticsFilterFromPayload(payload) {
+            if (!payload || !payload.filter) return;
+            activeAnalyticsFilterLabel = payload.filter.label || '';
+            const year = document.getElementById('analyticsYear');
+            const period = document.getElementById('analyticsPeriod');
+            const quarter = document.getElementById('analyticsQuarter');
+            const month = document.getElementById('analyticsMonth');
+            if (year && payload.filter.selected_year) year.value = payload.filter.selected_year;
+            if (period && payload.filter.period) period.value = payload.filter.period;
+            if (quarter && payload.filter.quarter) quarter.value = payload.filter.quarter;
+            if (month && payload.filter.month) month.value = payload.filter.month;
+            if (period) {
+                document.getElementById('analyticsQuarterField').hidden = period.value !== 'quarter';
+                document.getElementById('analyticsMonthField').hidden = period.value !== 'month';
+            }
+        }
+
+        function analyticsCacheKey(path, params = {}) {
+            const query = new URLSearchParams(params);
+            return query.toString() ? `${path}?${query.toString()}` : path;
+        }
+
+        async function cachedAnalyticsJson(path, params = {}) {
+            const key = analyticsCacheKey(path, params);
+            const loader = async () => {
+                const response = await fetch(key);
+                return response.json();
+            };
+            if (!window.SyluxentUI) return loader();
+            const cached = SyluxentUI.getCachedData('analytics', key);
+            if (cached) return cached;
+            const data = await loader();
+            return data && data.success === false
+                ? data
+                : SyluxentUI.cacheData('analytics', key, data);
+        }
+
+        function clearAnalyticsDataCache() {
+            if (!window.SyluxentUI) return;
+            SyluxentUI.clearDataCache('analytics');
+            SyluxentUI.clearDataCache('reports');
+        }
+
+        function formatCurrency(value, options = {}) {
+            const amount = Number(value || 0);
+            const maximumFractionDigits = options.maximumFractionDigits ?? 2;
+            const minimumFractionDigits =
+                options.minimumFractionDigits != null
+                    ? options.minimumFractionDigits
+                    : Math.min(2, maximumFractionDigits);
+
+            return '₱' + amount.toLocaleString('en-PH', {
+                minimumFractionDigits,
+                maximumFractionDigits
+            });
+        }
+
+        function formatClientValue(score) {
+            return Math.round(Number(score || 0) * 100) + '%';
+        }
+
+        function kpiClassFor(type, value) {
+            const amount = Number(value || 0);
+            if (type === 'accounts_receivable') {
+                if (amount === 0) return 'kpi-value kpi-zero';
+                if (amount > 0) return 'kpi-value kpi-black';
+                return 'kpi-value kpi-negative';
+            }
+            if (type === 'revenue') {
+                return amount > 0 ? 'kpi-value kpi-positive' : 'kpi-value kpi-negative';
+            }
+            return 'kpi-value';
+        }
+
+        // Clean up existing charts
+        function destroyCharts() {
+            currentCharts.forEach(chart => chart.destroy());
+            currentCharts = [];
+        }
+
+        // Load section via AJAX
+        async function loadSection(section) {
+            activeAnalyticsSection = section;
+            destroyCharts();
+            const contentDiv = document.getElementById('analytics-content');
+            contentDiv.innerHTML = window.SyluxentUI
+                ? SyluxentUI.skeleton({ rows: section === 'overview' ? 3 : 5, columns: section === 'clients' ? 5 : 3 })
+                : '<div class="loading">Loading ' + section + ' data...</div>';
+
+            try {
+                let html = '';
+
+                if (section === 'overview') {
+                    html = await loadOverview();
+                } else if (section === 'clients') {
+                    html = await loadClients();
+                    // } else if (section === 'expenses') {
+                    //     html = await loadExpenses();
+                } else if (section === 'sales') {
+                    html = await loadSales();
+                } else if (section === 'recommendations') {
+                    html = await loadRecommendations();
+                } else if (section === 'evaluation') {
+                    html = await loadEvaluation();
+                }
+
+                contentDiv.innerHTML = html;
+
+                // Initialize charts if needed
+                if (section === 'clients') {
+                    initClientsCharts();
+                    // } else if (section === 'expenses') {
+                    //     initExpensesCharts();
+                } else if (section === 'sales') {
+                    initSalesCharts();
+                }
+                updateRecommendationBadge(section);
+            } catch (error) {
+                contentDiv.innerHTML = '<div class="error-message">Error loading ' + section + ' data: ' + error.message + '</div>';
+            }
+        }
+
+        function renderCSVUploadPanel(compact = false) {
+            const wrapperStyle = compact
+                ? 'margin-bottom: 2rem; padding: 1.25rem;'
+                : 'display: inline-block; padding: 2rem; min-width: min(100%, 420px);';
+
+            return `
+            <form id="csvUploadForm" class="surface-panel" onsubmit="handleCSVUpload(event)" style="${wrapperStyle}">
+                <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;">
+                    <input type="file" id="csvFile" accept=".csv,.xlsx,.xls" required onchange="updateSelectedCSVFile()" style="flex: 1 1 220px; font-size: 0.9rem; color: var(--text-main);" />
+                    <button id="csvUploadButton" type="submit" class="btn-secondary" style="background-color: var(--brand-orange, #FF6B00); color: white; border: none; padding: 0.75rem 1.25rem; border-radius: var(--radius-lg); cursor: pointer; font-weight: 600;">
+                        Upload File
+                    </button>
+                </div>
+                <div style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-muted); line-height: 1.45;">
+                    <div><strong>Required CSV/Excel headers:</strong> DATE, COMPANY NAME, STORE NAME, COST, QUANTITY, SELLING PRICE</div>
+                    <div><strong>Optional headers:</strong> STORE BRANCH, PARTICULAR</div>
+                    <div id="selectedCsvFile">Required date format: DD/MM/YYYY, example 01/01/2025.</div>
+                </div>
+                <div id="uploadStatus" style="margin-top: 1rem; font-weight: 600; color: var(--brand-orange);"></div>
+            </form>`;
+        }
+
+        function renderGenerateAnalyticsPanel(compact = false, hasLiveData = true) {
+            const wrapperStyle = compact
+                ? 'margin-bottom: 1rem; padding: 1.25rem;'
+                : 'display: inline-block; padding: 1.5rem; min-width: min(100%, 420px); margin-bottom: 1rem;';
+
+            return `
+            <div class="surface-panel" style="${wrapperStyle}">
+                <div style="font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem;">Generate Analytics Report</div>
+                <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.85rem;">
+                    ${hasLiveData ? 'System data is available. Generate analytics manually when you are ready to refresh the historical transaction ledger.' : 'No system data found. Upload Historical Transaction CSV.'}
+                </div>
+                <button id="generateAnalyticsButton" type="button" class="btn-secondary" onclick="generateAnalyticsReport()" ${hasLiveData ? '' : 'disabled'} style="background-color: var(--brand-orange, #FF6B00); color: white; border: none; padding: 0.75rem 1.25rem; border-radius: var(--radius-lg); cursor: pointer; font-weight: 600;">
+                    Generate Analytics Report
+                </button>
+                <div id="generateAnalyticsStatus" style="margin-top: 0.75rem; font-weight: 600; color: var(--brand-orange);"></div>
+            </div>`;
+        }
+
+        function renderAnalyticsToolsPanel(compact = false, hasLiveData = true) {
+            return `
+            <div class="analytics-tools-panel" style="margin-bottom: ${compact ? '2rem' : '0'};">
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
+                    <button id="analyticsToolsToggle" type="button" class="btn-secondary" onclick="toggleAnalyticsTools()" aria-expanded="${analyticsToolsHidden ? 'false' : 'true'}" style="padding: 0.5rem 1rem;">
+                        ${analyticsToolsHidden ? 'Show Analytics Tools' : 'Hide Analytics Tools'}
+                    </button>
+                </div>
+                <div id="analyticsToolsContent" class="analytics-tools-content ${analyticsToolsHidden ? 'collapsed' : ''}">
+                    ${renderGenerateAnalyticsPanel(compact, hasLiveData)}
+                    ${renderCSVUploadPanel(compact)}
+                </div>
+            </div>`;
+        }
+
+        function toggleAnalyticsTools() {
+            analyticsToolsHidden = !analyticsToolsHidden;
+            const content = document.getElementById('analyticsToolsContent');
+            const button = document.getElementById('analyticsToolsToggle');
+            if (content) content.classList.toggle('collapsed', analyticsToolsHidden);
+            if (button) {
+                button.textContent = analyticsToolsHidden ? 'Show Analytics Tools' : 'Hide Analytics Tools';
+                button.setAttribute('aria-expanded', analyticsToolsHidden ? 'false' : 'true');
+            }
+        }
+
+        // Overview tab
+
+        function changeOverviewYear(value) {
+            overviewSelectedYear = Number(value);
+            const yearSelect = document.getElementById('analyticsYear');
+            if (yearSelect) yearSelect.value = value;
+            loadSection('overview');
+        }
+
+        async function loadOverview() {
+            try {
+                // --- GET OVERVIEW DATA ---
+                const data = await cachedAnalyticsJson(baseURL + '/overview', currentAnalyticsFilterParams());
+
+                if (!data.success) throw new Error(data.error);
+                if (data.selected_year) overviewSelectedYear = Number(data.selected_year);
+                syncAnalyticsFilterFromPayload(data);
+
+                // --- EMPTY DATA STATE: RENDER CSV UPLOADER ---
+                if (data.is_empty) {
+                    return `
+        <div class="analytics-section empty-state surface-card" style="text-align: center; padding: 4rem 2rem; border-style: dashed !important;">
+            <div style="font-size: 3.5rem; margin-bottom: 1rem;">📊</div>
+            <h2 style="color: var(--text-main); margin-bottom: 0.5rem;">No Data Available</h2>
+            <p style="color: var(--text-muted); margin-bottom: 2rem; max-width: 450px; margin-left: auto; margin-right: auto;">
+                Your analytical database is currently empty. Upload your historical sales record file (.csv/.xlsx) to generate dashboard parameters.
+            </p>
+            ${renderAnalyticsToolsPanel(false, Boolean(data.has_live_data))}
+        </div>
+    `;
+                }
+
+                // --- BASE ACTIVE DASHBOARD STATE ---
+                const kpis = data.kpis;
+
+                // Delay rendering chart hook execution until DOM thread is written
+                setTimeout(() => initOverviewCharts(data.trend_data), 50);
+
+                return `
+    <div class="analytics-section overview">
+        <div class="toolbar-surface" style="margin-bottom: 2rem; padding: 0.75rem 1rem; color: var(--text-muted); font-weight: 600;">
+            Reporting Period: ${data.filter?.label || activeAnalyticsFilterLabel || data.selected_year}
+        </div>
+
+        ${renderAnalyticsToolsPanel(true, true)}
+
+        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+            <div class="stat-card">
+                <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Gross Revenue</div>
+                <div class="${kpiClassFor('revenue', kpis.gross_revenue)}" style="font-size: 2rem; font-weight: bold;">${formatCurrency(kpis.gross_revenue)}</div>
+            </div>
+            <div class="stat-card">
+                <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Total Cost of Goods</div>
+                <div style="font-size: 2rem; font-weight: bold; color: #EF4444;">${formatCurrency(kpis.total_cost_of_goods)}</div>
+            </div>
+            <div class="stat-card">
+                <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Profit</div>
+                <div class="${kpiClassFor('revenue', kpis.gross_revenue - kpis.total_cost_of_goods)}" style="font-size: 2rem; font-weight: bold;">${formatCurrency(kpis.gross_revenue - kpis.total_cost_of_goods)}</div>                
+            </div>
+        </div>
+
+        <div class="card surface-card" style="margin-bottom: 2rem; padding: 1.5rem;">
+            <h3 style="color: var(--text-main); margin-bottom: 1.5rem;">Monthly Revenue Trend for ${data.selected_year}</h3>
+            <div style="position: relative; height: 300px; width: 100%;">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .stat-card { padding: 1.5rem; }
+        .btn-secondary { padding: 0.5rem 1rem; cursor: pointer; }
+        .btn-secondary.active { background: #F3F4F6; font-weight: bold; }
+    </style>
+`;
+            } catch (err) {
+                return `<div style="color: red; padding: 2rem;">Error running component tree: ${err.message}</div>`;
+            }
+        }
+
+        // --- FORM UPLOAD SUBMIT HANDLER ---
+        async function generateAnalyticsReport() {
+            const button = document.getElementById('generateAnalyticsButton');
+            const statusDiv = document.getElementById('generateAnalyticsStatus');
+            if (button) {
+                button.disabled = true;
+                button.textContent = 'Generating...';
+            }
+            if (statusDiv) statusDiv.textContent = 'Checking system data...';
+
+            try {
+                const response = await fetch(baseURL + '/generate', { method: 'POST' });
+                const payload = await response.json();
+                if (!response.ok || !payload.success) {
+                    throw new Error(payload.message || payload.error || 'Unable to generate analytics.');
+                }
+                if (statusDiv) {
+                    statusDiv.style.color = '#047857';
+                    statusDiv.textContent = payload.message || 'Analytics report generated.';
+                }
+                clearAnalyticsDataCache();
+                if (window.SyluxentUI) SyluxentUI.showSuccess(payload.message || 'Analytics report generated.');
+                setTimeout(() => loadSection('overview'), 700);
+            } catch (error) {
+                if (statusDiv) {
+                    statusDiv.style.color = '#B91C1C';
+                    statusDiv.textContent = error.message;
+                }
+                if (window.SyluxentUI) SyluxentUI.showError(error.message);
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = 'Generate Analytics Report';
+                }
+            }
+        }
+
+        function updateSelectedCSVFile() {
+            const fileInput = document.getElementById('csvFile');
+            const selectedFile = document.getElementById('selectedCsvFile');
+            if (!fileInput || !selectedFile) return;
+            selectedFile.textContent = fileInput.files.length
+                ? `Selected file: ${fileInput.files[0].name}. Required date format: DD/MM/YYYY.`
+                : 'Required date format: DD/MM/YYYY, example 01/01/2025.';
+        }
+
+        function renderUploadFeedback(payload, isSuccess) {
+            const summary = payload.summary || {};
+            const eda = payload.eda_summary || summary.eda_summary || {};
+            const errors = payload.errors || [];
+            const unusedColumns = summary.unused_columns || [];
+            const duplicateRows = summary.duplicate_rows_in_upload || [];
+            const outliers = payload.outliers || [];
+
+            let html = `<div style="color: ${isSuccess ? '#047857' : '#B91C1C'};">${payload.message || payload.error || 'Upload complete.'}</div>`;
+            html += '<div style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-main); font-weight: 500;">';
+            html += `Rows read: ${summary.rows_read ?? 0} | Ready: ${summary.rows_ready ?? 0} | Invalid: ${summary.invalid_rows ?? 0}`;
+            html += '</div>';
+            if (eda.distributions) {
+                html += '<div style="margin-top: 0.75rem; font-size: 0.82rem; color: var(--text-main); text-align: left;">';
+                html += `<strong>EDA:</strong> Source ${eda.source_format || 'upload'} | Outliers ${eda.outlier_count || 0} | Invalid numeric/date ${eda.invalid_numeric_or_date_count || 0}`;
+                html += '<div style="margin-top: 0.35rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.4rem;">';
+                Object.entries(eda.distributions).forEach(([field, stats]) => {
+                    html += `<div class="surface-panel" style="padding: 0.45rem;"><strong>${field}</strong><br>Mean ${Number(stats.mean || 0).toFixed(2)} | Median ${Number(stats.median || 0).toFixed(2)}</div>`;
+                });
+                html += '</div></div>';
+            }
+
+            if (unusedColumns.length) {
+                html += `<div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Unused CSV columns detected: ${unusedColumns.join(', ')}</div>`;
+            }
+            if (duplicateRows.length || summary.duplicate_rows_already_in_database) {
+                html += `<div style="margin-top: 0.5rem; font-size: 0.85rem; color: #92400E;">Duplicate-looking rows for review only. In upload: ${duplicateRows.length ? duplicateRows.join(', ') : 'none'}; already in database: ${summary.duplicate_rows_already_in_database || 0}.</div>`;
+            }
+            if (errors.length) {
+                html += '<ul style="margin-top: 0.75rem; padding-left: 1.25rem; color: #B91C1C; font-size: 0.85rem; text-align: left;">';
+                errors.slice(0, 8).forEach(err => {
+                    html += `<li>Row ${err.row}, ${err.field}: ${err.message}</li>`;
+                });
+                if (errors.length > 8) {
+                    html += `<li>${errors.length - 8} more validation errors not shown.</li>`;
+                }
+                html += '</ul>';
+            }
+            if (outliers.length) {
+                html += '<div style="margin-top: 0.75rem; color: #92400E; font-size: 0.85rem; text-align: left;">';
+                html += `<strong>Outliers for review:</strong> ${outliers.slice(0, 6).map(item => `Row ${item.row} ${item.field}=${item.value}`).join('; ')}`;
+                if (outliers.length > 6) html += `; ${outliers.length - 6} more`;
+                html += '</div>';
+            }
+            if (payload.requires_confirmation) {
+                pendingUploadRequiresOutlierConfirmation = true;
+                html += '<button type="button" class="btn-secondary" onclick="retryCSVUploadWithOutlierConfirmation()" style="margin-top: 0.75rem; background-color: #92400E; color: white; border: none;">Confirm Outliers and Save</button>';
+            }
+            if (payload.needs_resolution && (payload.client_resolutions || summary.client_resolutions || []).length) {
+                pendingCsvClientResolutions = payload.client_resolutions || summary.client_resolutions || [];
+                html += renderClientResolutionControls(pendingCsvClientResolutions);
+            }
+            return html;
+        }
+
+        function renderClientResolutionControls(resolutions) {
+            let html = '<div class="surface-panel" style="margin-top: 1rem; padding: 1rem; border-color: #F59E0B !important; text-align: left;">';
+            html += '<div style="color: #92400E; margin-bottom: 0.75rem;">Review possible company/client typos before saving:</div>';
+            resolutions.forEach((item, index) => {
+                html += `
+                    <div style="display: grid; grid-template-columns: 1fr auto; gap: 0.75rem; align-items: center; padding: 0.75rem 0; border-top: 1px solid #FDE68A;">
+                        <div style="font-size: 0.85rem; color: var(--text-main);">
+                            <strong>${item.uploaded_name}</strong>
+                            <div style="color: var(--text-muted);">Suggested: ${item.suggested_client_name} (${Number(item.match_percent).toFixed(2)}% match)</div>
+                        </div>
+                        <select class="client-resolution-choice" data-key="${item.resolution_key}" data-suggested-id="${item.suggested_client_id || ''}" data-suggested="${item.suggested_client_name || ''}" data-match="${item.match_percent || 0}" style="padding: 0.45rem; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                            <option value="use_suggested">Accept suggested match</option>
+                            <option value="create_new">Create new client</option>
+                        </select>
+                    </div>
+                `;
+            });
+            html += '<button type="button" class="btn-secondary" onclick="retryCSVUploadWithResolutions()" style="margin-top: 0.75rem; background-color: var(--brand-orange, #FF6B00); color: white; border: none;">Continue Upload</button>';
+            html += '</div>';
+            return html;
+        }
+
+        function collectClientResolutions() {
+            const resolutions = {};
+            document.querySelectorAll('.client-resolution-choice').forEach(select => {
+                const action = select.value;
+                resolutions[select.dataset.key] = {
+                    action,
+                    client_id: action === 'use_suggested' ? select.dataset.suggestedId : '',
+                    client_name: action === 'use_suggested' ? select.dataset.suggested : '',
+                    match_percent: Number(select.dataset.match || 0)
+                };
+            });
+            return resolutions;
+        }
+
+        function retryCSVUploadWithResolutions() {
+            handleCSVUpload(new Event('submit'), collectClientResolutions());
+        }
+
+        function retryCSVUploadWithOutlierConfirmation() {
+            handleCSVUpload(new Event('submit'), null, true);
+        }
+
+        async function handleCSVUpload(event, clientResolutions = null, confirmOutliers = false) {
+            event.preventDefault();
+            const fileInput = document.getElementById('csvFile');
+            const statusDiv = document.getElementById('uploadStatus');
+            const uploadButton = document.getElementById('csvUploadButton');
+
+            if (!fileInput.files.length) return;
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            if (clientResolutions) {
+                formData.append('resolutions', JSON.stringify(clientResolutions));
+            }
+            if (confirmOutliers) {
+                formData.append('confirm_outliers', 'true');
+            }
+
+            statusDiv.style.color = "var(--brand-orange)";
+            statusDiv.textContent = "Validating CSV before database insert...";
+            if (uploadButton) {
+                uploadButton.disabled = true;
+                uploadButton.textContent = 'Uploading...';
+                uploadButton.style.opacity = '0.75';
+                uploadButton.style.cursor = 'wait';
+            }
+
+            try {
+                const result = await $.ajax({
+                    url: baseURL + '/overview/upload',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    dataType: 'json'
+                });
+
+                if (result.success) {
+                    pendingCsvClientResolutions = [];
+                    pendingUploadRequiresOutlierConfirmation = false;
+                    clearAnalyticsDataCache();
+                    statusDiv.innerHTML = renderUploadFeedback(result, true);
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                const payload = error.responseJSON || { error: error.message || "An error occurred during upload." };
+                statusDiv.innerHTML = renderUploadFeedback(payload, false);
+            } finally {
+                if (uploadButton) {
+                    uploadButton.disabled = false;
+                    uploadButton.textContent = 'Upload File';
+                    uploadButton.style.opacity = '1';
+                    uploadButton.style.cursor = 'pointer';
+                }
+            }
+        }
+
+        // Clients Tabs
+
+        let clientViewMode = 'table';
+
+        function renderClientTable(clients, valColorFn, balColorFn) {
+            const rows = clients.map(client => {
+                const valColor = valColorFn(client.cohort || client.value_status);
+                const balColor = balColorFn(client.balance_status);
+                const breakdown = client.score_breakdown || {};
+                return `
+                <tr>
+                    <td style="font-weight: 600;">${client.company_name}</td>
+                    <td style="text-align: right;">${client.branches_count}</td>
+                    <td class="${kpiClassFor('revenue', client.total_revenue)}" style="text-align: right;">${formatCurrency(client.total_revenue)}</td>
+                    <td class="${kpiClassFor('revenue', client.total_paid)}" style="text-align: right;">${formatCurrency(client.total_paid)}</td>
+                    <td class="${kpiClassFor('accounts_receivable', client.balance)}" style="text-align: right;">${formatCurrency(client.balance)}</td>
+                    <td style="text-align: right; font-weight: 600;">${Number(client.client_performance_score || 0).toFixed(2)}</td>
+                    <td style="font-size: 0.78rem; color: var(--text-muted);">P ${Number(breakdown.purchasing_behavior || 0).toFixed(1)} / Pay ${Number(breakdown.payment_reliability || 0).toFixed(1)} / V ${Number(breakdown.business_value || 0).toFixed(1)}</td>
+                    <td style="text-align: center;"><span style="display: inline-block; padding: 0.25rem 0.75rem; background-color: ${valColor.bg}; color: ${valColor.text}; border-radius: var(--radius-lg); font-size: 0.85rem; font-weight: 500;">${client.cohort || client.value_status}</span></td>
+                    <td style="text-align: center;"><span style="display: inline-block; padding: 0.25rem 0.75rem; background-color: ${balColor.bg}; color: ${balColor.text}; border-radius: var(--radius-lg); font-size: 0.85rem; font-weight: 500;">${client.balance_status}</span></td>
+                </tr>`;
+            }).join('');
+
+            return `
+            <div class="client-table-scroll">
+                <table class="client-table">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left;">Company Name</th>
+                            <th style="text-align: right;">Branches</th>
+                            <th style="text-align: right;">Total Revenue</th>
+                            <th style="text-align: right;">Paid</th>
+                            <th style="text-align: right;">Balance</th>
+                            <th style="text-align: right;">CPS</th>
+                            <th style="text-align: left;">Breakdown</th>
+                            <th style="text-align: center;">Cohort</th>
+                            <th style="text-align: center;">Balance Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
+        }
+
+        async function loadClients() {
+            const data = await cachedAnalyticsJson(baseURL + '/clients', currentAnalyticsFilterParams());
+
+            if (!data.success) throw new Error(data.error);
+            syncAnalyticsFilterFromPayload(data);
+
+            const clients = data.clients;
+            const top3 = data.top_3;
+
+            // Helper functions for badge colors based on new backend structure
+            const getValueStatusColor = (status) => {
+                if (status === 'Core Partners') return { bg: '#d1fae5', text: '#065f46' };
+                if (status === 'Growth Clients') return { bg: '#dbeafe', text: '#1e40af' };
+                if (status === 'At-Risk Clients') return { bg: '#fee2e2', text: '#991b1b' };
+                if (status === 'Low Engagement') return { bg: '#f3f4f6', text: '#374151' };
+                if (status === 'Valued Clients') return { bg: '#d1fae5', text: '#065f46' };
+                if (status === 'Active Clients') return { bg: '#dbeafe', text: '#1e40af' };
+                return { bg: '#f3f4f6', text: '#374151' };
+            };
+
+            const getBalanceStatusColor = (status) => {
+                return status === 'Settled'
+                    ? { bg: '#e0f2fe', text: '#0369a1' }
+                    : { bg: '#fee2e2', text: '#991b1b' };
+            };
+
+            let clientsHTML = `
+        <div class="analytics-section clients">
+            <div class="filter-controls" style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <label style="color: var(--text-main); font-weight: 600; margin-right: 1rem;">Sort By:</label>
+                    <button class="btn-secondary sort-btn active" data-sort="revenue">Revenue</button>
+                    <button class="btn-secondary sort-btn" data-sort="score">Client Value</button>
+                </div>
+                <div class="view-toggle-buttons">
+                    <button id="btn-view-table" class="btn-secondary ${clientViewMode === 'table' ? 'active' : ''}" style="margin-right: 0.5rem; padding: 0.5rem 1rem;">📋 Table View</button>
+                    <button id="btn-view-card" class="btn-secondary ${clientViewMode === 'card' ? 'active' : ''}" style="padding: 0.5rem 1rem;">🎴 Card View</button>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 300px; gap: 2rem; margin-bottom: 2rem; ">
+                <div class="card" style="max-height: 500px; display: flex; flex-direction: column; width: 100%; box-sizing: border-box;">
+                    <h3 style="color: var(--text-main); margin-bottom: 1.5rem;">Clients Overview</h3>
+                    
+                    <div id="clients-dynamic-view" style="overflow-y: auto; flex-grow: 1; scrollbar-width: thin; -webkit-overflow-scrolling: touch;">
+    `;
+
+            // 1. GENERATE TABLE VIEW DOM STRINGS
+            if (clientViewMode === 'table') {
+                clientsHTML += renderClientTable(clients, getValueStatusColor, getBalanceStatusColor);
+            } else if (false) {
+                clientsHTML += `
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border-color);">
+                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: left; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Company Name</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Branches</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Total Revenue</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Paid</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Balance</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: center; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Value Status</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: center; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Balance Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+                clients.forEach(client => {
+                const valColor = getValueStatusColor(client.cohort || client.value_status);
+                    const balColor = getBalanceStatusColor(client.balance_status);
+                    clientsHTML += `
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 0.75rem; color: var(--text-main); font-weight: 600;">${client.company_name}</td>
+                    <td style="text-align: right; padding: 0.75rem; color: var(--text-main);">${client.branches_count}</td>
+                    <td class="${kpiClassFor('revenue', client.total_revenue)}" style="text-align: right; padding: 0.75rem;">${formatCurrency(client.total_revenue)}</td>
+                    <td class="${kpiClassFor('revenue', client.total_paid)}" style="text-align: right; padding: 0.75rem;">${formatCurrency(client.total_paid)}</td>
+                    <td class="${kpiClassFor('accounts_receivable', client.balance)}" style="text-align: right; padding: 0.75rem;">${formatCurrency(client.balance)}</td>
+                    <td style="text-align: center; padding: 0.75rem;"><span style="display: inline-block; padding: 0.25rem 0.75rem; background-color: ${valColor.bg}; color: ${valColor.text}; border-radius: var(--radius-lg); font-size: 0.85rem; font-weight: 500;">${client.value_status}</span></td>
+                    <td style="text-align: center; padding: 0.75rem;"><span style="display: inline-block; padding: 0.25rem 0.75rem; background-color: ${balColor.bg}; color: ${balColor.text}; border-radius: var(--radius-lg); font-size: 0.85rem; font-weight: 500;">${client.balance_status}</span></td>
+                </tr>
+            `;
+                });
+
+                clientsHTML += `</tbody></table></div>`;
+            }
+            // 2. GENERATE CARD VIEW DOM STRINGS
+            else {
+                clientsHTML += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem;">`;
+                clients.forEach(client => {
+                    const valColor = getValueStatusColor(client.value_status);
+                    const balColor = getBalanceStatusColor(client.balance_status);
+                    clientsHTML += `
+                <div style="border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; background: var(--bg-surface);">
+                    <h4 style="color: var(--text-main); margin-top:0; margin-bottom: 1rem; font-size: 1.1rem;">${client.company_name}</h4>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                        <span style="color: var(--text-muted);">Branches:</span>
+                        <strong style="color: var(--text-main);">${client.branches_count}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 0.9rem;">
+                        <span style="color: var(--text-muted);">Revenue:</span>
+                        <strong class="${kpiClassFor('revenue', client.total_revenue)}">${formatCurrency(client.total_revenue)}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 0.9rem;">
+                        <span style="color: var(--text-muted);">Balance:</span>
+                        <strong class="${kpiClassFor('accounts_receivable', client.balance)}">${formatCurrency(client.balance)}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 0.9rem;">
+                        <span style="color: var(--text-muted);">CPS:</span>
+                        <strong style="color: var(--text-main);">${Number(client.client_performance_score || 0).toFixed(2)}</strong>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; justify-content: flex-start;">
+                        <span style="padding: 0.25rem 0.5rem; background-color: ${valColor.bg}; color: ${valColor.text}; border-radius: var(--radius-lg); font-size: 0.75rem; font-weight:600;">${client.cohort || client.value_status}</span>
+                        <span style="padding: 0.25rem 0.5rem; background-color: ${balColor.bg}; color: ${balColor.text}; border-radius: var(--radius-lg); font-size: 0.75rem; font-weight:600;">${client.balance_status}</span>
+                    </div>
+                </div>
+            `;
+                });
+                clientsHTML += `</div>`;
+            }
+
+            clientsHTML += `
+                    </div>
+                </div>
+
+                <div>
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <h3 style="color: var(--text-main); margin-bottom: 1rem; font-size: 1rem;">Top Performers</h3>
+    `;
+
+            top3.forEach((client, idx) => {
+                const balColor = getBalanceStatusColor(client.balance_status);
+                clientsHTML += `
+            <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color);">
+                <div style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">${idx + 1}. ${client.client}</div>
+                <div style="color: var(--text-muted); font-size: 0.85rem; margin: 0.25rem 0;">CPS: <strong>${Number(client.client_performance_score || 0).toFixed(2)}</strong> | ${client.cohort || ''}</div>
+                <div style="display: inline-block; padding: 0.25rem 0.5rem; background-color: ${balColor.bg}; color: ${balColor.text}; border-radius: var(--radius-lg); font-size: 0.8rem; margin-top: 0.25rem;">${client.balance_status}</div>
+            </div>
+        `;
+            });
+
+            // 3. ADD BUBBLE SCATTER PLOT TARGET HTML AT THE BOTTOM
+            clientsHTML += `
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 2rem;">
+                <h3 style="color: var(--text-main); margin-bottom: 1rem;">Client Value Analysis</h3>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">
+                   Axes match <strong>Branches vs Revenue</strong>. Bubble size maps to Client Performance Score, color maps to cohort tiers.
+                </p>
+                <div style="position: relative; height: 400px; width: 100%;">
+                    <canvas id="clientBubbleChart"></canvas>
+                </div>
+            </div>
+        </div>
+    `;
+
+            // 4. ATTACH THE EVENT LISTENERS TO DOM NODES AFTER INJECTION VIA SETTIMEOUT OR IMMEDIATE MICROTASK LOOP
+            setTimeout(() => {
+                document.getElementById('btn-view-table')?.addEventListener('click', () => {
+                    if (clientViewMode !== 'table') { clientViewMode = 'table'; renderFreshView(clients, getValueStatusColor, getBalanceStatusColor); }
+                });
+                document.getElementById('btn-view-card')?.addEventListener('click', () => {
+                    if (clientViewMode !== 'card') { clientViewMode = 'card'; renderFreshView(clients, getValueStatusColor, getBalanceStatusColor); }
+                });
+
+                // Initialize the Bubble Chart Matrix using Chart.js framework
+                initClientBubbleChart(clients);
+            }, 50);
+
+            return clientsHTML;
+        }
+
+        // Separate state renderer wrapper for the view modes to avoid layout flickering
+        function renderFreshView(clients, valColorFn, balColorFn) {
+            const container = document.getElementById('clients-dynamic-view');
+            const tableBtn = document.getElementById('btn-view-table');
+            const cardBtn = document.getElementById('btn-view-card');
+
+            if (!container) return;
+
+            tableBtn.classList.toggle('active', clientViewMode === 'table');
+            cardBtn.classList.toggle('active', clientViewMode === 'card');
+
+            let html = '';
+            if (clientViewMode === 'table') {
+                html = renderClientTable(clients, valColorFn, balColorFn);
+            } else if (false) {
+                html = `
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border-color);">
+                            <th style="text-align: left; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Company Name</th>
+                            <th style="text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Branches</th>
+                            <th style="text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Total Revenue</th>
+                            <th style="text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Paid</th>
+                            <th style="text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Balance</th>
+                            <th style="text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Client Value</th>
+                            <th style="text-align: center; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Value Status</th>
+                            <th style="text-align: center; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Balance Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+                clients.forEach(client => {
+                const valColor = valColorFn(client.cohort || client.value_status);
+                    const balColor = balColorFn(client.balance_status);
+                    html += `
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 0.75rem; color: var(--text-main); font-weight: 600;">${client.company_name}</td>
+                    <td style="text-align: right; padding: 0.75rem; color: var(--text-main);">${client.branches_count}</td>
+                    <td class="${kpiClassFor('revenue', client.total_revenue)}" style="text-align: right; padding: 0.75rem;">${formatCurrency(client.total_revenue)}</td>
+                    <td class="${kpiClassFor('revenue', client.total_paid)}" style="text-align: right; padding: 0.75rem;">${formatCurrency(client.total_paid)}</td>
+                    <td class="${kpiClassFor('accounts_receivable', client.balance)}" style="text-align: right; padding: 0.75rem;">${formatCurrency(client.balance)}</td>
+                    <td style="text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">${Number(client.client_performance_score || 0).toFixed(2)}</td>
+                    <td style="text-align: center; padding: 0.75rem;"><span style="display: inline-block; padding: 0.25rem 0.75rem; background-color: ${valColor.bg}; color: ${valColor.text}; border-radius: var(--radius-lg); font-size: 0.85rem; font-weight: 500;">${client.cohort || client.value_status}</span></td>
+                    <td style="text-align: center; padding: 0.75rem;"><span style="display: inline-block; padding: 0.25rem 0.75rem; background-color: ${balColor.bg}; color: ${balColor.text}; border-radius: var(--radius-lg); font-size: 0.85rem; font-weight: 500;">${client.balance_status}</span></td>
+                </tr>
+            `;
+                });
+                html += `</tbody></table></div>`;
+            } else {
+                html = `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem;">`;
+                clients.forEach(client => {
+                    const valColor = valColorFn(client.cohort || client.value_status);
+                    const balColor = balColorFn(client.balance_status);
+                    html += `
+                <div style="border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; background: var(--bg-surface);">
+                    <h4 style="color: var(--text-main); margin-top:0; margin-bottom: 1rem; font-size: 1.1rem;">${client.company_name}</h4>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                        <span style="color: var(--text-muted);">Branches:</span>
+                        <strong style="color: var(--text-main);">${client.branches_count}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 0.9rem;">
+                        <span style="color: var(--text-muted);">Revenue:</span>
+                        <strong class="${kpiClassFor('revenue', client.total_revenue)}">${formatCurrency(client.total_revenue)}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 0.9rem;">
+                        <span style="color: var(--text-muted);">Balance:</span>
+                        <strong class="${kpiClassFor('accounts_receivable', client.balance)}">${formatCurrency(client.balance)}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 0.9rem;">
+                        <span style="color: var(--text-muted);">CPS:</span>
+                        <strong style="color: var(--text-main);">${Number(client.client_performance_score || 0).toFixed(2)}</strong>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; justify-content: flex-start;">
+                        <span style="padding: 0.25rem 0.5rem; background-color: ${valColor.bg}; color: ${valColor.text}; border-radius: var(--radius-lg); font-size: 0.75rem; font-weight:600;">${client.cohort || client.value_status}</span>
+                        <span style="padding: 0.25rem 0.5rem; background-color: ${balColor.bg}; color: ${balColor.text}; border-radius: var(--radius-lg); font-size: 0.75rem; font-weight:600;">${client.balance_status}</span>
+                    </div>
+                </div>
+            `;
+                });
+                html += `</div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        // 5. CHART ENGINE CONFIGURATION (CHART.JS IMPLEMENTATION)
+        function initClientBubbleChart(clients) {
+            const ctx = document.getElementById('clientBubbleChart')?.getContext('2d');
+            if (!ctx) return;
+
+            // Segmenting datasets to map colors explicitly via Value Rating status categories
+            const categories = {
+                'Core Partners': { label: 'Core Partners', color: 'rgba(16, 185, 129, 0.75)', border: '#10b981' },
+                'Growth Clients': { label: 'Growth Clients', color: 'rgba(59, 130, 246, 0.75)', border: '#3b82f6' },
+                'At-Risk Clients': { label: 'At-Risk Clients', color: 'rgba(239, 68, 68, 0.75)', border: '#ef4444' },
+                'Low Engagement': { label: 'Low Engagement', color: 'rgba(107, 114, 128, 0.75)', border: '#6b7280' }
+            };
+
+            const datasets = Object.keys(categories).map(catKey => {
+                return {
+                    label: categories[catKey].label,
+                    backgroundColor: categories[catKey].color,
+                    borderColor: categories[catKey].border,
+                    borderWidth: 1.5,
+                    data: clients
+                        .filter(c => (c.cohort || c.value_status) === catKey)
+                        .map(c => ({
+                            x: c.branches_count,
+                            y: c.total_revenue,
+                            // Client value controls bubble size radius.
+                            r: Math.max(6, Math.min(6 + (Number(c.client_performance_score || 0) / 100 * 24), 30)),
+                            name: c.company_name,
+                            clientValue: c.client_performance_score
+                        }))
+                };
+            });
+
+            new Chart(ctx, {
+                type: 'bubble',
+                data: { datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Number of Active Branches', color: '#374151', font: { weight: 'bold' } },
+                            grid: { color: 'rgba(229, 231, 235, 0.5)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Total Accrued Revenue', color: '#374151', font: { weight: 'bold' } },
+                            grid: { color: 'rgba(229, 231, 235, 0.5)' },
+                            ticks: { callback: (value) => formatCurrency(value, { maximumFractionDigits: 0 }) }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    const p = context.raw;
+                                    return `${p.name} | Branches: ${p.x} | Rev: ${formatCurrency(p.y, { maximumFractionDigits: 0 })} | CPS: ${Number(p.clientValue || 0).toFixed(2)}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Helper function to get status color
+        function getStatusColor(status) {
+            const colors = {
+                'Core Partners': { bg: '#DCFCE7', text: '#166534' },
+                'Growth Clients': { bg: '#DBEAFE', text: '#1E40AF' },
+                'Low Engagement': { bg: '#F1F5F9', text: '#64748B' },
+                'At-Risk Whales': { bg: '#FEE2E2', text: '#991B1B' },
+                'Active Explorers': { bg: '#DBEAFE', text: '#1E40AF' },
+                'Casual Niche': { bg: '#F1F5F9', text: '#64748B' },
+                'Valued Clients': { bg: '#DCFCE7', text: '#166534' },
+                'At-Risk Clients': { bg: '#FEE2E2', text: '#991B1B' },
+                'Active Clients': { bg: '#DBEAFE', text: '#1E40AF' },
+                'Casual Clients': { bg: '#F1F5F9', text: '#64748B' },
+                'Settled': { bg: '#DCFCE7', text: '#166534' },
+                'Delinquent': { bg: '#FEF3C7', text: '#92400E' },
+                'Critical': { bg: '#FEE2E2', text: '#991B1B' }
+            };
+            return colors[status] || { bg: '#E2E8F0', text: '#64748B' };
+        }
+
+        function initOverviewCharts(trendData) {
+            const canvas = document.getElementById('trendChart');
+            if (!canvas) return;
+
+            // --- DIRECTLY EXTRACT ARRAYS FROM OBJECT ---
+            const labels = trendData && trendData.labels ? trendData.labels : [];
+            const values = trendData && trendData.values ? trendData.values : [];
+
+            if (typeof Chart !== 'undefined') {
+                // Clear previous chart instances so tooltips don't glitch on hover
+                currentCharts.forEach(c => c.destroy());
+                currentCharts = [];
+
+                const chart = new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Revenue',
+                            data: values,
+                            borderColor: '#FF6A00',
+                            backgroundColor: 'rgba(255, 69, 0, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function (value) {
+                                        // Keeps your Philippine Peso formatting intact
+                                        return formatCurrency(value, { maximumFractionDigits: 0 });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Track this instance globally
+                currentCharts.push(chart);
+            }
+        }
+
+        // Initialize Clients Charts
+        function initClientsCharts() {
+            // Pie chart for client distribution will be added in future update
+        }
+
+        // Initialize Expenses Charts
+        function initExpensesCharts() {
+            const canvas = document.getElementById('expensesPieChart');
+            if (!canvas) return;
+
+            cachedAnalyticsJson(baseURL + '/expenses')
+                .then(data => {
+                    if (!data.success) return;
+
+                    const chart = new Chart(canvas, {
+                        type: 'doughnut',
+                        data: {
+                            labels: data.pie_data.map(d => d.label),
+                            datasets: [{
+                                data: data.pie_data.map(d => d.value),
+                                backgroundColor: data.pie_data.map(d => d.color)
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { position: 'bottom' }
+                            }
+                        }
+                    });
+                    currentCharts.push(chart);
+                });
+        }
+
+        function changeMapeThreshold(value) {
+            salesMapeThreshold = Number(value) || 20;
+            loadSection('sales');
+        }
+
+        async function loadSales() {
+            const data = await cachedAnalyticsJson(baseURL + '/sales', currentAnalyticsFilterParams({ mape_threshold: salesMapeThreshold }));
+            if (!data.success) throw new Error(data.error);
+            syncAnalyticsFilterFromPayload(data);
+            const descriptive = data.descriptive || {};
+            const predictive = data.predictive || {};
+            const accuracy = data.forecast_accuracy || {};
+            const recommendations = data.recommendations || [];
+            const products = descriptive.product_distribution || [];
+            const forecastRows = data.forecast || [];
+            latestRecommendations = recommendations;
+            setTimeout(() => initSalesCharts(data), 50);
+            updateRecommendationBadge('sales');
+            const peakMonth = (descriptive.peak_periods?.months || [])[0];
+            const peakSummary = peakMonth
+                ? `${peakMonth.period} recorded the highest sales performance with ${formatCurrency(peakMonth.revenue)} total sales, indicating a strong peak period.`
+                : 'No peak sales period is available yet.';
+            const itemIncrease = forecastRows.filter(row => Number(row.predicted_qty || 0) > 0 && row.confidence !== 'Insufficient Data').slice(0, 2).map(row => row.item);
+            const itemReview = forecastRows.filter(row => row.confidence !== 'High').slice(0, 2).map(row => row.item);
+            const itemInsight = itemIncrease.length
+                ? `${itemIncrease.join(', ')} ${itemIncrease.length === 1 ? 'is' : 'are'} forecasted to increase or require attention in the next period${itemReview.length ? `, while ${itemReview.join(', ')} should be reviewed before stock decisions.` : '.'}`
+                : 'Item-level forecasts need more historical sales movement before clear increase or decline signals can be shown.';
+            return `
+                <div class="analytics-section sales">
+                    <div class="filter-controls" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                        <label style="font-weight: 700; color: var(--text-main);">MAPE Threshold</label>
+                        <input type="number" min="1" max="100" step="1" value="${Number(accuracy.mape_threshold || salesMapeThreshold)}" onchange="changeMapeThreshold(this.value)" style="width: 90px; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                        <span style="color: var(--text-muted); font-size: 0.9rem;">Forecast status: <strong>${accuracy.status || 'insufficient_data'}</strong>${accuracy.mape != null ? ` | MAPE ${accuracy.mape}%` : ''}</span>
+                    </div>
+
+                    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                        <div class="stat-card"><div style="color: var(--text-muted);">Total Sales Orders</div><div style="font-size: 1.7rem; font-weight: 800;">${data.kpis.total_sales || 0}</div></div>
+                        <div class="stat-card"><div style="color: var(--text-muted);">Next Revenue Forecast</div><div class="${kpiClassFor('revenue', data.holt_winters.next_period_revenue || 0)}" style="font-size: 1.7rem; font-weight: 800;">${formatCurrency(data.holt_winters.next_period_revenue || 0)}</div></div>
+                        <div class="stat-card"><div style="color: var(--text-muted);">Trend Direction</div><div style="font-size: 1.7rem; font-weight: 800;">${descriptive.trend_direction || 'stable'}</div></div>
+                    </div>
+
+                    ${(descriptive.early_warnings || []).map(item => `<div class="surface-panel" style="margin-bottom: 0.75rem; padding: 0.75rem; border-color: #F59E0B !important;">${item}</div>`).join('')}
+
+                    <div style="display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr); gap: 1.5rem; margin-bottom: 1.5rem;">
+                        <div class="card"><h3>Sales Trend by Month</h3><div style="height: 320px;"><canvas id="salesMonthlyTrendChart"></canvas></div></div>
+                        <div class="card"><h3>Product Sales Distribution</h3><div style="height: 320px;"><canvas id="productDistributionChart"></canvas></div></div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; margin-bottom: 1.5rem;">
+                        <div class="card">
+                            <h3>Forecast vs Actual Validation</h3>
+                            <p style="color:var(--text-muted); font-size:0.9rem;">P1 = Forecast Period 1, P2 = Forecast Period 2, and P3 = Forecast Period 3. Each period is also labeled with the actual month when available.</p>
+                            <div style="height: 300px;"><canvas id="forecastValidationChart"></canvas></div>
+                            <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.75rem;">This forecast estimates possible future sales based on previous sales patterns. P1, P2, and P3 represent the next forecasted periods after the latest available actual sales data. Each period is also labeled with its actual month, week, or date range for easier interpretation.</p>
+                        </div>
+                        <div class="card">
+                            <h3>Peak Sales Periods</h3>
+                            <div style="height: 240px; margin-bottom: 1rem;"><canvas id="peakSalesPeriodChart"></canvas></div>
+                            <div style="font-size: 0.9rem; color: var(--text-main);">
+                                <strong>Months</strong>
+                                ${(descriptive.peak_periods?.months || []).map(item => `<div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-color); padding:0.45rem 0;"><span>${item.period}</span><strong class="${kpiClassFor('revenue', item.revenue)}">${formatCurrency(item.revenue)}</strong></div>`).join('') || '<p style="color: var(--text-muted);">No monthly peak data yet.</p>'}
+                                <strong style="display:block; margin-top:1rem;">Weekdays</strong>
+                                ${(descriptive.peak_periods?.weekdays || []).map(item => `<div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-color); padding:0.45rem 0;"><span>${item.weekday}</span><strong class="${kpiClassFor('revenue', item.revenue)}">${formatCurrency(item.revenue)}</strong></div>`).join('') || '<p style="color: var(--text-muted);">No weekday peak data yet.</p>'}
+                            </div>
+                            <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.85rem;">${peakSummary}</p>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-bottom: 1.5rem;">
+                        <h3>Item Forecasts</h3>
+                        <div class="client-table-scroll">
+                            <table class="client-table">
+                                <thead><tr><th>Item</th><th style="text-align:right;">Qty</th><th style="text-align:right;">Revenue</th><th>Method</th><th>MAPE</th><th>Status</th></tr></thead>
+                                <tbody>${forecastRows.map(row => `<tr><td>${row.item}</td><td style="text-align:right;">${Number(row.predicted_qty || 0).toFixed(2)}</td><td class="${kpiClassFor('revenue', row.predicted_revenue)}" style="text-align:right;">${formatCurrency(row.predicted_revenue)}</td><td>${row.method}</td><td>${row.mape == null ? 'Insufficient' : row.mape + '%'}</td><td>${row.confidence}</td></tr>`).join('')}</tbody>
+                            </table>
+                        </div>
+                        <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.85rem;">${itemInsight}</p>
+                    </div>
+                </div>`;
+        }
+
+        // Initialize Sales Charts
+        function initSalesCharts(data = null) {
+            if (!data) return;
+            const descriptive = data.descriptive || {};
+            const trend = descriptive.monthly_trend || [];
+            const products = (descriptive.product_distribution || []).slice(0, 8);
+            const accuracy = data.forecast_accuracy || {};
+            const accuracyPeriods = accuracy.periods || [];
+            const monthlyCanvas = document.getElementById('salesMonthlyTrendChart');
+            if (monthlyCanvas) {
+                currentCharts.push(new Chart(monthlyCanvas, {
+                    type: 'line',
+                    data: { labels: trend.map(item => item.period), datasets: [{ label: 'Revenue', data: trend.map(item => item.revenue), borderColor: '#FF6A00', backgroundColor: 'rgba(255,106,0,0.12)', fill: true, tension: 0.35 }] },
+                    options: { responsive: true, maintainAspectRatio: false }
+                }));
+            }
+            const productCanvas = document.getElementById('productDistributionChart');
+            if (productCanvas) {
+                currentCharts.push(new Chart(productCanvas, {
+                    type: 'doughnut',
+                    data: { labels: products.map(item => item.item), datasets: [{ data: products.map(item => item.revenue), backgroundColor: ['#FF6A00', '#3B82F6', '#10B981', '#EF4444', '#8B5CF6', '#F59E0B', '#14B8A6', '#64748B'] }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+                }));
+            }
+            const forecastCanvas = document.getElementById('forecastValidationChart');
+            if (forecastCanvas) {
+                currentCharts.push(new Chart(forecastCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: (accuracy.actual || []).map((_, idx) => accuracyPeriods[idx]?.label || `P${idx + 1} = Forecast Period ${idx + 1}`),
+                        datasets: [
+                            { label: 'Historical actual sales', data: accuracy.actual || [], backgroundColor: '#3B82F6' },
+                            { label: 'Forecasted sales', data: accuracy.predicted || [], backgroundColor: '#FF6A00' }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                callbacks: {
+                                    afterTitle(items) {
+                                        const item = items[0];
+                                        return accuracyPeriods[item.dataIndex]?.description || '';
+                                    },
+                                    label(context) {
+                                        return `${context.dataset.label}: ${formatCurrency(context.parsed.y || 0)}`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }));
+            }
+            const peakCanvas = document.getElementById('peakSalesPeriodChart');
+            if (peakCanvas) {
+                const peakMonths = descriptive.peak_periods?.months || [];
+                const maxRevenue = Math.max(...peakMonths.map(item => Number(item.revenue || 0)), 0);
+                currentCharts.push(new Chart(peakCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: peakMonths.map(item => item.period),
+                        datasets: [{
+                            label: 'Total sales amount per period',
+                            data: peakMonths.map(item => item.revenue),
+                            backgroundColor: peakMonths.map(item => Number(item.revenue || 0) === maxRevenue ? '#DC2626' : '#F59E0B')
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label(context) {
+                                        return `Total sales: ${formatCurrency(context.parsed.y || 0)}`;
+                                    },
+                                    afterLabel(context) {
+                                        return Number(context.parsed.y || 0) === maxRevenue ? 'Highest sales period' : 'Compared sales period';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }));
+            }
+        }
+
+        function recommendationColor(rec) {
+            if (rec.severity === 'danger') return '#EF4444';
+            if (rec.severity === 'success') return '#10B981';
+            return '#F59E0B';
+        }
+
+        function updateRecommendationBadge(activeSection = '') {
+            const badge = document.getElementById('recommendationBadge');
+            if (!badge) return;
+            const currentCount = latestRecommendations.length;
+            const viewedCount = Number(localStorage.getItem('syluxentViewedRecommendationCount') || 0);
+            if (activeSection === 'recommendations') {
+                localStorage.setItem('syluxentViewedRecommendationCount', String(currentCount));
+                badge.hidden = true;
+                return;
+            }
+            const unread = Math.max(currentCount - viewedCount, 0);
+            badge.textContent = unread;
+            badge.hidden = unread === 0;
+        }
+
+        async function loadRecommendations() {
+            const data = await cachedAnalyticsJson(baseURL + '/sales', currentAnalyticsFilterParams({ mape_threshold: salesMapeThreshold }));
+            if (!data.success) throw new Error(data.error);
+            syncAnalyticsFilterFromPayload(data);
+            latestRecommendations = data.recommendations || [];
+            updateRecommendationBadge('recommendations');
+            return `
+                <div class="analytics-section recommendations">
+                    <div class="card" style="margin-bottom:1.5rem;">
+                        <h3>Rule-Based Recommendations</h3>
+                        <p style="color:var(--text-muted); font-size:0.95rem;">Each recommendation is based on system rules, recent data, and simple business logic. Click View Details to see the trigger, data used, calculation process, result, interpretation, and suggested action.</p>
+                    </div>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;">
+                        ${latestRecommendations.map((rec, index) => `
+                            <button type="button" class="recommendation-card" style="border-left-color:${recommendationColor(rec)};" onclick="openRecommendationDetails(${index})">
+                                <strong>${rec.title}</strong>
+                                <p style="margin:0.45rem 0 0; color:var(--text-muted); font-size:0.88rem;">${rec.reason}</p>
+                                <span style="display:inline-block; margin-top:0.75rem; color:var(--brand-orange); font-weight:700;">View Details</span>
+                            </button>
+                        `).join('') || '<p style="color: var(--text-muted);">No recommendations yet.</p>'}
+                    </div>
+                </div>`;
+        }
+
+        async function refreshRecommendationBadge() {
+            try {
+                const data = await cachedAnalyticsJson(baseURL + '/sales', currentAnalyticsFilterParams({ mape_threshold: salesMapeThreshold }));
+                if (data.success) {
+                    latestRecommendations = data.recommendations || [];
+                    updateRecommendationBadge('');
+                }
+            } catch {
+                updateRecommendationBadge('');
+            }
+        }
+
+        function openRecommendationDetails(index) {
+            const rec = latestRecommendations[index];
+            if (!rec) return;
+            closeRecommendationDetails();
+            const details = [
+                ['Recommendation Title', rec.title],
+                ['Trigger Condition', rec.trigger_condition || 'Rule trigger was not provided.'],
+                ['Data Used', (rec.data_used || []).map(item => `<div>${item}</div>`).join('') || rec.reason],
+                ['Calculation Process', rec.calculation_process || rec.reason],
+                ['Result', rec.result || rec.reason],
+                ['Business Interpretation', rec.business_interpretation || 'Review this result before making a business decision.'],
+                ['Suggested Action', rec.suggested_action || 'Review the affected record and decide the next action.']
+            ];
+            const modal = document.createElement('div');
+            modal.id = 'recommendationModal';
+            modal.className = 'recommendation-modal-backdrop';
+            modal.innerHTML = `
+                <section class="recommendation-modal" role="dialog" aria-modal="true" aria-labelledby="recommendationModalTitle">
+                    <div style="display:flex; justify-content:space-between; gap:1rem; align-items:start;">
+                        <h3 id="recommendationModalTitle" style="margin:0;">${rec.title}</h3>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="closeRecommendationDetails()">Close</button>
+                    </div>
+                    <div style="display:grid; gap:0.85rem; margin-top:1rem;">
+                        ${details.map(([label, value]) => `
+                            <div style="border-bottom:1px solid var(--border-color); padding-bottom:0.75rem;">
+                                <strong>${label}</strong>
+                                <div style="margin-top:0.35rem; color:var(--text-muted); line-height:1.5;">${value}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </section>`;
+            modal.addEventListener('click', event => {
+                if (event.target === modal) closeRecommendationDetails();
+            });
+            document.body.appendChild(modal);
+        }
+
+        function closeRecommendationDetails() {
+            document.getElementById('recommendationModal')?.remove();
+        }
+
+        // Load Comparative Analysis
+        function loadComparativeAnalysis() {
+            const year1 = document.getElementById('year1Select').value;
+            const year2 = document.getElementById('year2Select').value;
+
+            cachedAnalyticsJson(baseURL + '/comparative', { year1, year2 })
+                .then(data => {
+                    if (!data.success) return;
+
+                    const comp = data.comparison;
+                    const canvas = document.getElementById('comparativeChart');
+
+                    if (currentCharts.length > 0 && canvas) {
+                        destroyCharts();
+                    }
+
+                    if (canvas) {
+                        const labels = comp.monthly_comparison.map(m => m.month);
+                        const year1Data = comp.monthly_comparison.map(m => m.year1);
+                        const year2Data = comp.monthly_comparison.map(m => m.year2);
+
+                        const chart = new Chart(canvas, {
+                            type: 'bar',
+                            data: {
+                                labels: labels,
+                                datasets: [
+                                    {
+                                        label: 'Year ' + year1,
+                                        data: year1Data,
+                                        backgroundColor: '#3B82F6'
+                                    },
+                                    {
+                                        label: 'Year ' + year2,
+                                        data: year2Data,
+                                        backgroundColor: '#FF6A00'
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { position: 'bottom' }
+                                },
+                                scales: {
+                                    y: {
+                                        ticks: {
+                                            callback: function (value) {
+                                                return formatCurrency(value, { maximumFractionDigits: 0 });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        currentCharts.push(chart);
+                    }
+                });
+        }
+
+        async function loadEvaluation() {
+            const [questionsPayload, resultsPayload] = await Promise.all([
+                cachedAnalyticsJson('/api/evaluation/questions'),
+                cachedAnalyticsJson('/api/evaluation/results', currentAnalyticsFilterParams())
+            ]);
+            if (!questionsPayload.success) throw new Error(questionsPayload.error || 'Unable to load evaluation questions.');
+            if (!resultsPayload.success) throw new Error(resultsPayload.error || 'Unable to load evaluation results.');
+            syncAnalyticsFilterFromPayload(resultsPayload);
+            const questions = questionsPayload.questions || [];
+            const grouped = questions.reduce((acc, question) => {
+                acc[question.category] = acc[question.category] || [];
+                acc[question.category].push(question);
+                return acc;
+            }, {});
+            return `
+                <div class="analytics-section evaluation">
+                    <div class="stats-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:1rem; margin-bottom:1.5rem;">
+                        <div class="stat-card"><div style="color:var(--text-muted);">Overall Mean</div><div style="font-size:1.8rem; font-weight:800;">${Number(resultsPayload.overall_mean || 0).toFixed(2)}</div></div>
+                        <div class="stat-card"><div style="color:var(--text-muted);">Interpretation</div><div style="font-size:1.8rem; font-weight:800;">${resultsPayload.interpretation}</div></div>
+                        <div class="stat-card"><div style="color:var(--text-muted);">Recent Sessions</div><div style="font-size:1.8rem; font-weight:800;">${(resultsPayload.sessions || []).length}</div></div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,0.8fr); gap:1.5rem;">
+                        <form class="card" id="likertEvaluationForm" onsubmit="submitEvaluation(event)">
+                            <h3>Likert Evaluation</h3>
+                            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:0.75rem; margin-bottom:1rem;">
+                                <input id="evaluatorName" placeholder="Evaluator name" value="{{ session.get('username', '') }}" style="padding:0.6rem; border:1px solid var(--border-color); border-radius:var(--radius-md);">
+                                <input id="evaluatorRole" placeholder="Role" value="{{ session.get('role', '') }}" style="padding:0.6rem; border:1px solid var(--border-color); border-radius:var(--radius-md);">
+                            </div>
+                            ${Object.entries(grouped).map(([category, items]) => `
+                                <div style="margin-bottom:1.25rem;">
+                                    <h4 style="margin:0 0 0.65rem; color:var(--text-main);">${category}</h4>
+                                    ${items.map(question => `
+                                        <div style="border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.8rem; margin-bottom:0.6rem;">
+                                            <div style="font-weight:600; margin-bottom:0.55rem;">${question.question_text}</div>
+                                            <select data-question-id="${question.id}" class="likert-rating" required style="padding:0.5rem; border:1px solid var(--border-color); border-radius:var(--radius-md); width:100%;">
+                                                <option value="">Select rating</option>
+                                                <option value="5">5 - Strongly Agree</option>
+                                                <option value="4">4 - Agree</option>
+                                                <option value="3">3 - Neutral</option>
+                                                <option value="2">2 - Disagree</option>
+                                                <option value="1">1 - Strongly Disagree</option>
+                                            </select>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            `).join('')}
+                            <textarea id="evaluationComment" placeholder="Optional feedback" style="width:100%; min-height:90px; padding:0.7rem; border:1px solid var(--border-color); border-radius:var(--radius-md);"></textarea>
+                            <button type="submit" class="btn-secondary" style="margin-top:0.75rem; background:var(--brand-orange,#FF6B00); color:white; border:none;">Submit Evaluation</button>
+                            <div id="evaluationSubmitStatus" style="margin-top:0.75rem; font-weight:600;"></div>
+                        </form>
+
+                        <div class="card">
+                            <h3>Evaluation Results</h3>
+                            <h4>Categories</h4>
+                            ${(resultsPayload.categories || []).map(item => `<div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-color); padding:0.5rem 0;"><span>${item.category}</span><strong>${Number(item.average || 0).toFixed(2)} - ${item.interpretation}</strong></div>`).join('') || '<p style="color:var(--text-muted);">No category results yet.</p>'}
+                            <h4 style="margin-top:1rem;">Recent Feedback</h4>
+                            ${(resultsPayload.sessions || []).map(item => `<div style="border-bottom:1px solid var(--border-color); padding:0.55rem 0;"><strong>${item.evaluator_name}</strong> (${Number(item.overall_mean || 0).toFixed(2)} - ${item.interpretation})<div style="color:var(--text-muted); font-size:0.85rem;">${item.overall_comment || ''}</div></div>`).join('') || '<p style="color:var(--text-muted);">No sessions submitted yet.</p>'}
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        async function submitEvaluation(event) {
+            event.preventDefault();
+            const status = document.getElementById('evaluationSubmitStatus');
+            const responses = Array.from(document.querySelectorAll('.likert-rating')).map(select => ({
+                question_id: Number(select.dataset.questionId),
+                rating: Number(select.value)
+            })).filter(item => item.question_id && item.rating);
+            try {
+                const response = await fetch('/api/evaluation/responses', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        evaluator_name: document.getElementById('evaluatorName').value,
+                        evaluator_role: document.getElementById('evaluatorRole').value,
+                        overall_comment: document.getElementById('evaluationComment').value,
+                        responses
+                    })
+                });
+                const payload = await response.json();
+                if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to submit evaluation.');
+                clearAnalyticsDataCache();
+                status.style.color = '#047857';
+                status.textContent = `Submitted. Mean ${payload.overall_mean} - ${payload.interpretation}.`;
+                setTimeout(() => loadSection('evaluation'), 700);
+            } catch (error) {
+                status.style.color = '#B91C1C';
+                status.textContent = error.message;
+            }
+        }
+
+        function activeAnalyticsTitle() {
+            const activeTab = document.querySelector('.analytics-tab.active');
+            return activeTab ? activeTab.textContent.trim().replace(/\s+\d+$/, '') : 'Analytics';
+        }
+
+        function exportAnalyticsCsv() {
+            const tables = Array.from(document.querySelectorAll('#analytics-content table'));
+            const rows = [];
+            rows.push(['Syluxent Analytics Report']);
+            rows.push([activeAnalyticsTitle()]);
+            rows.push(['Reporting Period', activeAnalyticsFilterLabel || 'Current filter']);
+            rows.push(['Generated', new Date().toLocaleString('en-PH')]);
+            rows.push([]);
+
+            if (!tables.length) {
+                const cards = Array.from(document.querySelectorAll('#analytics-content .stat-card, #analytics-content .card, #analytics-content .recommendation-card'));
+                cards.forEach(card => {
+                    const text = card.innerText.replace(/\s+/g, ' ').trim();
+                    if (text) rows.push([text]);
+                });
+            } else {
+                tables.forEach((table, tableIndex) => {
+                    if (tableIndex > 0) rows.push([]);
+                    Array.from(table.querySelectorAll('tr')).forEach(tr => {
+                        rows.push(Array.from(tr.children).map(cell => cell.innerText.replace(/\s+/g, ' ').trim()));
+                    });
+                });
+            }
+
+            const csv = rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `syluxent-analytics-${activeAnalyticsSection}-${new Date().toISOString().slice(0, 10)}.csv`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+
+        function previewAnalyticsReport() {
+            const source = document.getElementById('analytics-content');
+            const paper = document.getElementById('analyticsPrintPaper');
+            const clone = source.cloneNode(true);
+            clone.querySelectorAll('button, input, select, textarea, form, .analytics-tools-panel').forEach(node => node.remove());
+            clone.querySelectorAll('canvas').forEach(canvas => {
+                const replacement = document.createElement('div');
+                replacement.style.border = '1px solid #CBD5E1';
+                replacement.style.padding = '12pt';
+                replacement.style.margin = '8pt 0';
+                replacement.textContent = 'Chart preview is available on-screen before printing.';
+                canvas.replaceWith(replacement);
+            });
+            paper.innerHTML = `
+                <h1>Syluxent</h1>
+                <h2>${activeAnalyticsTitle()}</h2>
+                <p>Reporting Period: ${activeAnalyticsFilterLabel || 'Current filter'}</p>
+                <p>Generated: ${new Date().toLocaleString('en-PH')}</p>
+                <div style="margin-top:16pt;">${clone.innerHTML}</div>`;
+            document.getElementById('analyticsPrintModal').hidden = false;
+        }
+
+        function closeAnalyticsPreview() {
+            document.getElementById('analyticsPrintModal').hidden = true;
+        }
+
+        function printAnalyticsReport() {
+            window.print();
+        }
+
+        // Tab navigation
+        document.querySelectorAll('.analytics-tab').forEach(tab => {
+            tab.addEventListener('click', function () {
+                document.querySelectorAll('.analytics-tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                loadSection(this.dataset.section);
+            });
+        });
+
+        document.getElementById('analyticsPrintModal').addEventListener('click', event => {
+            if (event.target.id === 'analyticsPrintModal') closeAnalyticsPreview();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeAnalyticsPreview();
+        });
+
+        // Update datetime display
+        function updateDateTime() {
+            const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            document.getElementById('datetime').textContent = new Date().toLocaleDateString('en-US', options);
+        }
+        window.addEventListener('DOMContentLoaded', () => {
+            if (initialAnalyticsYears.length) document.getElementById('analyticsYear').value = initialAnalyticsYears[0];
+            document.getElementById('analyticsQuarterField').hidden = true;
+            document.getElementById('analyticsMonthField').hidden = true;
+            loadSection('overview');
+            refreshRecommendationBadge();
+            updateDateTime();
+            setInterval(updateDateTime, 60000);
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,2682 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syluxent - Sales Order</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Toast styles */
+        .toast-popup {
+            pointer-events: auto;
+            animation: slideIn 0.3s ease;
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 1rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            min-width: 280px;
+            max-width: 350px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast-pass1 {
+            border-left: 4px solid #3B82F6;
+        }
+
+        .toast-pass2 {
+            border-left: 4px solid #A855F7;
+        }
+
+        .toast-pass3 {
+            border-left: 4px solid #F97316;
+        }
+
+        .toast-info {
+            border-left: 4px solid #10B981;
+        }
+
+        .toast-error {
+            border-left: 4px solid #EF4444;
+        }
+
+        .client-review-panel {
+            margin-top: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            background: #FFFFFF;
+            overflow: hidden;
+        }
+
+        .client-review-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem;
+            background: #F8FAFC;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .client-review-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .client-review-item {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(220px, 1fr);
+            gap: 0.75rem;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+            align-items: center;
+        }
+
+        @media (max-width: 900px) {
+            .client-review-item {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .selection-active {
+            animation: pulse-bg 2s infinite;
+            cursor: cell !important;
+        }
+
+        @keyframes pulse-bg {
+
+            0%,
+            100% {
+                background-color: #FFF8F5;
+            }
+
+            50% {
+                background-color: #FFE4D6;
+            }
+        }
+
+        /* Excel Mapper Specific Styles */
+        .mapper-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (min-width: 1024px) {
+            .mapper-container {
+                grid-template-columns: 5fr 7fr;
+            }
+        }
+
+        .excel-panel {
+            background: white;
+            border-radius: var(--radius-xl);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 500px;
+        }
+
+        .excel-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            background: #F8FAFC;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        }
+
+        .excel-grid-container {
+            flex: 1;
+            overflow: auto;
+            padding: 1rem;
+            background: #F8FAFC;
+        }
+
+        .excel-table {
+            border-collapse: collapse;
+            font-size: 0.8rem;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .excel-table td,
+        .excel-table th {
+            border: 1px solid #E2E8F0;
+            padding: 0.5rem;
+            min-width: 80px;
+            text-align: left;
+        }
+
+        .excel-table th {
+            background: #F1F5F9;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .excel-cell {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .excel-cell:hover {
+            background-color: #EEF2FF;
+            outline: 2px solid #FF6A00;
+            outline-offset: -2px;
+        }
+
+        .cell-selected {
+            background-color: #FF6A00 !important;
+            color: white !important;
+        }
+
+        .cell-searching {
+            background-color: #FEF08A !important;
+            outline: 2px solid #F59E0B !important;
+            outline-offset: -2px;
+        }
+
+        .cell-found {
+            background-color: #86EFAC !important;
+            outline: 2px solid #22C55E !important;
+            outline-offset: -2px;
+        }
+
+        .cell-pass1-search {
+            background-color: #BFDBFE !important;
+            outline: 2px solid #3B82F6 !important;
+        }
+
+        .cell-pass1-found {
+            background-color: #60A5FA !important;
+            color: white !important;
+            outline: 2px solid #1D4ED8 !important;
+        }
+
+        .cell-pass2-search {
+            background-color: #E9D5FF !important;
+            outline: 2px solid #A855F7 !important;
+        }
+
+        .cell-pass2-found {
+            background-color: #C084FC !important;
+            color: white !important;
+            outline: 2px solid #7E22CE !important;
+        }
+
+        .cell-pass3-search {
+            background-color: #FED7AA !important;
+            outline: 2px solid #F97316 !important;
+        }
+
+        .cell-pass3-found {
+            background-color: #FB923C !important;
+            color: white !important;
+            outline: 2px solid #C2410C !important;
+        }
+
+        .selection-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--brand-orange);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-lg);
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .form-section {
+            background: white;
+            border-radius: var(--radius-xl);
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+        }
+
+        .form-section h3 {
+            font-size: 1rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-section h3 i {
+            color: var(--brand-orange);
+        }
+
+        .field-row {
+            display: flex;
+            gap: 0.5rem;
+            align-items: flex-end;
+            margin-bottom: 1rem;
+        }
+
+        .field-row input {
+            flex: 1;
+        }
+
+        .pick-btn {
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pick-btn.active {
+            background: var(--brand-orange);
+            color: white;
+        }
+
+        .particulars-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        .particulars-table th {
+            background: #F8FAFC;
+            padding: 0.75rem;
+            font-size: 0.65rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+
+        .particulars-table td {
+            padding: 0.75rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .particulars-table td:last-child {
+            text-align: right;
+        }
+
+        .particulars-container {
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+        }
+
+        .particulars-container:has(tbody tr:nth-child(7)) {
+            max-height: 300px;
+            overflow: auto;
+        }
+
+        .total-row {
+            background: #F8FAFC;
+            font-weight: 700;
+        }
+
+        .total-row td {
+            color: var(--brand-orange);
+        }
+
+        .section-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .staff-select {
+            margin-bottom: 1rem;
+        }
+
+        /* Toast styles */
+
+        .stats-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem 1.25rem;
+            border-top: 1px solid var(--border-color);
+            background: #F8FAFC;
+            font-size: 0.75rem;
+            border-radius: 0 0 16px 16px ;
+        }
+
+        /* Table wrap for scrolling */
+        .table-wrap {
+            overflow-x: auto;
+            margin: 1rem 0;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+        }
+
+        .table-wrap:has(tbody tr:nth-child(7)) {
+            max-height: 430px;
+            overflow: auto;
+        }
+
+
+
+        /* Responsive adjustments */
+        @media (max-width: 1023px) {
+            .mapper-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="app-navbar">
+        <div class="nav-logo" onclick="window.location.href='{{ url_for('dashboard') }}';">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+            Syluxent
+        </div>
+        {% set nav_links = {
+        'staff': [
+        ('sales_order', 'Sales Order'),
+        ('invoices', 'Invoice'),
+        ('purchase_orders', 'Purchase Order')
+        ],
+        'manager': [
+        ('analytics', 'Analytics')
+        ],
+        'admin': [
+        ('sales_order', 'Sales Order'),
+        ('invoices', 'Invoice'),
+        ('purchase_orders', 'Purchase Order'),
+        ('analytics', 'Analytics'),
+        ('database_interface', 'Database Interface')
+        ]
+        } %}
+
+        <div class="nav-menu">
+            <a href="{{ url_for('dashboard') }}"
+                class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}">Home</a>
+
+            {% for endpoint, label in nav_links.get(session.role, []) %}
+            <a href="{{ url_for(endpoint) }}" class="nav-link {{ 'active' if request.endpoint == endpoint }}">
+                {{ label }}
+            </a>
+            {% endfor %}
+        </div>
+        <div class="nav-user">
+            <a class="profile-link" href="{{ url_for('profile') }}">
+                {% if current_user and current_user.profile_photo %}
+                <img class="profile-avatar" src="{{ url_for('static', filename=current_user.profile_photo) }}" alt="">
+                {% else %}
+                <span class="profile-avatar">{{ session.username[:1]|upper }}</span>
+                {% endif %}
+                {{ session.username }}
+            </a>
+            <span id="datetime"></span>
+            <a href="{{ url_for('logout') }}" class="btn btn-outline btn-sm">Logout</a>
+        </div>
+    </nav>
+
+    <div id="toastContainer"
+        style="position: fixed; top: 1rem; right: 1rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;">
+    </div>
+
+    <main class="page-shell">
+        <div class="section-header">
+            <div class="page-title">
+                <h1>Sales Order Data Mapper</h1>
+            </div>
+            <div style="display: flex; gap: 0.75rem;">
+                <input type="file" id="fileInput" class="hidden" accept=".xlsx, .xls, .csv" multiple>
+                <button onclick="document.getElementById('fileInput').click()" class="btn btn-primary">
+                    <i data-lucide="upload" style="width: 18px; height: 18px;"></i>
+                    Upload Files
+                </button>
+            </div>
+        </div>
+
+        {% if session.role == 'admin' %}
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <h2>Admin Upload, Cleaning, Outlier Identifier, Excel Mapping</h2>
+            <p style="color: var(--text-muted); margin-top: 0.25rem;">Step 1 select sales staff and upload Excel files. Step 2 run the same Excel mapping used by the regular mapper across every workbook. Step 3 review Z-score outliers (amount & date). Step 4 remove flagged orders or upload to database.
+            </p>
+            <input type="file" id="adminUploadFiles" accept=".xlsx,.xls" multiple>
+            <button class="btn btn-primary btn-sm" onclick="previewAdminUpload()">Preview Mapped Orders</button>
+            <button class="btn btn-outline btn-sm" onclick="commitAdminUpload()">Upload Mapped Orders</button>
+            <div id="adminUploadDocs" style="margin-top: 1rem; color: var(--text-muted);"></div>
+            <div id="adminUploadOutliers" style="margin-top: 1rem;"></div>
+            <div id="adminClientReviewQueue"></div>
+            <div id="adminUploadPreview" class="table-wrap"></div>
+        </div>
+        {% endif %}
+
+        <div class="mapper-container">
+            <!-- Left Panel: Form Entry -->
+            <div class="form-section" style="height: fit-content;">
+                <div class="section-header-row">
+                    <h3><i data-lucide="file-text"></i> Order Information</h3>
+                    <button onclick="handleAutoIdentify()" class="btn btn-sm btn-outline">
+                        <i data-lucide="sparkles" style="width: 14px; height: 14px;"></i>
+                        Auto Identify
+                    </button>
+                </div>
+
+                <!-- Sales Staff is mapped from the spreadsheet using SALES: -->
+                <div class="form-group staff-select">
+                    <label>Sales Staff</label>
+                    <input type="text" id="field-salesStaff" placeholder="Auto mapped from SALES:" readonly>
+                </div>
+
+                <div id="formFields">
+                    <div class="form-group">
+                        <label>SO Number</label>
+                        <div class="field-row">
+                            <input type="text" id="field-orderNumber" placeholder="e.g. SO-12345">
+                            <button onclick="startSelection('orderNumber', 'single')" class="btn btn-outline pick-btn"
+                                data-field="orderNumber">
+                                <i data-lucide="mouse-pointer-2"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Company Name</label>
+                        <div class="field-row">
+                            <input type="text" id="field-companyName" placeholder="Pick from sheet...">
+                            <button onclick="startSelection('companyName', 'single')" class="btn btn-outline pick-btn"
+                                data-field="companyName">
+                                <i data-lucide="mouse-pointer-2"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-grid" style="margin-bottom: 0;">
+                        <div class="form-group">
+                            <label>Store Name</label>
+                            <div class="field-row">
+                                <input type="text" id="field-storeName" placeholder="Auto identified...">
+                                <button onclick="startSelection('storeName', 'single')" class="btn btn-outline pick-btn"
+                                    data-field="storeName">
+                                    <i data-lucide="mouse-pointer-2"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Store Branch</label>
+                            <div class="field-row">
+                                <input type="text" id="field-storeBranch" placeholder="Branch location...">
+                                <button onclick="startSelection('storeBranch', 'single')"
+                                    class="btn btn-outline pick-btn" data-field="storeBranch">
+                                    <i data-lucide="mouse-pointer-2"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Order Date</label>
+                        <div class="field-row">
+                            <input type="date" id="field-orderDate">
+                            <button onclick="startSelection('orderDate', 'single')" class="btn btn-outline pick-btn"
+                                data-field="orderDate">
+                                <i data-lucide="mouse-pointer-2"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.5rem;">
+                    <div class="section-header-row" style="margin-top: 0;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 0.9rem;">
+                                <i data-lucide="list-checks"></i>
+                                Particulars (Line Items)
+                            </h3>
+                            <small style="color: var(--text-muted);">Select: Particulars, Quantity, Unit Cost</small>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button id="confirmParticulars" onclick="confirmMultiSelection()"
+                                class="btn btn-sm btn-primary hidden">
+                                <i data-lucide="check" style="width: 14px; height: 14px;"></i>
+                                Confirm
+                            </button>
+                            <button onclick="startSelection('particulars', 'table')"
+                                class="btn btn-sm btn-outline pick-btn" data-field="particulars">
+                                <i data-lucide="mouse-pointer" style="width: 14px; height: 14px;"></i>
+                                Select from Sheet
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="particulars-container">
+                        <table class="particulars-table">
+                            <thead>
+                                <tr>
+                                    <th>Particulars</th>
+                                    <th style="text-align: right;">Qty</th>
+                                    <th style="text-align: right;">Unit Cost</th>
+                                    <th style="text-align: right;">Selling</th>
+                                    <th style="text-align: right;">Total</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="particularsBody">
+                                <tr>
+                                    <td colspan="6" class="no-data" style="text-align: center; padding: 2rem;">No items
+                                        mapped. Use Auto Identify or Manual Select.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Terms Days -->
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label>Payment Terms (Days)</label>
+                    <input type="number" id="terms-days" value="30" min="1">
+                </div>
+
+                <!-- Notes -->
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="order-notes" rows="2" placeholder="Additional notes..."></textarea>
+                </div>
+
+                <button onclick="saveOrder()" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                    <i data-lucide="save" style="width: 18px; height: 18px;"></i>
+                    Save Sales Order
+                </button>
+            </div>
+
+            <!-- Right Panel: Excel Preview -->
+            <div class="excel-panel">
+                <div class="excel-header">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div
+                            style="background: #DCFCE7; color: #166534; padding: 0.5rem; border-radius: var(--radius-lg);">
+                            <i data-lucide="table" style="width: 22px; height: 22px;"></i>
+                        </div>
+                        <div>
+                            <span
+                                style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Spreadsheet
+                                Viewer</span>
+                            <div id="sheetSelectorContainer" class="hidden"
+                                style="display: flex; align-items: center; gap: 0.5rem;">
+                                <select id="sheetSelector"
+                                    style="background: transparent; border: none; padding: 0; font-weight: 700; color: var(--text-main); cursor: pointer;">
+                                </select>
+                            </div>
+                            <span id="noFileMsg" style="font-size: 0.85rem; font-weight: 600; color: #CBD5E1;">Upload a
+                                file to preview</span>
+                        </div>
+                    </div>
+
+                    <div id="selectionIndicator" class="hidden selection-indicator">
+                        <i data-lucide="crosshair" style="width: 14px; height: 14px;"></i>
+                        <span id="selectionText">Selecting...</span>
+                    </div>
+                </div>
+
+                <div id="excelPreviewContainer" class="excel-grid-container" style="position: relative;">
+                    <div id="excelPreview">
+                        <div class="upload-placeholder">
+                            <i data-lucide="file-spreadsheet"></i>
+                            <p>Spreadsheet contents will appear here</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-bar">
+                    <div class="status-connected">
+                        Connected
+                    </div>
+                    <span id="statusMsg" style="color: var(--text-muted);">Ready for input</span>
+                    <div id="gridStats" class="hidden" style="margin-left: auto;">
+                        <span id="statsText"
+                            style="font-family: monospace; background: #E2E8F0; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem;"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let workbook = null;
+        let uploadedWorkbooks = [];
+        let gridData = [];
+        let selectionMode = null;
+        let activeTarget = null;
+        let particulars = [];
+        let isSelecting = false;
+        let startCell = null;
+        let currentSelectedRange = [];
+        let MAX_COLS = 50;
+        let MAX_ROWS = 1000;
+
+        // Update date/time
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById('datetime').textContent = now.toLocaleString();
+        }
+        setInterval(updateDateTime, 1000);
+        updateDateTime();
+
+        // Toast notification system
+        function showToast(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            // Define colors based on type
+            const colors = {
+                pass1: 'bg-white text-slate-800 shadow-lg rounded-lg p-4 min-w-[280px] max-w-[350px] toast-pass1',
+                pass2: 'bg-white text-slate-800 shadow-lg rounded-lg p-4 min-w-[280px] max-w-[350px] toast-pass2',
+                pass3: 'bg-white text-slate-800 shadow-lg rounded-lg p-4 min-w-[280px] max-w-[350px] toast-pass3',
+                info: 'bg-white text-slate-800 shadow-lg rounded-lg p-4 min-w-[280px] max-w-[350px] toast-info',
+                error: 'bg-white text-slate-800 shadow-lg rounded-lg p-4 min-w-[280px] max-w-[350px] toast-error',
+                success: 'bg-white text-slate-800 shadow-lg rounded-lg p-4 min-w-[280px] max-w-[350px] border-l-4 border-emerald-500'
+            };
+
+            const icons = {
+                pass1: '<i data-lucide="search" class="w-5 h-5 text-blue-500"></i>',
+                pass2: '<i data-lucide="scan-line" class="w-5 h-5 text-purple-500"></i>',
+                pass3: '<i data-lucide="table" class="w-5 h-5 text-orange-500"></i>',
+                info: '<i data-lucide="info" class="w-5 h-5 text-emerald-500"></i>',
+                error: '<i data-lucide="alert-circle" class="w-5 h-5 text-red-500"></i>',
+                success: '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-500"></i>'
+            };
+
+            toast.className = `toast-popup ${colors[type] || colors.info}`;
+            toast.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <div class="flex-shrink-0 mt-0.5">${icons[type] || icons.info}</div>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium">${message}</p>
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            // Remove toast after duration
+            setTimeout(() => {
+                toast.remove();
+            }, duration);
+        }
+
+        function highlightCell(r, c, type = 'searching') {
+            const cell = document.getElementById(`cell-${r}-${c}`);
+            if (cell) {
+                cell.classList.remove('cell-searching', 'cell-found');
+                cell.classList.add(type === 'found' ? 'cell-found' : 'cell-searching');
+            }
+        }
+
+        function highlightCellPass(r, c, passNum, type) {
+            const cell = document.getElementById(`cell-${r}-${c}`);
+            if (cell) {
+                // Remove all pass-specific classes first
+                cell.classList.remove(
+                    'cell-pass1-search', 'cell-pass1-found',
+                    'cell-pass2-search', 'cell-pass2-found',
+                    'cell-pass3-search', 'cell-pass3-found'
+                );
+                // Add appropriate pass-specific class
+                const className = `cell-pass${passNum}-${type}`;
+                cell.classList.add(className);
+            }
+        }
+
+        function clearHighlights() {
+            document.querySelectorAll('.cell-searching, .cell-found, .cell-pass1-search, .cell-pass1-found, .cell-pass2-search, .cell-pass2-found, .cell-pass3-search, .cell-pass3-found').forEach(el => {
+                el.classList.remove('cell-searching', 'cell-found', 'cell-pass1-search', 'cell-pass1-found', 'cell-pass2-search', 'cell-pass2-found', 'cell-pass3-search', 'cell-pass3-found');
+            });
+        }
+
+        function detectStaffKeyFromName(staffName) {
+            const value = String(staffName || '').toUpperCase();
+            if (value.includes('BALANQUIT') || value.includes('MARITES') || value.includes('MARITESS')) return 'maritess';
+            if (value.includes('JOANNE') || value.includes('ZAPANTA')) return 'joanne';
+            if (value.includes('RUDELYN') || value.includes('MACAYAN')) return 'rudelyn';
+            return '';
+        }
+
+        function findSalesStaffInRows(rows, maxCols = 11) {
+            for (let r = 0; r < rows.length; r++) {
+                for (let c = 0; c < Math.min(rows[r]?.length || 0, maxCols); c++) {
+                    const originalVal = String(rows[r]?.[c] || '').trim();
+                    const val = originalVal.toUpperCase();
+                    if (val.includes('SALES:')) {
+                        const staff = originalVal.replace(/SALES:/i, '').trim() || String(rows[r]?.[c + 1] || '').trim();
+                        return staff.replace(/[^a-zA-Z0-9. ]/g, '').replace(/\s+/g, ' ').trim();
+                    }
+                }
+            }
+            return '';
+        }
+
+        function setMappedSalesStaff(staffName) {
+            const field = document.getElementById('field-salesStaff');
+            if (field) field.value = staffName || '';
+        }
+
+        // Router function to handle staff selection and route to appropriate auto-identify function
+        async function handleAutoIdentify() {
+            const mappedStaff = findSalesStaffInRows(gridData || []);
+            const selectedStaff = detectStaffKeyFromName(mappedStaff);
+            setMappedSalesStaff(mappedStaff);
+
+            if (!selectedStaff) {
+                showToast('Could not auto map Sales Staff. Make sure the sheet has a "SALES:" field.', 'error', 5000);
+                return;
+            }
+
+            try {
+                switch (selectedStaff) {
+                    case 'maritess':
+                        showToast('Processing with MARITESS BALANQUIT format...', 'info', 3000);
+                        await autoIdentifyMaritess();
+                        break;
+                    case 'joanne':
+                        showToast('Processing with JOANNE ZAPANTA format...', 'info', 3000);
+                        await autoIdentifyJoanne();
+                        break;
+                    case 'rudelyn':
+                        showToast('Processing with RUDELYN MACAYAN format...', 'info', 3000);
+                        await autoIdentifyRudelyn();
+                        break;
+                    default:
+                        showToast('Unknown staff selection', 'error', 4000);
+                }
+            } catch (err) {
+                console.error('Auto-identify error:', err);
+                showToast('Error during auto-identification: ' + err.message, 'error', 5000);
+            }
+        }
+
+        // Auto Identify for MARITESS BALANQUIT format
+        async function autoIdentifyMaritess() {
+            if (!gridData || gridData.length === 0) {
+                showToast('No data loaded. Please upload an Excel file first.', 'error');
+                return;
+            }
+
+            clearHighlights();
+            showToast('Starting Auto Identification for MARITESS BALANQUIT...', 'info');
+
+            let extracted = {
+                soNumber: '',
+                companyName: '',
+                storeName: '',
+                storeBranch: '',
+                date: '',
+                particulars: [],
+                salesStaff: ''
+            };
+
+            const MAX_COLS = Math.min(gridData[0]?.length || 0, 11);
+            let colIndices = { qty: -1, cost: -1, price: -1, total: -1, desc: -1 };
+            let headerRowIndex = -1;
+
+            // Search entire sheet for DATE OF PO: (priority)
+            for (let r = 0; r < gridData.length; r++) {
+                for (let c = 0; c < MAX_COLS; c++) {
+                    const originalVal = String(gridData[r][c] || "").trim();
+                    const val = originalVal.toUpperCase();
+
+                    if (val.includes("DATE OF PO:")) {
+                        let rawDate = originalVal;
+                        // Step 1: Remove "DATE OF PO:"
+                        rawDate = rawDate.replace(/DATE OF PO:/i, "");
+                        // Step 2: Replace special characters with space
+                        rawDate = rawDate.replace(/[^a-zA-Z0-9\s]/g, " ");
+                        // Step 3: Collapse double spaces to single space
+                        rawDate = rawDate.replace(/\s+/g, " ");
+                        // Step 4: Trim whitespace from beginning and end
+                        rawDate = rawDate.trim();
+                        // Step 5: Split and extract month, day, year
+                        const dateParts = rawDate.split(" ");
+                        if (dateParts.length >= 3) {
+                            const month = dateParts[0];
+                            const day = dateParts[1];
+                            const year = dateParts[2];
+                            rawDate = `${month} ${day} ${year}`;
+                            extracted.date = formatDateToSql(rawDate);
+                            if (extracted.date) {
+                                showToast(`Date found: ${extracted.date}`, 'info', 4000);
+                            }
+                        }
+                        break;
+                    }
+                }
+                if (extracted.date) break; // Date found, exit row loop
+            }
+
+            // First pass: Identify other metadata fields (first 15 rows) and find particulars header
+            for (let r = 0; r < Math.min(gridData.length, 15); r++) {
+                for (let c = 0; c < MAX_COLS; c++) {
+                    const originalVal = String(gridData[r][c] || "").trim();
+                    const val = originalVal.toUpperCase();
+
+                    // Identify metadata fields (excluding date which was already found)
+                    if (val.includes("S.O NO:") || val.includes("COMPANY:") || val.includes("COMPANY: CHICKEN DELI") || val.includes("STORE:") || val.includes("BRANCH") || val.includes("SALES:")) {
+                        if (val.includes("S.O NO:")) {
+                            const num = val.replace("S.O NO:", "").trim().replace(/\s+/g, '');
+                            extracted.soNumber = num ? `SO-${num}` : "";
+                        }
+                        if (val === "COMPANY: CHICKEN DELI" || val.includes("COMPANY: CHICKEN DELI")) {
+                            const name = String(gridData[r][c + 1] || "").trim();
+                            extracted.companyName = name.replace(/[^a-zA-Z0-9. ]/g, '').replace(/\s+/g, ' ').trim();
+                        } else if (val.includes("COMPANY:")) {
+                            const name = val.replace("COMPANY:", "").trim() || String(gridData[r][c + 1] || "").trim();
+                            extracted.companyName = name.replace(/[^a-zA-Z0-9. ]/g, '').replace(/\s+/g, ' ').trim();
+                        }
+                        if (val.includes("STORE:")) {
+                            const store = val.replace("STORE:", "").trim();
+                            extracted.storeName = store;
+                        }
+                        if (val.includes("BRANCH")) {
+                            const branch = String(gridData[r][c + 1] || "").trim();
+                            extracted.storeBranch = branch;
+                        }
+                        if (val.includes("SALES:")) {
+                            const staff = originalVal.replace(/SALES:/i, '').trim() || String(gridData[r][c + 1] || "").trim();
+                            extracted.salesStaff = staff.replace(/[^a-zA-Z0-9. ]/g, '').replace(/\s+/g, ' ').trim();
+                        }
+                    }
+                }
+            }
+
+            // VISUAL SEARCH: Find PARTICULARS header with highlighting (PASS 1 - Blue)
+            document.getElementById('statusMsg').textContent = 'PASS 1: Searching for PARTICULARS header...';
+            for (let r = 0; r < Math.min(gridData.length, 30); r++) {
+                for (let c = 0; c < MAX_COLS; c++) {
+                    // Highlight current cell being searched
+                    highlightCellPass(r, c, 1, 'search');
+                    await delay(5);
+
+                    const originalVal = String(gridData[r][c] || "").trim();
+                    const val = originalVal.toUpperCase();
+
+                    // Find PARTICULARS header row
+                    if (val.includes("PARTICULAR")) {
+                        headerRowIndex = r;
+                        colIndices.desc = c;
+                        highlightCellPass(r, c, 1, 'found');
+                        document.getElementById('statusMsg').textContent = `PASS 1: Found PARTICULARS at row ${r + 1}, column ${String.fromCharCode(65 + c)}`;
+                        showToast(`Found PARTICULARS header at Row ${r + 1}, Col ${String.fromCharCode(65 + c)}`, 'pass1', 4000);
+                        await delay(5);
+                        break;
+                    }
+                }
+                if (headerRowIndex !== -1) break;
+            }
+
+            // PASS 2: From PARTICULARS column, scan right to K to find all headers with visual feedback (Purple)
+            if (headerRowIndex !== -1 && colIndices.desc !== -1) {
+                document.getElementById('statusMsg').textContent = 'PASS 2: Scanning headers from PARTICULARS to column K...';
+                for (let c = colIndices.desc; c < MAX_COLS; c++) {
+                    // Highlight current header cell being checked
+                    highlightCellPass(headerRowIndex, c, 2, 'search');
+                    await delay(5);
+
+                    const val = String(gridData[headerRowIndex][c] || "").trim().toUpperCase();
+                    let found = false;
+
+                    if (val.includes("QTY") || val.includes("QUANTITY")) {
+                        colIndices.qty = c;
+                        found = true;
+                    }
+                    if (val.includes("UNIT COST") || val.includes("COST")) {
+                        colIndices.cost = c;
+                        found = true;
+                    }
+                    if (val.includes("SELLING PRICE") || val.includes("SELLING")) {
+                        colIndices.price = c;
+                        found = true;
+                    }
+                    if (val.includes("TOTAL PRICE") || val.includes("TOTAL")) {
+                        colIndices.total = c;
+                        found = true;
+                    }
+
+                    if (found) {
+                        highlightCellPass(headerRowIndex, c, 2, 'found');
+                        const headerName = val.includes("QTY") ? "QTY" :
+                            val.includes("UNIT COST") ? "UNIT COST" :
+                                val.includes("SELLING PRICE") ? "SELLING PRICE" :
+                                    val.includes("TOTAL PRICE") ? "TOTAL PRICE" : "HEADER";
+                        showToast(`Found ${headerName} at Column ${String.fromCharCode(65 + c)}`, 'pass2', 3000);
+                        await delay(5);
+                    }
+                }
+
+                // Show summary of headers found
+                const foundHeaders = [];
+                if (colIndices.qty !== -1) foundHeaders.push(`QTY(${String.fromCharCode(65 + colIndices.qty)})`);
+                if (colIndices.cost !== -1) foundHeaders.push(`COST(${String.fromCharCode(65 + colIndices.cost)})`);
+                if (colIndices.price !== -1) foundHeaders.push(`PRICE(${String.fromCharCode(65 + colIndices.price)})`);
+                if (colIndices.total !== -1) foundHeaders.push(`TOTAL(${String.fromCharCode(65 + colIndices.total)})`);
+                if (foundHeaders.length > 0) {
+                    showToast(`Headers found: ${foundHeaders.join(', ')}`, 'pass2', 4000);
+                }
+            }
+
+            // PASS 3: Count rows with values in TOTAL PRICE column, then extract data with visual feedback (Orange/Red)
+            if (colIndices.total !== -1 && colIndices.desc !== -1 && headerRowIndex !== -1) {
+                document.getElementById('statusMsg').textContent = 'PASS 3: Counting data rows in TOTAL PRICE column...';
+                // Count how many rows have numeric values in TOTAL PRICE column
+                let dataRowCount = 0;
+                for (let r = headerRowIndex + 1; r < gridData.length; r++) {
+                    // Highlight TOTAL PRICE cell being checked
+                    highlightCellPass(r, colIndices.total, 3, 'search');
+                    await delay(5);
+
+                    const totalVal = gridData[r][colIndices.total];
+                    const numTotal = parseFloat(totalVal);
+                    if (!isNaN(numTotal)) {
+                        dataRowCount++;
+                        highlightCellPass(r, colIndices.total, 3, 'found');
+                        await delay(5);
+                    } else {
+                        // Stop counting when we hit a non-numeric value
+                        break;
+                    }
+                }
+
+                const branchRow = headerRowIndex + dataRowCount + 1;
+                if (branchRow < gridData.length) {
+                    const branchCandidate = String(gridData[branchRow][0] || '').trim();
+                    if (branchCandidate) {
+                        extracted.storeBranch = branchCandidate;
+                        showToast(`Branch mapped below particulars: ${branchCandidate}`, 'pass3', 4000);
+                    }
+                }
+
+                document.getElementById('statusMsg').textContent = `PASS 3: Found ${dataRowCount} data rows. Extracting particulars...`;
+                showToast(`Found ${dataRowCount} data rows to extract`, 'pass3', 4000);
+
+                // Extract exactly dataRowCount rows
+                let extractedCount = 0;
+                for (let r = headerRowIndex + 1; r <= headerRowIndex + dataRowCount && r < gridData.length; r++) {
+                    const totalVal = gridData[r][colIndices.total];
+                    const descVal = gridData[r][colIndices.desc];
+
+                    // Highlight row being extracted
+                    highlightCellPass(r, colIndices.desc, 3, 'search');
+                    if (colIndices.qty !== -1) highlightCellPass(r, colIndices.qty, 3, 'search');
+                    if (colIndices.cost !== -1) highlightCellPass(r, colIndices.cost, 3, 'search');
+                    if (colIndices.price !== -1) highlightCellPass(r, colIndices.price, 3, 'search');
+                    highlightCellPass(r, colIndices.total, 3, 'search');
+                    await delay(5);
+
+                    // Only add if we have a description
+                    if (descVal && String(descVal).trim() !== "") {
+                        extracted.particulars.push({
+                            particulars: String(descVal).trim(),
+                            qty: gridData[r][colIndices.qty] || 0,
+                            cost: gridData[r][colIndices.cost] || 0,
+                            price: gridData[r][colIndices.price] || 0,
+                            total: totalVal
+                        });
+                        extractedCount++;
+
+                        // Show progress every 5 items
+                        if (extractedCount % 5 === 0) {
+                            showToast(`Extracted ${extractedCount} of ${dataRowCount} rows...`, 'pass3', 2000);
+                        }
+
+                        // Mark as found
+                        highlightCellPass(r, colIndices.desc, 3, 'found');
+                        if (colIndices.qty !== -1) highlightCellPass(r, colIndices.qty, 3, 'found');
+                        if (colIndices.cost !== -1) highlightCellPass(r, colIndices.cost, 3, 'found');
+                        if (colIndices.price !== -1) highlightCellPass(r, colIndices.price, 3, 'found');
+                        highlightCellPass(r, colIndices.total, 3, 'found');
+                        await delay(5);
+                    }
+                }
+
+                if (extractedCount > 0) {
+                    showToast(`Successfully extracted ${extractedCount} particulars!`, 'success', 5000);
+                }
+            } else {
+                showToast('Could not find required columns (TOTAL PRICE or PARTICULARS)', 'error', 5000);
+            }
+
+            // Update form fields
+            document.getElementById('field-orderNumber').value = extracted.soNumber;
+            document.getElementById('field-companyName').value = extracted.companyName;
+            document.getElementById('field-storeName').value = getStoreNameOrCompany(extracted.storeName, extracted.companyName);
+            document.getElementById('field-storeBranch').value = extracted.storeBranch || DEFAULT_BRANCH_NAME;
+            document.getElementById('field-orderDate').value = extracted.date;
+            setMappedSalesStaff(extracted.salesStaff || findSalesStaffInRows(gridData || []));
+
+            particulars = extracted.particulars;
+            renderParticulars();
+            document.getElementById('statusMsg').textContent = `Auto Identification Complete: ${particulars.length} items found`;
+        }
+
+        // Auto Identify for JOANNE ZAPANTA format
+        async function autoIdentifyJoanne() {
+            if (!gridData || gridData.length === 0) {
+                showToast('No data loaded. Please upload an Excel file first.', 'error');
+                return;
+            }
+
+            clearHighlights();
+            showToast('Starting Auto Identification for JOANNE ZAPANTA...', 'info');
+
+            let extracted = {
+                soNumber: '',
+                companyName: '',
+                storeName: '',
+                storeBranch: '',
+                date: '',
+                particulars: [],
+                salesStaff: findSalesStaffInRows(gridData || [])
+            };
+
+            const MAX_COLS = Math.min(gridData[0]?.length || 0, 11);
+            let colIndices = { qty: -1, cost: -1, price: -1, total: -1, desc: -1 };
+            let headerRowIndex = -1;
+
+            // Search for DATE OF PO:
+            for (let r = 0; r < gridData.length; r++) {
+                for (let c = 0; c < MAX_COLS; c++) {
+                    const originalVal = String(gridData[r][c] || "").trim();
+                    const val = originalVal.toUpperCase();
+
+                    if (val.includes("DATE OF PO:")) {
+                        let rawDate = originalVal;
+                        rawDate = rawDate.replace(/DATE OF PO:/i, "");
+                        rawDate = rawDate.replace(/[^a-zA-Z0-9\s]/g, " ");
+                        rawDate = rawDate.replace(/\s+/g, " ");
+                        rawDate = rawDate.trim();
+                        const dateParts = rawDate.split(" ");
+                        if (dateParts.length >= 3) {
+                            const month = dateParts[0];
+                            const day = dateParts[1];
+                            const year = dateParts[2];
+                            rawDate = `${month} ${day} ${year}`;
+                            extracted.date = formatDateToSql(rawDate);
+                            if (extracted.date) {
+                                showToast(`Date found: ${extracted.date}`, 'info', 4000);
+                            }
+                        }
+                        break;
+                    }
+                }
+                if (extracted.date) break;
+            }
+
+            // First pass: Identify metadata fields (first 15 rows)
+            for (let r = 0; r < Math.min(gridData.length, 30); r++) {
+                for (let c = 0; c < MAX_COLS; c++) {
+                    const originalVal = String(gridData[r][c] || "").trim();
+                    const val = originalVal.toUpperCase();
+
+                    // JOANNE ZAPANTA specific keywords
+                    if (val.includes("SO NO:") || val.includes("COMPANY:") || val.includes("STORE:") || val.includes("STORE ADDRESS:") || val.includes("SALES:")) {
+                        if (val.includes("SO NO:")) {
+                            const num = val.replace("SO NO:", "").trim().replace(/\s+/g, '');
+                            extracted.soNumber = num ? `SO-${num}` : "";
+                        }
+                        if (val.includes("COMPANY:")) {
+                            const name = val.replace("COMPANY:", "").trim();
+                            extracted.companyName = name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
+                        }
+                        if (val.includes("STORE:") && !val.includes("STORE ADDRESS:")) {
+                            const store = val.replace("STORE:", "").trim();
+                            extracted.storeName = store;
+                        }
+                        if (val.includes("STORE ADDRESS:")) {
+                            const branch = val.replace("STORE ADDRESS:", "").trim();
+                            extracted.storeBranch = branch;
+                        }
+                        if (val.includes("SALES:")) {
+                            const staff = originalVal.replace(/SALES:/i, '').trim() || String(gridData[r][c + 1] || "").trim();
+                            extracted.salesStaff = staff.replace(/[^a-zA-Z0-9. ]/g, '').replace(/\s+/g, ' ').trim();
+                        }
+                    }
+                }
+            }
+
+            // PASS 1: Find PARTICULARS header with highlighting
+            document.getElementById('statusMsg').textContent = 'PASS 1: Searching for PARTICULARS header...';
+            for (let r = 0; r < Math.min(gridData.length, 30); r++) {
+                for (let c = 0; c < MAX_COLS; c++) {
+                    highlightCellPass(r, c, 1, 'search');
+                    await delay(5);
+
+                    const originalVal = String(gridData[r][c] || "").trim();
+                    const val = originalVal.toUpperCase();
+
+                    if (val.includes("PARTICULAR")) {
+                        headerRowIndex = r;
+                        colIndices.desc = c;
+                        highlightCellPass(r, c, 1, 'found');
+                        document.getElementById('statusMsg').textContent = `PASS 1: Found PARTICULARS at row ${r + 1}, column ${String.fromCharCode(65 + c)}`;
+                        showToast(`Found PARTICULARS header at Row ${r + 1}, Col ${String.fromCharCode(65 + c)}`, 'pass1', 4000);
+                        await delay(5);
+                        break;
+                    }
+                }
+                if (headerRowIndex !== -1) break;
+            }
+
+            // PASS 2: From PARTICULARS column, scan right to K to find all headers
+            if (headerRowIndex !== -1 && colIndices.desc !== -1) {
+                document.getElementById('statusMsg').textContent = 'PASS 2: Scanning headers from PARTICULARS to column K...';
+                for (let c = colIndices.desc; c < MAX_COLS; c++) {
+                    highlightCellPass(headerRowIndex, c, 2, 'search');
+                    await delay(5);
+
+                    const val = String(gridData[headerRowIndex][c] || "").trim().toUpperCase();
+                    let found = false;
+
+                    if (val.includes("QTY") || val.includes("QUANTITY")) {
+                        colIndices.qty = c;
+                        found = true;
+                    }
+                    if (val.includes("UNIT COST") || val.includes("COST")) {
+                        colIndices.cost = c;
+                        found = true;
+                    }
+                    if (val.includes("SELLING PRICE") || val.includes("SELLING")) {
+                        colIndices.price = c;
+                        found = true;
+                    }
+                    if (val.includes("TOTAL PRICE") || val.includes("TOTAL")) {
+                        colIndices.total = c;
+                        found = true;
+                    }
+
+                    if (found) {
+                        highlightCellPass(headerRowIndex, c, 2, 'found');
+                        const headerName = val.includes("QTY") ? "QTY" :
+                            val.includes("UNIT COST") ? "UNIT COST" :
+                                val.includes("SELLING PRICE") ? "SELLING PRICE" :
+                                    val.includes("TOTAL PRICE") ? "TOTAL PRICE" : "HEADER";
+                        showToast(`Found ${headerName} at Column ${String.fromCharCode(65 + c)}`, 'pass2', 3000);
+                        await delay(5);
+                    }
+                }
+            }
+
+            // PASS 3: Count rows with values in PARTICULARS column, handle connected rows
+            if (colIndices.desc !== -1 && headerRowIndex !== -1) {
+                document.getElementById('statusMsg').textContent = 'PASS 3: Counting data rows in PARTICULARS column...';
+
+                // First, collect all rows with non-empty particulars
+                let dataRows = [];
+                for (let r = headerRowIndex + 1; r < gridData.length; r++) {
+                    const descVal = gridData[r][colIndices.desc];
+                    if (descVal && String(descVal).trim() !== "") {
+                        highlightCellPass(r, colIndices.desc, 3, 'search');
+                        await delay(5);
+                        dataRows.push(r);
+                        highlightCellPass(r, colIndices.desc, 3, 'found');
+                        await delay(5);
+                    } else {
+                        // Stop when we hit an empty particulars row
+                        break;
+                    }
+                }
+
+                showToast(`Found ${dataRows.length} data rows to process`, 'pass3', 4000);
+
+                // Process data rows with connected row logic
+                // If QTY, UNIT COST, SELLING, TOTAL are ALL blank, this row connects to previous
+                let currentItem = null;
+
+                for (let i = 0; i < dataRows.length; i++) {
+                    const r = dataRows[i];
+                    const descVal = String(gridData[r][colIndices.desc] || "").trim();
+                    const qtyVal = gridData[r][colIndices.qty];
+                    const costVal = gridData[r][colIndices.cost];
+                    const priceVal = gridData[r][colIndices.price];
+                    const totalVal = gridData[r][colIndices.total];
+
+                    // Check if this is a connected row (all numeric fields are blank)
+                    const isConnectedRow = (!qtyVal || String(qtyVal).trim() === "") &&
+                        (!costVal || String(costVal).trim() === "") &&
+                        (!priceVal || String(priceVal).trim() === "") &&
+                        (!totalVal || String(totalVal).trim() === "");
+
+                    // Highlight row
+                    highlightCellPass(r, colIndices.desc, 3, 'search');
+                    if (colIndices.qty !== -1) highlightCellPass(r, colIndices.qty, 3, 'search');
+                    if (colIndices.cost !== -1) highlightCellPass(r, colIndices.cost, 3, 'search');
+                    if (colIndices.price !== -1) highlightCellPass(r, colIndices.price, 3, 'search');
+                    if (colIndices.total !== -1) highlightCellPass(r, colIndices.total, 3, 'search');
+                    await delay(5);
+
+                    if (isConnectedRow && currentItem) {
+                        // This row is connected to previous - append description
+                        currentItem.particulars += " " + descVal;
+                        showToast(`Row ${i + 1} connected to previous item`, 'pass3', 2000);
+                    } else {
+                        // This is a new item
+                        currentItem = {
+                            particulars: descVal,
+                            qty: qtyVal || 0,
+                            cost: costVal || 0,
+                            price: priceVal || 0,
+                            total: totalVal || 0
+                        };
+                        extracted.particulars.push(currentItem);
+                    }
+
+                    // Mark as processed
+                    highlightCellPass(r, colIndices.desc, 3, 'found');
+                    if (colIndices.qty !== -1) highlightCellPass(r, colIndices.qty, 3, 'found');
+                    if (colIndices.cost !== -1) highlightCellPass(r, colIndices.cost, 3, 'found');
+                    if (colIndices.price !== -1) highlightCellPass(r, colIndices.price, 3, 'found');
+                    if (colIndices.total !== -1) highlightCellPass(r, colIndices.total, 3, 'found');
+                    await delay(5);
+                }
+
+                if (extracted.particulars.length > 0) {
+                    showToast(`Successfully extracted ${extracted.particulars.length} particulars!`, 'success', 5000);
+                }
+            } else {
+                showToast('Could not find PARTICULARS header', 'error', 5000);
+            }
+
+            // Update form fields
+            document.getElementById('field-orderNumber').value = extracted.soNumber;
+            document.getElementById('field-companyName').value = extracted.companyName;
+            document.getElementById('field-storeName').value = getStoreNameOrCompany(extracted.storeName, extracted.companyName);
+            document.getElementById('field-storeBranch').value = extracted.storeBranch || DEFAULT_BRANCH_NAME;
+            document.getElementById('field-orderDate').value = extracted.date;
+            setMappedSalesStaff(extracted.salesStaff || findSalesStaffInRows(gridData || []));
+
+            particulars = extracted.particulars;
+            renderParticulars();
+            document.getElementById('statusMsg').textContent = `Auto Identification Complete: ${particulars.length} items found`;
+        }
+
+        // Auto Identify for RUDELYN MACAYAN format
+        async function autoIdentifyRudelyn() {
+            if (!gridData || gridData.length === 0) {
+                showToast('No data loaded. Please upload an Excel file first.', 'error');
+                return;
+            }
+
+            clearHighlights();
+            showToast('Starting Auto Identification for RUDELYN MACAYAN...', 'info');
+
+            let extracted = {
+                soNumber: '',
+                companyName: '',
+                storeName: '',
+                storeBranch: '',
+                date: '',
+                particulars: [],
+                salesStaff: findSalesStaffInRows(gridData || [])
+            };
+
+            const MAX_COLS = Math.min(gridData[0]?.length || 0, 11);
+            let colIndices = { qty: -1, cost: -1, price: -1, total: -1, desc: -1 };
+            let headerRowIndex = -1;
+
+            // Search for DATE OF PO:
+            for (let r = 0; r < gridData.length; r++) {
+                for (let c = 0; c < MAX_COLS; c++) {
+                    const originalVal = String(gridData[r][c] || "").trim();
+                    const val = originalVal.toUpperCase();
+
+                    if (val.includes("DATE OF PO:")) {
+                        let rawDate = originalVal;
+                        rawDate = rawDate.replace(/DATE OF PO:/i, "");
+                        rawDate = rawDate.replace(/[^a-zA-Z0-9\s]/g, " ");
+                        rawDate = rawDate.replace(/\s+/g, " ");
+                        rawDate = rawDate.trim();
+                        const dateParts = rawDate.split(" ");
+                        if (dateParts.length >= 3) {
+                            const month = dateParts[0];
+                            const day = dateParts[1];
+                            const year = dateParts[2];
+                            rawDate = `${month} ${day} ${year}`;
+                            extracted.date = formatDateToSql(rawDate);
+                            if (extracted.date) {
+                                showToast(`Date found: ${extracted.date}`, 'info', 4000);
+                            }
+                        }
+                        break;
+                    }
+                }
+                if (extracted.date) break;
+            }
+
+            // First pass: Identify metadata fields (first 15 rows)
+            for (let r = 0; r < Math.min(gridData.length, 30); r++) {
+                for (let c = 0; c < MAX_COLS; c++) {
+                    const originalVal = String(gridData[r][c] || "").trim();
+                    const val = originalVal.toUpperCase();
+
+                    // RUDELYN MACAYAN specific keywords
+                    if (val.includes("SO NO:") || val.includes("COMPANY:") || val.includes("STORE:") || val.includes("STORE ADDRESS:") || val.includes("SALES:")) {
+                        if (val.includes("SO NO:")) {
+                            const num = val.replace("SO NO:", "").trim().replace(/\s+/g, '');
+                            extracted.soNumber = num ? `SO-${num}` : "";
+                        }
+                        if (val.includes("COMPANY:")) {
+                            const name = val.replace("COMPANY:", "").trim();
+                            extracted.companyName = name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
+                        }
+                        if (val.includes("STORE:") && !val.includes("STORE ADDRESS:")) {
+                            const store = val.replace("STORE:", "").trim();
+                            extracted.storeName = store;
+                        }
+                        if (val.includes("STORE ADDRESS:")) {
+                            const branch = val.replace("STORE ADDRESS:", "").trim();
+                            extracted.storeBranch = branch;
+                        }
+                        if (val.includes("SALES:")) {
+                            const staff = originalVal.replace(/SALES:/i, '').trim() || String(gridData[r][c + 1] || "").trim();
+                            extracted.salesStaff = staff.replace(/[^a-zA-Z0-9. ]/g, '').replace(/\s+/g, ' ').trim();
+                        }
+                    }
+                }
+            }
+
+            // PASS 1: Find PARTICULARS header with highlighting
+            document.getElementById('statusMsg').textContent = 'PASS 1: Searching for PARTICULARS header...';
+            for (let r = 0; r < Math.min(gridData.length, 30); r++) {
+                for (let c = 0; c < MAX_COLS; c++) {
+                    highlightCellPass(r, c, 1, 'search');
+                    await delay(5);
+
+                    const originalVal = String(gridData[r][c] || "").trim();
+                    const val = originalVal.toUpperCase();
+
+                    if (val.includes("PARTICULAR")) {
+                        headerRowIndex = r;
+                        colIndices.desc = c;
+                        highlightCellPass(r, c, 1, 'found');
+                        document.getElementById('statusMsg').textContent = `PASS 1: Found PARTICULARS at row ${r + 1}, column ${String.fromCharCode(65 + c)}`;
+                        showToast(`Found PARTICULARS header at Row ${r + 1}, Col ${String.fromCharCode(65 + c)}`, 'pass1', 4000);
+                        await delay(5);
+                        break;
+                    }
+                }
+                if (headerRowIndex !== -1) break;
+            }
+
+            // PASS 2: From PARTICULARS column, scan right to K to find all headers
+            if (headerRowIndex !== -1 && colIndices.desc !== -1) {
+                document.getElementById('statusMsg').textContent = 'PASS 2: Scanning headers from PARTICULARS to column K...';
+                for (let c = colIndices.desc; c < MAX_COLS; c++) {
+                    highlightCellPass(headerRowIndex, c, 2, 'search');
+                    await delay(5);
+
+                    const val = String(gridData[headerRowIndex][c] || "").trim().toUpperCase();
+                    let found = false;
+
+                    if (val.includes("QTY") || val.includes("QUANTITY")) {
+                        colIndices.qty = c;
+                        found = true;
+                    }
+                    if (val.includes("UNIT COST") || val.includes("COST")) {
+                        colIndices.cost = c;
+                        found = true;
+                    }
+                    if (val.includes("SELLING PRICE") || val.includes("SELLING")) {
+                        colIndices.price = c;
+                        found = true;
+                    }
+                    if (val.includes("TOTAL PRICE") || val.includes("TOTAL")) {
+                        colIndices.total = c;
+                        found = true;
+                    }
+
+                    if (found) {
+                        highlightCellPass(headerRowIndex, c, 2, 'found');
+                        const headerName = val.includes("QTY") ? "QTY" :
+                            val.includes("UNIT COST") ? "UNIT COST" :
+                                val.includes("SELLING PRICE") ? "SELLING PRICE" :
+                                    val.includes("TOTAL PRICE") ? "TOTAL PRICE" : "HEADER";
+                        showToast(`Found ${headerName} at Column ${String.fromCharCode(65 + c)}`, 'pass2', 3000);
+                        await delay(5);
+                    }
+                }
+            }
+
+            // PASS 3: Count rows with values in PARTICULARS column, handle connected rows
+            if (colIndices.desc !== -1 && headerRowIndex !== -1) {
+                document.getElementById('statusMsg').textContent = 'PASS 3: Counting data rows in PARTICULARS column...';
+
+                // First, collect all rows with non-empty particulars
+                let dataRows = [];
+                for (let r = headerRowIndex + 1; r < gridData.length; r++) {
+                    const descVal = gridData[r][colIndices.desc];
+                    if (descVal && String(descVal).trim() !== "") {
+                        highlightCellPass(r, colIndices.desc, 3, 'search');
+                        await delay(5);
+                        dataRows.push(r);
+                        highlightCellPass(r, colIndices.desc, 3, 'found');
+                        await delay(5);
+                    } else {
+                        // Stop when we hit an empty particulars row
+                        break;
+                    }
+                }
+
+                showToast(`Found ${dataRows.length} data rows to process`, 'pass3', 4000);
+
+                // Process data rows with connected row logic
+                // If QTY, UNIT COST, SELLING, TOTAL are ALL blank, this row connects to previous
+                let currentItem = null;
+
+                for (let i = 0; i < dataRows.length; i++) {
+                    const r = dataRows[i];
+                    const descVal = String(gridData[r][colIndices.desc] || "").trim();
+                    const qtyVal = gridData[r][colIndices.qty];
+                    const costVal = gridData[r][colIndices.cost];
+                    const priceVal = gridData[r][colIndices.price];
+                    const totalVal = gridData[r][colIndices.total];
+
+                    // Check if this is a connected row (all numeric fields are blank)
+                    const isConnectedRow = (!qtyVal || String(qtyVal).trim() === "") &&
+                        (!costVal || String(costVal).trim() === "") &&
+                        (!priceVal || String(priceVal).trim() === "") &&
+                        (!totalVal || String(totalVal).trim() === "");
+
+                    // Highlight row
+                    highlightCellPass(r, colIndices.desc, 3, 'search');
+                    if (colIndices.qty !== -1) highlightCellPass(r, colIndices.qty, 3, 'search');
+                    if (colIndices.cost !== -1) highlightCellPass(r, colIndices.cost, 3, 'search');
+                    if (colIndices.price !== -1) highlightCellPass(r, colIndices.price, 3, 'search');
+                    if (colIndices.total !== -1) highlightCellPass(r, colIndices.total, 3, 'search');
+                    await delay(5);
+
+                    if (isConnectedRow && currentItem) {
+                        // This row is connected to previous - append description
+                        currentItem.particulars += " " + descVal;
+                        showToast(`Row ${i + 1} connected to previous item`, 'pass3', 2000);
+                    } else {
+                        // This is a new item
+                        currentItem = {
+                            particulars: descVal,
+                            qty: qtyVal || 0,
+                            cost: costVal || 0,
+                            price: priceVal || 0,
+                            total: totalVal || 0
+                        };
+                        extracted.particulars.push(currentItem);
+                    }
+
+                    // Mark as processed
+                    highlightCellPass(r, colIndices.desc, 3, 'found');
+                    if (colIndices.qty !== -1) highlightCellPass(r, colIndices.qty, 3, 'found');
+                    if (colIndices.cost !== -1) highlightCellPass(r, colIndices.cost, 3, 'found');
+                    if (colIndices.price !== -1) highlightCellPass(r, colIndices.price, 3, 'found');
+                    if (colIndices.total !== -1) highlightCellPass(r, colIndices.total, 3, 'found');
+                    await delay(5);
+                }
+
+                if (extracted.particulars.length > 0) {
+                    showToast(`Successfully extracted ${extracted.particulars.length} particulars!`, 'success', 5000);
+                }
+            } else {
+                showToast('Could not find PARTICULARS header', 'error', 5000);
+            }
+
+            // Update form fields
+            document.getElementById('field-orderNumber').value = extracted.soNumber;
+            document.getElementById('field-companyName').value = extracted.companyName;
+            document.getElementById('field-storeName').value = getStoreNameOrCompany(extracted.storeName, extracted.companyName);
+            document.getElementById('field-storeBranch').value = extracted.storeBranch || DEFAULT_BRANCH_NAME;
+            document.getElementById('field-orderDate').value = extracted.date;
+            setMappedSalesStaff(extracted.salesStaff || findSalesStaffInRows(gridData || []));
+
+            particulars = extracted.particulars;
+            renderParticulars();
+            document.getElementById('statusMsg').textContent = `Auto Identification Complete: ${particulars.length} items found`;
+        }
+
+        function formatDateToSql(str) {
+            if (!str) return "";
+            const monthMap = {
+                'JAN': 0, 'JANUARY': 0, 'FEB': 1, 'FEBRUARY': 1, 'MAR': 2, 'MARCH': 2,
+                'APR': 3, 'APRIL': 3, 'MAY': 4, 'JUN': 5, 'JUNE': 5,
+                'JUL': 6, 'JULY': 6, 'AUG': 7, 'AUGUST': 7, 'SEP': 8, 'SEPT': 8, 'SEPTEMBER': 8,
+                'OCT': 9, 'OCTOBER': 9, 'NOV': 10, 'NOVEMBER': 10, 'DEC': 11, 'DECEMBER': 11
+            };
+            const parts = str.trim().split(/\s+/);
+            if (parts.length >= 3) {
+                const month = monthMap[parts[0].toUpperCase()] || 0;
+                const day = parseInt(parts[1], 10);
+                let year = parseInt(parts[2], 10);
+                if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
+                    if (year < 100) year += 2000;
+                    const d = new Date(year, month, day);
+                    if (!isNaN(d.getTime())) {
+                        // Fix timezone offset: toISOString returns UTC, which can shift day back
+                        const tzOffset = d.getTimezoneOffset() * 60000;
+                        const localDate = new Date(d.getTime() - tzOffset);
+                        return localDate.toISOString().split('T')[0];
+                    }
+                }
+            }
+            const d = new Date(str);
+            if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+            return "";
+        }
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // File upload handling
+        document.getElementById('fileInput').addEventListener('change', async function (e) {
+            const files = Array.from(e.target.files || []);
+            if (files.length === 0) return;
+
+            // Show loading state
+            document.getElementById('statusMsg').textContent = 'Loading file...';
+            showToast('Loading Excel file...', 'info', 2000);
+
+            try {
+                // Use a timeout to allow UI to update before heavy processing
+                await new Promise(resolve => setTimeout(resolve, 50));
+
+                // Use requestIdleCallback for better performance on large files
+                const processFile = async () => {
+                    try {
+                        uploadedWorkbooks = [];
+                        for (const file of files) {
+                            const arrayBuffer = await file.arrayBuffer();
+                            const data = new Uint8Array(arrayBuffer);
+                            const parsed = XLSX.read(data, {
+                                type: 'array',
+                                cellStyles: false,
+                                cellFormula: false,
+                                cellNF: false,
+                                cellDates: false
+                            });
+                            uploadedWorkbooks.push({ fileName: file.name, workbook: parsed });
+                        }
+                        workbook = uploadedWorkbooks[0].workbook;
+
+                        const sheetSelector = document.getElementById('sheetSelector');
+                        sheetSelector.innerHTML = '';
+                        uploadedWorkbooks.forEach((entry, fileIndex) => entry.workbook.SheetNames.forEach(name => {
+                            const option = document.createElement('option');
+                            option.value = `${fileIndex}::${name}`; option.textContent = `${entry.fileName} - ${name}`;
+                            sheetSelector.appendChild(option);
+                        }));
+                        document.getElementById('sheetSelectorContainer').classList.remove('hidden');
+                        document.getElementById('noFileMsg').classList.add('hidden');
+                        loadSheet(sheetSelector.value);
+                        showToast(`${files.length} file(s) loaded successfully!`, 'success', 3000);
+                    } catch (err) {
+                        console.error('Error processing file:', err);
+                        showToast('Error reading file. Please upload a valid Excel file (.xlsx or .xls).', 'error', 5000);
+                        document.getElementById('statusMsg').textContent = 'Error loading file';
+                    }
+                };
+
+                // Use setTimeout to prevent blocking the main thread
+                setTimeout(processFile, 0);
+
+            } catch (err) {
+                console.error('Error reading file:', err);
+                showToast('Error reading file. Please try again.', 'error', 5000);
+                document.getElementById('statusMsg').textContent = 'Error loading file';
+            }
+        });
+
+        document.getElementById('sheetSelector').addEventListener('change', (e) => loadSheet(e.target.value));
+
+        function loadSheet(sheetValue) {
+            try {
+                let sheetName = sheetValue;
+                if (String(sheetValue).includes('::')) {
+                    const [fileIndex, selectedSheet] = String(sheetValue).split('::');
+                    workbook = uploadedWorkbooks[parseInt(fileIndex, 10)]?.workbook;
+                    sheetName = selectedSheet;
+                }
+                if (!workbook || !workbook.Sheets[sheetName]) {
+                    console.error('Sheet not found:', sheetName);
+                    document.getElementById('statusMsg').textContent = 'Sheet not found';
+                    return;
+                }
+                const ws = workbook.Sheets[sheetName];
+                gridData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+                renderGrid();
+                document.getElementById('statusMsg').textContent = `Viewing: ${sheetName}`;
+                document.getElementById('gridStats').classList.remove('hidden');
+                document.getElementById('statsText').textContent = `${gridData.length}R x ${gridData[0]?.length || 0}C`;
+            } catch (err) {
+                console.error('Error loading sheet:', err);
+                document.getElementById('statusMsg').textContent = 'Error loading sheet';
+                gridData = [];
+            }
+        }
+
+        function renderGrid() {
+            const excelPreview = document.getElementById('excelPreview');
+            const table = document.createElement('table');
+            table.className = 'excel-table';
+            table.id = 'excelTable';
+
+            // Clear existing content
+            excelPreview.innerHTML = '';
+
+            // Create header row
+            const headerRow = document.createElement('tr');
+            for (let c = 0; c < (gridData[0]?.length || MAX_COLS); c++) {
+                const th = document.createElement('th');
+                th.textContent = String.fromCharCode(65 + c);
+                th.className = 'excel-cell';
+                th.id = `cell-header-${c}`;
+                th.onclick = () => handleCellClick(0, c);
+                headerRow.appendChild(th);
+            }
+            table.appendChild(headerRow);
+
+            // Create data rows
+            for (let r = 0; r < Math.min(gridData.length, MAX_ROWS); r++) {
+                const row = document.createElement('tr');
+                for (let c = 0; c < (gridData[0]?.length || MAX_COLS); c++) {
+                    const td = document.createElement('td');
+                    const value = gridData[r] ? gridData[r][c] : '';
+                    td.textContent = value;
+                    td.className = 'excel-cell';
+                    td.id = `cell-${r}-${c}`;
+                    td.onclick = () => handleCellClick(r, c);
+                    td.onmousedown = (e) => handleMouseDown(r, c, e);
+                    td.onmouseover = () => handleMouseOver(r, c);
+                    td.onmouseup = handleMouseUp;
+                    row.appendChild(td);
+                }
+                table.appendChild(row);
+            }
+
+            excelPreview.appendChild(table);
+        }
+
+        function handleCellClick(r, c) {
+            if (isSelecting) return;
+
+            const cell = document.getElementById(`cell-${r}-${c}`);
+            if (!cell) return;
+
+            const value = gridData[r] ? gridData[r][c] : '';
+
+            if (activeTarget) {
+                document.getElementById(`field-${activeTarget}`).value = value;
+                clearSelection();
+                showToast(`Field ${activeTarget} updated: ${value}`, 'success');
+            }
+        }
+
+        function handleMouseDown(r, c, e) {
+            if (e.button !== 0) return; // Only left click
+            isSelecting = true;
+            startCell = { r, c };
+            updateRange(r, c);
+        }
+
+        function handleMouseOver(r, c) {
+            if (!isSelecting) return;
+            updateRange(r, c);
+        }
+
+        function handleMouseUp() {
+            if (!isSelecting || !startCell) return;
+            isSelecting = false;
+            if (selectionMode === 'single') {
+                const row = gridData[startCell.r];
+                if (row && row[startCell.c] !== undefined) {
+                    document.getElementById(`field-${activeTarget}`).value = row[startCell.c];
+                }
+                clearSelection();
+            } else {
+                document.getElementById('confirmParticulars').classList.remove('hidden');
+            }
+        }
+
+        function updateRange(currR, currC) {
+            if (!startCell) return;
+            const minR = Math.min(startCell.r, currR), maxR = Math.max(startCell.r, currR);
+            const minC = Math.min(startCell.c, currC), maxC = Math.max(startCell.c, currC);
+            document.querySelectorAll('.cell-selected').forEach(el => el.classList.remove('cell-selected'));
+            currentSelectedRange = [];
+            for (let r = minR; r <= maxR; r++) {
+                for (let c = minC; c <= maxC; c++) {
+                    const el = document.getElementById(`cell-${r}-${c}`);
+                    if (el && gridData[r]) {
+                        el.classList.add('cell-selected');
+                        currentSelectedRange.push({ r, c, val: gridData[r][c] });
+                    }
+                }
+            }
+        }
+
+        function confirmMultiSelection() {
+            if (activeTarget !== 'particulars' || currentSelectedRange.length === 0) return;
+
+            const rowsMap = new Map();
+            currentSelectedRange.forEach(item => {
+                if (!rowsMap.has(item.r)) rowsMap.set(item.r, []);
+                rowsMap.get(item.r).push(item);
+            });
+
+            const sortedRowIndices = Array.from(rowsMap.keys()).sort((a, b) => a - b);
+            const newItems = [];
+
+            sortedRowIndices.forEach(rIdx => {
+                const rowCells = rowsMap.get(rIdx).sort((a, b) => a.c - b.c);
+                const nonBlankValues = rowCells
+                    .map(cell => cell.val)
+                    .filter(val => val !== "" && val !== null && val !== undefined);
+
+                if (nonBlankValues.length > 0) {
+                    newItems.push({
+                        particulars: nonBlankValues[0],
+                        qty: nonBlankValues[1] || 0,
+                        cost: nonBlankValues[2] || 0,
+                        price: nonBlankValues[3] || 0,
+                        total: nonBlankValues[4] || 0
+                    });
+                }
+            });
+
+            particulars = [...particulars, ...newItems];
+            renderParticulars();
+            clearSelection();
+            document.getElementById('confirmParticulars').classList.add('hidden');
+        }
+
+        function startSelection(field, mode) {
+            activeTarget = field;
+            selectionMode = mode;
+
+            document.querySelectorAll('.pick-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const activeBtn = document.querySelector(`.pick-btn[data-field="${field}"]`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            document.getElementById('selectionIndicator').classList.remove('hidden');
+            document.getElementById('excelPreviewContainer').classList.add('selection-active');
+            document.getElementById('confirmParticulars').classList.add('hidden');
+
+            // Update selection text
+            const fieldLabel = {
+                'orderNumber': 'Sales Order Number',
+                'companyName': 'Company Name',
+                'storeName': 'Store Name',
+                'storeBranch': 'Store Branch',
+                'orderDate': 'Order Date',
+                'particulars': 'Particulars Data'
+            };
+
+            const modeText = mode === 'single' ? 'Click a cell' : 'Drag to select range';
+            document.getElementById('selectionText').textContent = `${fieldLabel[field] || field}: ${modeText}`;
+        }
+
+        function clearSelection() {
+            activeTarget = null; selectionMode = null;
+            document.getElementById('selectionIndicator').classList.add('hidden');
+            document.getElementById('excelPreviewContainer').classList.remove('selection-active');
+            document.querySelectorAll('.cell-selected').forEach(el => el.classList.remove('cell-selected'));
+            document.querySelectorAll('.pick-btn').forEach(btn => btn.classList.remove('active'));
+        }
+
+        function renderParticulars() {
+            const tbody = document.getElementById('particularsBody');
+            if (particulars.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">No items mapped. Use Auto Identify or Manual Select.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            let totalAmount = 0;
+            particulars.forEach((item, idx) => {
+                const qty = parseFloat(item.qty) || 0;
+                const cost = parseFloat(item.cost) || 0;
+                const price = parseFloat(item.price) || 0;
+                const total = parseFloat(item.total) || 0;
+                totalAmount += total;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.particulars}</td>
+                    <td style="text-align: right; font-family: monospace;">${qty.toFixed(2)}</td>
+                    <td style="text-align: right; font-family: monospace;">${cost.toFixed(2)}</td>
+                    <td style="text-align: right; font-family: monospace;">${price.toFixed(2)}</td>
+                    <td style="text-align: right; font-family: monospace; font-weight: 600; color: var(--brand-orange);">${total.toFixed(2)}</td>
+                    <td style="text-align: right;"><button onclick="removeParticular(${idx})" style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><i data-lucide="trash-2" style="width: 16px; height: 16px;"></i></button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Add total row
+            if (particulars.length > 0) {
+                const totalRow = document.createElement('tr');
+                totalRow.className = 'total-row';
+                totalRow.innerHTML = `
+                    <td colspan="4" style="text-align: right;">TOTAL:</td>
+                    <td style="text-align: right; font-family: monospace; font-size: 1.1rem;">${totalAmount.toFixed(2)}</td>
+                    <td></td>
+                `;
+                tbody.appendChild(totalRow);
+            }
+
+            lucide.createIcons();
+        }
+
+        function removeParticular(idx) {
+            particulars.splice(idx, 1);
+            renderParticulars();
+        }
+
+        let clients = [];
+        const DEFAULT_BRANCH_NAME = 'HEAD OFFICE';
+
+        function getStoreNameOrCompany(storeName, companyName) {
+            return String(storeName || '').trim() || String(companyName || '').trim();
+        }
+
+        // Load clients on init
+        (async () => {
+            try {
+                const response = await fetch('{{ url_for("get_clients") }}');
+                const data = await response.json();
+                if (data.success) {
+                    clients = data.clients;
+                }
+            } catch (error) {
+                console.error('Failed to load clients:', error);
+            }
+        })();
+
+        // Get client name from form fields
+        function getClientName() {
+            const company = document.getElementById('field-companyName').value.trim();
+            const store = getStoreNameOrCompany(document.getElementById('field-storeName').value, company);
+            const branch = document.getElementById('field-storeBranch').value.trim() || DEFAULT_BRANCH_NAME;
+            if (!company || !store || !branch) return '';
+            return `${company} - ${store} - ${branch}`.toUpperCase();
+        }
+
+        function normalizeClientKey(value) {
+            return String(value || '')
+                .toUpperCase()
+                .replace(/&/g, ' AND ')
+                .replace(/[.,]/g, ' ')
+                .replace(/[^A-Z0-9\s]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function buildClientResolutionPayload(resolution) {
+            if (!resolution || !resolution.resolution_key) return {};
+            const suggested = resolution.suggested_client_name || 'the suggested existing client';
+            const uploaded = resolution.uploaded_name || resolution.client_name || 'this client';
+            const score = Number(resolution.match_percent || 0).toFixed(2);
+            const useSuggested = confirm(
+                `Possible existing client found:\n\nUploaded: ${uploaded}\nSuggested: ${suggested}\nMatch: ${score}%\n\nPress OK to use the suggested client.\nPress Cancel to create a new full-location client.`
+            );
+            if (!useSuggested && !confirm(`Create a new client record for "${uploaded}" instead?`)) {
+                throw new Error('Client resolution cancelled.');
+            }
+            return {
+                [resolution.resolution_key]: {
+                    action: useSuggested ? 'use_suggested' : 'create_new',
+                    client_id: useSuggested ? resolution.suggested_client_id : null,
+                    client_name: useSuggested ? suggested : '',
+                    match_percent: Number(resolution.match_percent || 0)
+                }
+            };
+        }
+
+        async function createOrResolveClient(clientName, contactInfo = '', presetResolutions = null) {
+            const exactClient = clients.find(c => c.client_name === clientName);
+            if (exactClient) {
+                return { clientId: exactClient.id, clientName: exactClient.client_name, created: false };
+            }
+            if (presetResolutions) {
+                const preset = presetResolutions[normalizeClientKey(clientName)];
+                if (preset?.action === 'ignore') {
+                    return { ignored: true, clientId: null, clientName };
+                }
+            }
+
+            const requestClient = async (resolutions = {}) => {
+                const response = await fetch('{{ url_for("create_client") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        client_name: clientName,
+                        contact_info: contactInfo,
+                        email: '',
+                        phone: '',
+                        address: '',
+                        resolutions
+                    })
+                });
+                const data = await response.json();
+                return { response, data };
+            };
+
+            let { response, data } = await requestClient(presetResolutions || {});
+            if (!presetResolutions && response.status === 409 && data.needs_resolution && data.client_resolution) {
+                const resolutions = buildClientResolutionPayload(data.client_resolution);
+                ({ response, data } = await requestClient(resolutions));
+            }
+            if (presetResolutions && response.status === 409 && data.needs_resolution) {
+                throw new Error(`Client "${clientName}" still needs review. Check the client review queue.`);
+            }
+            if (!data.success && !data.client_id) {
+                throw new Error(data.error || `Failed to create client ${clientName}`);
+            }
+
+            const clientId = data.client_id || data.id;
+            const resolvedName = data.client_name || clientName;
+            if (!clients.some(c => c.id === clientId)) {
+                clients.push({ id: clientId, client_name: resolvedName });
+            }
+            return {
+                clientId,
+                clientName: resolvedName,
+                created: (data.message || '').toLowerCase().includes('created')
+            };
+        }
+
+        // Save the order and its particulars into the database-backed client basket.
+        async function saveOrder() {
+            const soNumber = document.getElementById('field-orderNumber').value.trim();
+            const companyName = document.getElementById('field-companyName').value.trim();
+            const storeName = getStoreNameOrCompany(document.getElementById('field-storeName').value, companyName);
+            const storeBranch = document.getElementById('field-storeBranch').value.trim() || DEFAULT_BRANCH_NAME;
+            const orderDate = document.getElementById('field-orderDate').value;
+            const termsDays = parseInt(document.getElementById('terms-days').value) || 30;
+            const notes = document.getElementById('order-notes').value;
+            const mappedSalesStaff = document.getElementById('field-salesStaff').value.trim();
+
+            if (!companyName || !orderDate || !mappedSalesStaff) {
+                showToast('Please complete mapped fields: Company, Date, and Sales Staff from "SALES:". Store defaults to Company when blank.', 'error');
+                return;
+            }
+
+            if (particulars.length === 0) {
+                showToast("Please add at least one item to sales order.", 'error');
+                return;
+            }
+
+            // Build client name and prepare items
+            const clientName = getClientName();
+            const items = particulars.map(item => ({
+                particular: String(item.particulars || '').toUpperCase(),
+                unit_cost: parseFloat(item.cost) || 0,
+                selling_price: parseFloat(item.price) || 0,
+                item_price: parseFloat(item.price) || 0,
+                quantity: parseFloat(item.qty) || 0,
+                total: parseFloat(item.total) || ((parseFloat(item.price) || 0) * (parseFloat(item.qty) || 0))
+            })).filter(item => item.particular && item.item_price > 0 && item.quantity > 0);
+
+            if (items.length === 0) {
+                showToast("No valid items to save.", 'error');
+                return;
+            }
+
+            // Calculate total for display
+            const totalAmount = items.reduce((sum, item) => sum + (item.item_price * item.quantity), 0);
+
+            // Build confirmation details
+            const itemList = items.map(i => `${i.particular} (x${formatNumberWithCommas(i.quantity)} @ ${formatCurrency(i.item_price)})`).join('\n');
+            const details = `Action: Create Sales Order\nClient: ${clientName}\nDate: ${orderDate}\nTerms: ${termsDays} days\n\nItems:\n${itemList}\n\nTotal: ${formatCurrency(totalAmount)}`;
+
+            if (confirm(`Confirm transaction\n\n${details}`)) {
+                try {
+                    // Prepare sales order data for Flask API
+                    const data = {
+                        client_name: clientName,
+                        original_entered_client_name: clientName,
+                        so_number: soNumber,
+                        company_name: companyName.toUpperCase(),
+                        store_name: storeName.toUpperCase(),
+                        store_branch: storeBranch.toUpperCase(),
+                        order_date: orderDate,
+                        terms_days: termsDays,
+                        total_amount: totalAmount,
+                        sales_staff: mappedSalesStaff,
+                        notes: notes.toUpperCase(),
+                        items: items
+                    };
+
+                    let response = await fetch('{{ url_for("create_sales_order") }}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    let result = await response.json();
+                    if (response.status === 409 && result.needs_resolution && result.client_resolution) {
+                        data.resolutions = buildClientResolutionPayload(result.client_resolution);
+                        response = await fetch('{{ url_for("create_sales_order") }}', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(data)
+                        });
+                        result = await response.json();
+                    }
+                    if (result.success) {
+                        showToast('Sales order created successfully', 'success');
+                        if (window.SyluxentUI) SyluxentUI.showServerWarnings(result.warnings);
+                        document.getElementById('field-orderNumber').value = '';
+                        document.getElementById('field-companyName').value = '';
+                        document.getElementById('field-storeName').value = '';
+                        document.getElementById('field-storeBranch').value = '';
+                        document.getElementById('field-orderDate').value = '';
+                        document.getElementById('order-notes').value = '';
+                        particulars = [];
+                        renderParticulars();
+                    } else {
+                        showToast(result.error || 'Failed to save order', 'error');
+                    }
+                    console.log('Prepared order data:', data);
+                    console.log('API response:', result);
+
+                } catch (error) {
+                    showToast(error.message || 'Failed to save order', 'error');
+                }
+            }
+        }
+
+        // Helper function: Format number with commas for display
+        function formatNumberWithCommas(num) {
+            if (num === '' || num === null || num === undefined) return '0';
+            const parts = num.toString().split('.');
+            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            return parts.join('.');
+        }
+
+        // Helper function: Format currency
+        function formatCurrency(amount) {
+            const num = parseFloat(amount) || 0;
+            return '₱' + num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+
+        let adminCleanRows = [];
+        let adminClientReviewQueue = [];
+
+        function toNumber(value) {
+            const cleaned = String(value ?? '').replace(/[^0-9.-]/g, '');
+            const parsed = parseFloat(cleaned);
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        function cleanMappedName(value, keepPeriod = false) {
+            const pattern = keepPeriod ? /[^a-zA-Z0-9. ]/g : /[^a-zA-Z0-9 ]/g;
+            return String(value || '').replace(pattern, '').replace(/\s+/g, ' ').trim();
+        }
+
+        function extractDateFromGrid(rows, maxCols) {
+            for (let r = 0; r < rows.length; r++) {
+                for (let c = 0; c < maxCols; c++) {
+                    const originalVal = String(rows[r]?.[c] || '').trim();
+                    const val = originalVal.toUpperCase();
+                    if (val.includes('DATE OF PO:')) {
+                        let rawDate = originalVal.replace(/DATE OF PO:/i, '').replace(/[^a-zA-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+                        const dateParts = rawDate.split(' ');
+                        if (dateParts.length >= 3) {
+                            rawDate = `${dateParts[0]} ${dateParts[1]} ${dateParts[2]}`;
+                        }
+                        return formatDateToSql(rawDate);
+                    }
+                }
+            }
+            return '';
+        }
+
+        function findParticularHeaders(rows, maxCols) {
+            const colIndices = { qty: -1, cost: -1, price: -1, total: -1, desc: -1 };
+            let headerRowIndex = -1;
+            for (let r = 0; r < Math.min(rows.length, 30); r++) {
+                for (let c = 0; c < maxCols; c++) {
+                    const val = String(rows[r]?.[c] || '').trim().toUpperCase();
+                    if (val.includes('PARTICULAR')) {
+                        headerRowIndex = r;
+                        colIndices.desc = c;
+                        break;
+                    }
+                }
+                if (headerRowIndex !== -1) break;
+            }
+            if (headerRowIndex === -1) return { headerRowIndex, colIndices };
+            for (let c = colIndices.desc; c < maxCols; c++) {
+                const val = String(rows[headerRowIndex]?.[c] || '').trim().toUpperCase();
+                if (val.includes('QTY') || val.includes('QUANTITY')) colIndices.qty = c;
+                if (val.includes('UNIT COST') || val.includes('COST')) colIndices.cost = c;
+                if (val.includes('SELLING PRICE') || val.includes('SELLING')) colIndices.price = c;
+                if (val.includes('TOTAL PRICE') || val.includes('TOTAL')) colIndices.total = c;
+            }
+            return { headerRowIndex, colIndices };
+        }
+
+        function extractAdminSalesOrder(rows, staffKey, sourceFile, sheetName) {
+            const maxCols = Math.min(rows[0]?.length || 0, 11);
+            const extracted = {
+                source_file: sourceFile,
+                sheet_name: sheetName,
+                staff_key: staffKey,
+                so_number: '',
+                company_name: '',
+                store_name: '',
+                store_branch: '',
+                order_date: extractDateFromGrid(rows, maxCols),
+                sales_staff: '',
+                terms_days: parseInt(document.getElementById('terms-days')?.value, 10) || 30,
+                notes: '',
+                items: []
+            };
+
+            for (let r = 0; r < Math.min(rows.length, staffKey === 'maritess' ? 15 : 30); r++) {
+                for (let c = 0; c < maxCols; c++) {
+                    const originalVal = String(rows[r]?.[c] || '').trim();
+                    const val = originalVal.toUpperCase();
+                    const nextVal = String(rows[r]?.[c + 1] || '').trim();
+
+                    if (val.includes('S.O NO:') || val.includes('SO NO:')) {
+                        const num = val.replace('S.O NO:', '').replace('SO NO:', '').trim().replace(/\s+/g, '');
+                        extracted.so_number = num ? `SO-${num}` : extracted.so_number;
+                    }
+                    if (staffKey === 'maritess' && (val === 'COMPANY: CHICKEN DELI' || val.includes('COMPANY: CHICKEN DELI'))) {
+                        extracted.company_name = cleanMappedName(nextVal, true);
+                    } else if (val.includes('COMPANY:')) {
+                        const name = originalVal.replace(/COMPANY:/i, '').trim() || nextVal;
+                        extracted.company_name = cleanMappedName(name, true);
+                    }
+                    if (val.includes('STORE:') && !val.includes('STORE ADDRESS:')) {
+                        extracted.store_name = cleanMappedName(originalVal.replace(/STORE:/i, '').trim());
+                    }
+                    if (val.includes('STORE ADDRESS:')) {
+                        extracted.store_branch = cleanMappedName(originalVal.replace(/STORE ADDRESS:/i, '').trim());
+                    }
+                    if (val.includes('BRANCH')) {
+                        extracted.store_branch = cleanMappedName(nextVal || originalVal.replace(/BRANCH:?/i, '').trim());
+                    }
+                    if (val.includes('SALES:')) {
+                        const staff = originalVal.replace(/SALES:/i, '').trim() || nextVal;
+                        extracted.sales_staff = cleanMappedName(staff, true);
+                    }
+                }
+            }
+
+            const { headerRowIndex, colIndices } = findParticularHeaders(rows, maxCols);
+            if (headerRowIndex === -1 || colIndices.desc === -1) return extracted;
+
+            if (staffKey === 'maritess' && colIndices.total !== -1) {
+                let dataRowCount = 0;
+                for (let r = headerRowIndex + 1; r < rows.length; r++) {
+                    if (!Number.isNaN(parseFloat(rows[r]?.[colIndices.total]))) dataRowCount++;
+                    else break;
+                }
+                const branchCandidate = String(rows[headerRowIndex + dataRowCount + 1]?.[0] || '').trim();
+                if (branchCandidate) extracted.store_branch = cleanMappedName(branchCandidate);
+
+                for (let r = headerRowIndex + 1; r <= headerRowIndex + dataRowCount && r < rows.length; r++) {
+                    const descVal = String(rows[r]?.[colIndices.desc] || '').trim();
+                    if (!descVal) continue;
+                    extracted.items.push({
+                        particular: descVal.toUpperCase(),
+                        quantity: toNumber(rows[r]?.[colIndices.qty]),
+                        unit_cost: toNumber(rows[r]?.[colIndices.cost]),
+                        selling_price: toNumber(rows[r]?.[colIndices.price]),
+                        total: toNumber(rows[r]?.[colIndices.total])
+                    });
+                }
+            } else {
+                let currentItem = null;
+                for (let r = headerRowIndex + 1; r < rows.length; r++) {
+                    const descVal = String(rows[r]?.[colIndices.desc] || '').trim();
+                    if (!descVal) break;
+                    const qtyVal = rows[r]?.[colIndices.qty];
+                    const costVal = rows[r]?.[colIndices.cost];
+                    const priceVal = rows[r]?.[colIndices.price];
+                    const totalVal = rows[r]?.[colIndices.total];
+                    const isConnectedRow = (!qtyVal || String(qtyVal).trim() === '') &&
+                        (!costVal || String(costVal).trim() === '') &&
+                        (!priceVal || String(priceVal).trim() === '') &&
+                        (!totalVal || String(totalVal).trim() === '');
+                    if (isConnectedRow && currentItem) {
+                        currentItem.particular += ` ${descVal.toUpperCase()}`;
+                    } else {
+                        currentItem = {
+                            particular: descVal.toUpperCase(),
+                            quantity: toNumber(qtyVal),
+                            unit_cost: toNumber(costVal),
+                            selling_price: toNumber(priceVal),
+                            total: toNumber(totalVal)
+                        };
+                        extracted.items.push(currentItem);
+                    }
+                }
+            }
+
+            extracted.items = extracted.items
+                .map(item => ({
+                    ...item,
+                    total: item.total || (item.selling_price * item.quantity)
+                }))
+                .filter(item => item.particular && item.quantity > 0 && item.selling_price > 0);
+            extracted.total_amount = extracted.items.reduce((sum, item) => sum + item.total, 0);
+            
+            // Default branch/store address to head office if missing.
+            if (!extracted.store_branch || extracted.store_branch.trim() === '') {
+                extracted.store_branch = DEFAULT_BRANCH_NAME;
+            }
+            extracted.store_name = getStoreNameOrCompany(extracted.store_name, extracted.company_name);
+            
+            extracted.client_name = String(extracted.company_name || '').toUpperCase();
+            return extracted;
+        }
+
+        function getAdminOutliers(rows) {
+            if (rows.length < 2) return [];
+            
+            // Z-score calculation helper
+            function calculateZScores(values) {
+                const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+                const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+                const std = Math.sqrt(variance);
+                if (std === 0) return values.map(() => 0);
+                return values.map(val => (val - mean) / std);
+            }
+            
+            const outliers = [];
+            
+            // Check for AMOUNT outliers (total_amount)
+            const amounts = rows.map(row => row.total_amount || 0);
+            const amountZScores = calculateZScores(amounts);
+            amountZScores.forEach((zScore, index) => {
+                if (Math.abs(zScore) >= 2.5) {
+                    if (!outliers.find(o => o.index === index)) {
+                        outliers.push({ 
+                            index, 
+                            value: amounts[index].toFixed(2), 
+                            z_score: zScore.toFixed(2),
+                            type: 'Amount'
+                        });
+                    } else {
+                        const existing = outliers.find(o => o.index === index);
+                        existing.type += ' + Amount';
+                    }
+                }
+            });
+            
+            // Check for DATE outliers (order_date converted to timestamp)
+            const dates = rows.map(row => {
+                if (!row.order_date) return Date.now(); // Default to today
+                const dateObj = new Date(row.order_date);
+                return dateObj.getTime();
+            });
+            const dateZScores = calculateZScores(dates);
+            dateZScores.forEach((zScore, index) => {
+                if (Math.abs(zScore) >= 2.5) {
+                    if (!outliers.find(o => o.index === index)) {
+                        outliers.push({ 
+                            index, 
+                            date: rows[index].order_date || 'N/A', 
+                            z_score: zScore.toFixed(2),
+                            type: 'Date'
+                        });
+                    } else {
+                        const existing = outliers.find(o => o.index === index);
+                        existing.type += ' + Date';
+                        existing.date = rows[index].order_date || 'N/A';
+                    }
+                }
+            });
+            
+            return outliers.sort((a, b) => Math.abs(parseFloat(b.z_score)) - Math.abs(parseFloat(a.z_score)));
+        }
+
+        async function previewAdminUpload() {
+            const input = document.getElementById('adminUploadFiles');
+            if (!input || input.files.length === 0) {
+                showToast('Select Excel files first.', 'error');
+                return;
+            }
+
+            adminCleanRows = [];
+            adminClientReviewQueue = [];
+            document.getElementById('adminClientReviewQueue').innerHTML = '';
+            document.getElementById('adminUploadDocs').innerHTML = 'Mapping workbooks...';
+            for (const file of Array.from(input.files)) {
+                const arrayBuffer = await file.arrayBuffer();
+                const parsed = XLSX.read(new Uint8Array(arrayBuffer), {
+                    type: 'array',
+                    cellStyles: false,
+                    cellFormula: false,
+                    cellNF: false,
+                    cellDates: false
+                });
+                parsed.SheetNames.forEach(sheetName => {
+                    const rows = XLSX.utils.sheet_to_json(parsed.Sheets[sheetName], { header: 1, defval: '' });
+                    const mappedStaff = findSalesStaffInRows(rows);
+                    const staffKey = detectStaffKeyFromName(mappedStaff);
+                    if (!staffKey) return;
+                    const mapped = extractAdminSalesOrder(rows, staffKey, file.name, sheetName);
+                    mapped.sales_staff = mapped.sales_staff || mappedStaff;
+                    if (mapped.items.length > 0) adminCleanRows.push(mapped);
+                });
+            }
+
+            document.getElementById('adminUploadDocs').innerHTML = [
+                'Upload: reads every selected Excel workbook and sheet.',
+                'Cleaning: uses the same staff-specific metadata, particulars, quantity, unit cost, selling price, and total mapping as the regular Excel mapper. Defaults branch/store address to "HEAD OFFICE" if not found.',
+                'Outlier Identifier: Z-score (≥±2.5) flags mapped sales orders with unusually high/low total amount or date outliers.',
+                'Excel Mapping: previewed orders are saved through the same sales order API as manual mapped orders.'
+            ].map(step => `<div>${step}</div>`).join('');
+
+            const outliers = getAdminOutliers(adminCleanRows);
+            document.getElementById('adminUploadOutliers').innerHTML = outliers.length
+                ? `<strong>Outliers (Z-score ≥ ±2.5):</strong> ${outliers.map(o => {
+                    let details = `Order ${o.index + 1} [${o.type}] z=${o.z_score}`;
+                    if (o.value !== undefined) details += ` amount=${formatCurrency(o.value)}`;
+                    if (o.date !== undefined) details += ` date=${o.date}`;
+                    return `${details} <button class="btn btn-outline btn-sm" onclick="removeAdminRow(${o.index})">Remove</button>`;
+                }).join('<br>')}`
+                : '<strong>No Z-score outliers detected.</strong>';
+            await previewAdminClientMatches();
+            renderAdminPreview();
+            if (adminCleanRows.length === 0) {
+                showToast('No sales orders were mapped. Make sure each sheet has a recognizable "SALES:" value.', 'error', 6000);
+                return;
+            }
+            showToast(`Mapped ${adminCleanRows.length} sales order(s) from ${input.files.length} file(s).`, 'success');
+        }
+
+        async function previewAdminClientMatches() {
+            const container = document.getElementById('adminClientReviewQueue');
+            if (!container || adminCleanRows.length === 0) return;
+            container.innerHTML = '<div class="client-review-panel"><div class="client-review-toolbar">Analyzing company name matches...</div></div>';
+            const response = await fetch('{{ url_for("client_match_preview") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_names: adminCleanRows.map(row => row.company_name || '') })
+            });
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Company matching preview failed.');
+            }
+            adminClientReviewQueue = data.review_items || [];
+            renderAdminClientReviewQueue(data);
+        }
+
+        function renderAdminClientReviewQueue(summary = {}) {
+            const container = document.getElementById('adminClientReviewQueue');
+            if (!container) return;
+            if (adminClientReviewQueue.length === 0) {
+                container.innerHTML = `
+                    <div class="client-review-panel">
+                        <div class="client-review-toolbar">
+                            <strong>Company Review Queue</strong>
+                            <span>${summary.matched_count || 0} matched, 0 need review</span>
+                        </div>
+                    </div>`;
+                return;
+            }
+            const clientOptions = clients
+                .map(client => `<option value="${client.id}" data-name="${escapeHtml(client.client_name)}">${escapeHtml(client.client_name)}</option>`)
+                .join('');
+            container.innerHTML = `
+                <div class="client-review-panel">
+                    <div class="client-review-toolbar">
+                        <div>
+                            <strong>Company Review Queue</strong>
+                            <span style="color: var(--text-muted); margin-left: 0.5rem;">${adminClientReviewQueue.length} item(s) need review</span>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                            <button type="button" class="btn btn-outline btn-sm" onclick="acceptAllHighConfidenceClientMatches()">Accept All High Confidence Matches</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="createAllNewClientCandidates()">Create All New Clients</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="exportClientReviewQueue()">Export Review Results</button>
+                        </div>
+                    </div>
+                    <div class="client-review-list">
+                        ${adminClientReviewQueue.map((item, index) => {
+                            const hasSuggestion = Boolean(item.suggested_client_name);
+                            const defaultAction = hasSuggestion ? 'use_suggested' : 'create_new';
+                            const confidence = Number(item.match_percent || 0).toFixed(2);
+                            return `
+                                <div class="client-review-item" data-review-key="${escapeHtml(item.resolution_key)}">
+                                    <div>
+                                        <strong>${escapeHtml(item.uploaded_name)}</strong>
+                                        <div style="color: var(--text-muted); font-size: 0.85rem;">${item.review_status === 'new_candidate' ? 'No match found' : `Confidence: ${confidence}%`}</div>
+                                    </div>
+                                    <div style="font-size: 0.9rem;">
+                                        <div style="color: var(--text-muted);">Suggested Match</div>
+                                        <strong>${hasSuggestion ? escapeHtml(item.suggested_client_name) : 'New Company Candidate'}</strong>
+                                    </div>
+                                    <div style="display: grid; gap: 0.5rem;">
+                                        <select class="admin-client-action" data-index="${index}" onchange="toggleExistingClientSelect(${index})">
+                                            ${hasSuggestion ? '<option value="use_suggested">Accept Suggested Match</option>' : ''}
+                                            <option value="select_existing">Select Existing Client</option>
+                                            <option value="create_new"${defaultAction === 'create_new' ? ' selected' : ''}>Create New Client</option>
+                                            <option value="ignore">Ignore</option>
+                                        </select>
+                                        <select class="admin-client-existing" data-index="${index}" style="display: none;">
+                                            <option value="">Select existing client...</option>
+                                            ${clientOptions}
+                                        </select>
+                                    </div>
+                                </div>`;
+                        }).join('')}
+                    </div>
+                </div>`;
+        }
+
+        function toggleExistingClientSelect(index) {
+            const action = document.querySelector(`.admin-client-action[data-index="${index}"]`);
+            const existing = document.querySelector(`.admin-client-existing[data-index="${index}"]`);
+            if (existing && action) existing.style.display = action.value === 'select_existing' ? 'block' : 'none';
+        }
+
+        function collectAdminClientResolutions() {
+            const resolutions = {};
+            adminClientReviewQueue.forEach((item, index) => {
+                const actionSelect = document.querySelector(`.admin-client-action[data-index="${index}"]`);
+                const existingSelect = document.querySelector(`.admin-client-existing[data-index="${index}"]`);
+                const action = actionSelect?.value || (item.suggested_client_name ? 'use_suggested' : 'create_new');
+                let clientId = item.suggested_client_id || null;
+                let clientName = item.suggested_client_name || '';
+                if (action === 'select_existing') {
+                    clientId = existingSelect?.value || null;
+                    clientName = existingSelect?.selectedOptions?.[0]?.dataset?.name || '';
+                    if (!clientId) throw new Error(`Select an existing client for ${item.uploaded_name}.`);
+                }
+                resolutions[item.resolution_key] = {
+                    action: action === 'select_existing' ? 'use_existing' : action,
+                    client_id: clientId,
+                    client_name: action === 'create_new' || action === 'ignore' ? '' : clientName,
+                    match_percent: Number(item.match_percent || 0)
+                };
+            });
+            return resolutions;
+        }
+
+        function acceptAllHighConfidenceClientMatches() {
+            adminClientReviewQueue.forEach((item, index) => {
+                if (item.review_status === 'high_confidence' && item.suggested_client_name) {
+                    const select = document.querySelector(`.admin-client-action[data-index="${index}"]`);
+                    if (select) select.value = 'use_suggested';
+                    toggleExistingClientSelect(index);
+                }
+            });
+            showToast('High confidence company matches selected.', 'info');
+        }
+
+        function createAllNewClientCandidates() {
+            adminClientReviewQueue.forEach((item, index) => {
+                if (item.review_status === 'new_candidate') {
+                    const select = document.querySelector(`.admin-client-action[data-index="${index}"]`);
+                    if (select) select.value = 'create_new';
+                    toggleExistingClientSelect(index);
+                }
+            });
+            showToast('New company candidates marked for creation.', 'info');
+        }
+
+        function exportClientReviewQueue() {
+            const rows = [['Uploaded Company', 'Suggested Client', 'Confidence', 'Status']];
+            adminClientReviewQueue.forEach(item => {
+                rows.push([
+                    item.uploaded_name || '',
+                    item.suggested_client_name || '',
+                    item.match_percent || '',
+                    item.review_status || ''
+                ]);
+            });
+            const csv = rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'company_review_queue.csv';
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+
+        function removeAdminRow(index) {
+            adminCleanRows.splice(index, 1);
+            document.getElementById('adminUploadOutliers').innerHTML = '<strong>Outliers recalculated after removal.</strong>';
+            previewAdminClientMatches().catch(error => showToast(error.message || 'Company matching preview failed.', 'error', 6000));
+            renderAdminPreview();
+        }
+
+        function renderAdminPreview() {
+            const container = document.getElementById('adminUploadPreview');
+            if (!container || adminCleanRows.length === 0) {
+                if (container) container.innerHTML = '<p class="no-data">No mapped sales orders ready.</p>';
+                return;
+            }
+            container.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Source</th>
+                            <th>SO Number</th>
+                            <th>Company</th>
+                            <th>Store</th>
+                            <th>Branch</th>
+                            <th>Date</th>
+                            <th>Sales Staff</th>
+                            <th>Items</th>
+                            <th>Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${adminCleanRows.map((row, idx) => `
+                            <tr>
+                                <td>${row.source_file}<br><small>${row.sheet_name}</small></td>
+                                <td>${row.so_number || 'Auto'}</td>
+                                <td>${row.company_name || '-'}</td>
+                                <td>${row.store_name || '-'}</td>
+                                <td>${row.store_branch || '-'}</td>
+                                <td>${row.order_date || '-'}</td>
+                                <td>${row.sales_staff || '-'}</td>
+                                <td>${row.items.length}</td>
+                                <td>${formatCurrency(row.total_amount)}</td>
+                                <td><button class="btn btn-outline btn-sm" onclick="removeAdminRow(${idx})">Remove</button></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>`;
+        }
+
+        async function ensureClientForAdminOrder(clientName) {
+            return createOrResolveClient(clientName);
+        }
+
+        async function commitAdminUpload() {
+            if (adminCleanRows.length === 0) {
+                showToast('No mapped sales orders to upload.', 'error');
+                return;
+            }
+            try {
+                let uploadedCount = 0;
+                let skippedCount = 0;
+                const clientResolutions = collectAdminClientResolutions();
+                const uploadWarnings = [];
+                for (const order of adminCleanRows) {
+                    if (!order.company_name || !order.store_name || !order.store_branch || !order.order_date || order.items.length === 0) {
+                        throw new Error(`Incomplete mapped order from ${order.source_file} / ${order.sheet_name}`);
+                    }
+                    const response = await fetch('{{ url_for("create_sales_order") }}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            client_name: order.client_name,
+                            original_entered_client_name: order.client_name,
+                            so_number: order.so_number,
+                            company_name: order.company_name.toUpperCase(),
+                            store_name: order.store_name.toUpperCase(),
+                            store_branch: order.store_branch.toUpperCase(),
+                            order_date: order.order_date,
+                            terms_days: order.terms_days,
+                            total_amount: order.total_amount,
+                            sales_staff: order.sales_staff,
+                            notes: `ADMIN EXCEL UPLOAD: ${order.source_file} / ${order.sheet_name}`,
+                            items: order.items,
+                            resolutions: clientResolutions
+                        })
+                    });
+                    const result = await response.json();
+                    if (!result.success) throw new Error(result.error || `Failed to upload ${order.source_file} / ${order.sheet_name}`);
+                    if (Array.isArray(result.warnings)) uploadWarnings.push(...result.warnings);
+                    uploadedCount++;
+                }
+                showToast(`Uploaded ${uploadedCount} mapped sales order(s).${skippedCount ? ` Skipped ${skippedCount} ignored order(s).` : ''}`, 'success');
+                if (window.SyluxentUI) SyluxentUI.showServerWarnings(uploadWarnings);
+                adminCleanRows = [];
+                adminClientReviewQueue = [];
+                renderAdminPreview();
+                document.getElementById('adminUploadOutliers').innerHTML = '';
+                document.getElementById('adminClientReviewQueue').innerHTML = '';
+            } catch (error) {
+                showToast(error.message || 'Admin upload failed.', 'error', 6000);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function () {
+            lucide.createIcons();
+        });
+    </script>
+</body>
+
+</html>

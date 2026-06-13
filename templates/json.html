@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Analytics Viewer</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --text-color: #cbd5e1;
+            --text-light: #f8fafc;
+            --accent-color: #10b981; /* Emerald green */
+            --border-color: #334155;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header h1 {
+            color: var(--text-light);
+            margin-bottom: 0.5rem;
+            font-size: 1.75rem;
+        }
+
+        header p {
+            color: #64748b;
+            margin-top: 0;
+            margin-bottom: 2rem;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            background-color: var(--panel-bg);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 1.5rem;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-light);
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.95rem;
+        }
+
+        input[type="text"]:focus {
+            outline: 2px solid var(--accent-color);
+            border-color: transparent;
+        }
+
+        button {
+            background-color: var(--accent-color);
+            color: var(--bg-color);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+            font-family: monospace;
+        }
+
+        .badge.idle { background-color: #475569; color: white; }
+        .badge.success { background-color: #065f46; color: #34d399; }
+        .badge.error { background-color: #991b1b; color: #f87171; }
+
+        .response-container {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background-color: #111827;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            font-weight: 700;
+        }
+
+        pre {
+            margin: 0;
+            padding: 1.5rem;
+            overflow-x: auto;
+            font-family: 'Fira Code', 'Courier New', Courier, monospace;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            background-color: #0b0f19;
+            color: #38bdf8; /* Light blue base text for JSON keys */
+        }
+
+        /* Simple syntax highlighting colors via regex fallback */
+        .json-string { color: #a7f3d0; } /* light green */
+        .json-number { color: #fbcfe8; } /* light pink */
+        .json-boolean { color: #fde047; } /* yellow */
+        .json-null { color: #fda4af; }
+        .json-key { color: #38bdf8; } /* blue */
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>API Response Viewer</h1>
+        <p>Enter your local or relative application route below to fetch and inspect data payload structures.</p>
+    </header>
+
+    <div class="controls">
+        <input type="text" id="endpointInput" value="/api/analytics/clients" placeholder="/api/your-endpoint-here">
+        <button id="fetchBtn">Fetch Data</button>
+    </div>
+
+    <div class="status-bar">
+        <span>Status:</span>
+        <span id="statusBadge" class="badge idle">IDLE</span>
+        <span id="statusText">Awaiting request...</span>
+    </div>
+
+    <div class="response-container">
+        <div class="panel-header">
+            <span class="panel-title">JSON Payload Output</span>
+        </div>
+        <pre><code id="jsonOutput">// Click "Fetch Data" to render server response.</code></pre>
+    </div>
+</div>
+
+<script>
+    document.getElementById('fetchBtn').addEventListener('click', fetchApiData);
+    document.getElementById('endpointInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') fetchApiData();
+    });
+
+    async function fetchApiData() {
+        const endpoint = document.getElementById('endpointInput').value.trim();
+        const outputEl = document.getElementById('jsonOutput');
+        const badge = document.getElementById('statusBadge');
+        const statusText = document.getElementById('statusText');
+
+        if (!endpoint) {
+            alert('Please enter a valid route endpoint.');
+            return;
+        }
+
+        outputEl.textContent = 'Fetching data...';
+        badge.className = 'badge idle';
+        badge.textContent = 'PENDING';
+        statusText.textContent = `Connecting to ${endpoint}...`;
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Include credentials/session cookies if testing authentication locally
+                }
+            });
+
+            const data = await response.json();
+            
+            // Set statuses based on HTTP and payload indicators
+            if (response.ok && data.success !== false) {
+                badge.className = 'badge success';
+                badge.textContent = `${response.status} OK`;
+                statusText.textContent = 'Data successfully parsed.';
+            } else {
+                badge.className = 'badge error';
+                badge.textContent = `${response.status} BAD`;
+                statusText.textContent = data.error || 'Server returned an operational error state.';
+            }
+
+            // Stringify and inject with syntax highlighting
+            const formattedJson = JSON.stringify(data, null, 2);
+            outputEl.innerHTML = syntaxHighlight(formattedJson);
+
+        } catch (error) {
+            badge.className = 'badge error';
+            badge.textContent = 'ERR';
+            statusText.textContent = 'Network failure or route target unavailable.';
+            outputEl.textContent = `Error details:\n${error.message}\n\nTip: Ensure your server application is running and CORS allows local traffic if hosted on different ports.`;
+        }
+    }
+
+    // Quick regex helper to format JSON output visually
+    function syntaxHighlight(json) {
+        json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, function (match) {
+            let cls = 'json-number';
+            if (/^"/.test(match)) {
+                if (/:$/.test(match)) {
+                    cls = 'json-key';
+                } else {
+                    cls = 'json-string';
+                }
+            } else if (/true|false/.test(match)) {
+                cls = 'json-boolean';
+            } else if (/null/.test(match)) {
+                cls = 'json-null';
+            }
+            return '<span class="' + cls + '">' + match + '</span>';
+        });
+    }
+</script>
+
+</body>
+</html>

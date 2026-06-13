@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syluxent - Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
+    <script async
+        src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
+        onload="window.chartJsReady = true; window.renderDashboardCashflowChart?.()"></script>
+    <style>
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .stat-card .stat-value {
+            max-width: 100%;
+            line-height: 1.1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: clip;
+            font-size: clamp(0.9rem, 2vw, 1.8rem);
+        }
+
+        .stat-card .stat-value.value-long {
+            font-size: clamp(0.68rem, 1.25vw, 1.05rem);
+        }
+
+        .stat-card .stat-value.value-xl {
+            font-size: clamp(0.56rem, 1vw, 0.82rem);
+        }
+
+        .stat-card .stat-value.value-xxl {
+            font-size: clamp(0.48rem, 0.82vw, 0.68rem);
+        }
+
+        .stat-card.clickable {
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .stat-card.clickable:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .analytics-placeholder {
+            background: var(--card-bg);
+            border: 2px dashed var(--border-color);
+            border-radius: var(--radius-xl);
+            padding: 3rem;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .analytics-placeholder svg {
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab-btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            background: transparent;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: var(--radius-lg);
+            transition: 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: var(--brand-orange);
+        }
+
+        .tab-btn.active {
+            background: var(--brand-orange);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+
+        .drill-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .receivable-warning {
+            background: #FEF3C7;
+            border: 1px solid #F59E0B;
+            border-radius: var(--radius-lg);
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .receivable-warning svg {
+            color: #F59E0B;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.hidden {
+            display: none;
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            max-width: 900px;
+            max-height: 80vh;
+            overflow-y: auto;
+            margin: 1rem;
+        }
+
+        .dashboard-filter {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .dashboard-filter select {
+            min-width: 110px;
+            padding: 0.55rem 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            background: var(--glass-strong);
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        .cashflow-chart-wrap {
+            position: relative;
+            min-height: 360px;
+            margin-top: 1.25rem;
+        }
+
+        .kpi-pair {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.85rem;
+            margin-top: 0.35rem;
+        }
+
+        .kpi-pair-item {
+            min-width: 0;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--glass);
+        }
+
+        .kpi-pair-label {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .kpi-pair .stat-value {
+            font-size: clamp(0.64rem, 1.15vw, 0.95rem);
+            line-height: 1.1;
+        }
+    </style>
+</head>
+<body>
+    <nav class="app-navbar">
+        <div class="nav-logo" onclick="window.location.href='{{ url_for('dashboard') }}'">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            Syluxent
+        </div>
+        {% set nav_links = {
+    'staff': [
+        ('sales_order', 'Sales Order'),
+        ('invoices', 'Invoice'),
+        ('purchase_orders', 'Purchase Order')
+    ],
+    'manager': [
+        ('analytics', 'Analytics'),
+        ('reports', 'Reports')
+    ],
+    'admin': [
+        ('sales_order', 'Sales Order'),
+        ('invoices', 'Invoice'),
+        ('purchase_orders', 'Purchase Order'),
+        ('analytics', 'Analytics'),
+        ('reports', 'Reports'),
+        ('database_interface', 'Database Interface')
+    ]
+} %}
+
+<div class="nav-menu">
+    <a href="{{ url_for('dashboard') }}" class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}">Home</a>
+    
+    {% for endpoint, label in nav_links.get(session.role, []) %}
+    <a href="{{ url_for(endpoint) }}" 
+       class="nav-link {{ 'active' if request.endpoint == endpoint }}">
+       {{ label }}
+    </a>
+    {% endfor %}
+        </div>
+        <div class="nav-user">
+            <a class="profile-link" href="{{ url_for('profile') }}">
+                {% if current_user and current_user.profile_photo %}
+                <img class="profile-avatar" src="{{ url_for('static', filename=current_user.profile_photo) }}" alt="">
+                {% else %}
+                <span class="profile-avatar">{{ session.username[:1]|upper }}</span>
+                {% endif %}
+                {{ session.username }}
+            </a>
+            <span id="datetime"></span>
+            <a href="{{ url_for('logout') }}" class="btn btn-outline btn-sm">Logout</a>
+        </div>
+    </nav>
+
+    <div id="toastContainer" style="position: fixed; top: 1rem; right: 1rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;"></div>
+
+    <main class="page-shell">
+        <div class="section-header">
+            <div class="page-title">
+                <h1>Dashboard</h1>
+                <p style="margin: 0.25rem 0 0; color: var(--text-muted); font-weight: 600;">Data Timeline: Calendar Year {{ dashboard_data.timeline_label }}</p>
+            </div>
+            <form method="get" action="{{ url_for('dashboard') }}" class="dashboard-filter">
+                <label for="dashboard-year"><strong>Year</strong></label>
+                <select id="dashboard-year" name="year" onchange="this.form.submit()">
+                    {% for year in dashboard_data.available_years %}
+                    <option value="{{ year }}" {{ 'selected' if year == dashboard_data.selected_year else '' }}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card clickable" onclick="openARModal()">
+                <div class="stat-label">Accounts Receivable</div>
+                <div class="stat-value" id="receivable-amount">Loading...</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
+                    <span id="receivable-count">0</span> clients with balance
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Revenue</div>
+                <div class="kpi-pair">
+                    <div class="kpi-pair-item">
+                        <div class="kpi-pair-label">Actual</div>
+                        <div class="stat-value" id="actual-revenue">Loading...</div>
+                    </div>
+                    <div class="kpi-pair-item">
+                        <div class="kpi-pair-label">Expected</div>
+                        <div class="stat-value" id="expected-revenue">Loading...</div>
+                    </div>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
+                    <span id="payment-count">0</span> paid invoices vs sales order selling prices
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Profit</div>
+                <div class="kpi-pair">
+                    <div class="kpi-pair-item">
+                        <div class="kpi-pair-label">Actual</div>
+                        <div class="stat-value" id="actual-profit">Loading...</div>
+                    </div>
+                    <div class="kpi-pair-item">
+                        <div class="kpi-pair-label">Expected</div>
+                        <div class="stat-value" id="expected-profit">Loading...</div>
+                    </div>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
+                    Actual revenue minus expenses vs expected item margin
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Expenses</div>
+                <div class="stat-value" id="expenses-amount">Loading...</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
+                    Purchase order cash amount for selected year
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Section (Manager/Admin only) -->
+        {% if session.role in ['manager', 'admin'] %}
+        <div id="analytics-section" class="card" style="margin-bottom: 2rem;">
+            <h2 style="margin-bottom: 0.25rem;">Cashflow Report</h2>
+            <p style="margin: 0; color: var(--text-muted);">Monthly Cash In vs Cash Out for {{ dashboard_data.selected_year }}</p>
+            <div id="analytics-content">
+                <!-- Will be populated if data exists -->
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Historical Records Tabs -->
+        <div class="card">
+            <h2 style="margin-bottom: 1rem;">Historical Records</h2>
+            
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('sales')">Sales Orders</button>
+                <button class="tab-btn" onclick="switchTab('invoices')">Invoices</button>
+                <button class="tab-btn" onclick="switchTab('clients')">Clients</button>
+            </div>
+
+            <!-- Sales Orders Tab -->
+            <div class="tab-content active" id="tab-sales">
+                <div class="table-wrap">
+                    <table id="sales-table">
+                        <thead>
+                            <tr>
+                                <th>Order #</th>
+                                <th>Client</th>
+                                <th>Date</th>
+                                <th>Items</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sales-tbody">
+                            <tr><td colspan="6" class="no-data">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Invoices Tab -->
+            <div class="tab-content" id="tab-invoices">
+                <div class="table-wrap">
+                    <table id="invoices-table">
+                        <thead>
+                            <tr>
+                                <th>Invoice #</th>
+                                <th>Client</th>
+                                <th>Date</th>
+                                <th>Amount</th>
+                                <th>Paid</th>
+                                <th>Balance</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="invoices-tbody">
+                            <tr><td colspan="7" class="no-data">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Clients Tab -->
+            <div class="tab-content" id="tab-clients">
+                <div class="table-wrap">
+                    <table id="clients-table">
+                        <thead>
+                            <tr>
+                                <th>Client Name</th>
+                                <th>Contact</th>
+                                <th>Total Invoices</th>
+                                <th>Client Score</th>
+                                <th>Cohort</th>
+                                <th>Balance Due</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clients-tbody">
+                            <tr><td colspan="7" class="no-data">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Accounts Receivable Modal -->
+    <div id="ar-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 style="margin: 0;">Accounts Receivable - Client Balances</h2>
+                <button type="button" class="btn btn-outline btn-sm" onclick="closeARModal()"
+                    style="padding: 0.25rem 0.5rem; font-size: 1.2rem; line-height: 1;">&times;</button>
+            </div>
+            <div id="ar-invoices-list">
+                <p class="no-data">Loading outstanding invoices...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="client-so-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 id="client-so-title" style="margin: 0;">Unpaid Sales Orders</h2>
+                <button type="button" class="btn btn-outline btn-sm" onclick="closeClientSOModal()"
+                    style="padding: 0.25rem 0.5rem; font-size: 1.2rem; line-height: 1;">&times;</button>
+            </div>
+            <div id="client-so-list">
+                <p class="no-data">No unpaid sales orders found.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Update date/time
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById('datetime').textContent = now.toLocaleString();
+        }
+        setInterval(updateDateTime, 1000);
+        updateDateTime();
+
+        // Dashboard data
+        let dashboardData = {{ dashboard_data|tojson|safe }};
+        let cashflowChart = null;
+
+        // Format currency
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-PH', {
+                style: 'currency',
+                currency: 'PHP'
+            }).format(amount || 0);
+        }
+
+        function formatCurrencyCell(amount) {
+            return amount === null || amount === undefined || amount === '' ? '-' : formatCurrency(amount);
+        }
+
+        function kpiClassFor(type, amount) {
+            const value = Number(amount || 0);
+            if (type === 'accounts_receivable') {
+                if (value === 0) return 'kpi-value kpi-zero';
+                if (value > 0) return 'kpi-value kpi-black';
+                return 'kpi-value kpi-negative';
+            }
+            if (type === 'revenue') {
+                return value > 0 ? 'kpi-value kpi-positive' : 'kpi-value kpi-negative';
+            }
+            return 'kpi-value';
+        }
+
+        function setKpiValue(id, amount, type) {
+            const element = document.getElementById(id);
+            if (!element) return;
+            const formatted = formatCurrency(amount);
+            element.textContent = formatted;
+            const lengthClass = formatted.length > 22 ? ' value-xxl' : formatted.length > 17 ? ' value-xl' : formatted.length > 12 ? ' value-long' : '';
+            element.className = 'stat-value ' + kpiClassFor(type, amount) + lengthClass;
+        }
+
+        // Format date
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            return new Date(dateString).toLocaleDateString();
+        }
+
+        // Status badge
+        function statusBadge(status) {
+            const statusClass = status === 'PAID' || status === 'COMPLETED' ? 'badge-paid' : 
+                               status === 'PENDING' ? 'badge-pending' :
+                               status === 'Admin Upload' || status === 'Settled' ? 'badge-paid' : 'badge-unpaid';
+            return '<span class="badge ' + statusClass + '">' + status + '</span>';
+        }
+
+        // Load dashboard stats
+        function loadDashboardStats() {
+            setKpiValue('receivable-amount', dashboardData.accounts_receivable.total_amount, 'accounts_receivable');
+            document.getElementById('receivable-count').textContent = dashboardData.accounts_receivable.invoice_count;
+            setKpiValue('expected-revenue', dashboardData.revenue_kpis.expected_gross_revenue, 'revenue');
+            setKpiValue('actual-revenue', dashboardData.revenue_kpis.actual_gross_revenue, 'revenue');
+            document.getElementById('payment-count').textContent = dashboardData.total_revenue.payment_count;
+            setKpiValue('expected-profit', dashboardData.revenue_kpis.expected_profit, 'revenue');
+            setKpiValue('actual-profit', dashboardData.revenue_kpis.actual_profit, 'revenue');
+            setKpiValue('expenses-amount', dashboardData.total_expenses.total_amount, 'expenses');
+        }
+
+        // Load analytics for managers/admins
+        function loadAnalytics() {
+            {% if session.role in ['manager', 'admin'] %}
+            const container = document.getElementById('analytics-content');
+
+            container.innerHTML = '<div class="stats-grid" style="margin-top: 1rem;"><div class="stat-card"><div class="stat-label">Invoice Payments</div><div class="stat-value ' + kpiClassFor('revenue', dashboardData.selected_year_revenue || 0) + '">' + formatCurrency(dashboardData.selected_year_revenue || 0) + '</div></div><div class="stat-card"><div class="stat-label">Purchase Order Total</div><div class="stat-value kpi-value">' + formatCurrency(dashboardData.total_expenses.total_amount || 0) + '</div></div><div class="stat-card"><div class="stat-label">Aging (0-30 days)</div><div class="stat-value ' + kpiClassFor('accounts_receivable', dashboardData.aging_0_30 || 0) + '">' + formatCurrency(dashboardData.aging_0_30 || 0) + '</div></div></div><div class="cashflow-chart-wrap"><canvas id="cashflow-chart"></canvas></div>';
+            renderDashboardCashflowChart();
+            {% endif %}
+        }
+
+        function renderDashboardCashflowChart() {
+            {% if session.role in ['manager', 'admin'] %}
+            const chartCanvas = document.getElementById('cashflow-chart');
+            if (!chartCanvas || typeof Chart === 'undefined') {
+                return;
+            }
+            if (cashflowChart) {
+                cashflowChart.destroy();
+            }
+            cashflowChart = new Chart(chartCanvas, {
+                type: 'bar',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                    datasets: [
+                        {
+                            label: 'Cash In (Invoice Payments)',
+                            data: dashboardData.monthly_cashflow.map(row => row.cash_in),
+                            backgroundColor: '#16A34A',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'Cash Out (Purchase Orders)',
+                            data: dashboardData.monthly_cashflow.map(row => row.cash_out),
+                            backgroundColor: '#F97316',
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: value => formatCurrency(value)
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: context => context.dataset.label + ': ' + formatCurrency(context.raw)
+                            }
+                        }
+                    }
+                }
+            });
+            {% endif %}
+        }
+
+        // Load tables
+        function loadTables() {
+            // Sales Orders
+            const salesTbody = document.getElementById('sales-tbody');
+            if (dashboardData.recent_sales_orders.length === 0) {
+                salesTbody.innerHTML = '<tr><td colspan="6" class="no-data">No sales orders found</td></tr>';
+            } else {
+                salesTbody.innerHTML = dashboardData.recent_sales_orders.map(order => {
+                    return '<tr><td data-label="Order #">#' + order.id + '</td><td data-label="Client">' + order.client_name + '</td><td data-label="Date">' + formatDate(order.order_date) + '</td><td data-label="Items">' + order.item_count + '</td><td data-label="Total">' + formatCurrency(order.total_amount) + '</td><td data-label="Status">' + statusBadge(order.status || 'PENDING') + '</td></tr>';
+                }).join('');
+            }
+
+            // Invoices
+            const invoicesTbody = document.getElementById('invoices-tbody');
+            if (dashboardData.recent_invoices.length === 0) {
+                invoicesTbody.innerHTML = '<tr><td colspan="7" class="no-data">No invoices found</td></tr>';
+            } else {
+                invoicesTbody.innerHTML = dashboardData.recent_invoices.map(inv => {
+                    return '<tr><td data-label="Invoice #">' + inv.invoice_number + '</td><td data-label="Client">' + inv.client_name + '</td><td data-label="Date">' + formatDate(inv.invoice_date) + '</td><td data-label="Amount">' + formatCurrencyCell(inv.total_amount) + '</td><td data-label="Paid">' + formatCurrency(inv.amount_paid) + '</td><td data-label="Balance">' + formatCurrencyCell(inv.balance) + '</td><td data-label="Status">' + statusBadge(inv.status) + '</td></tr>';
+                }).join('');
+            }
+
+            // Clients
+            const clientsTbody = document.getElementById('clients-tbody');
+            if (dashboardData.clients_summary.length === 0) {
+                clientsTbody.innerHTML = '<tr><td colspan="7" class="no-data">No clients found</td></tr>';
+            } else {
+                clientsTbody.innerHTML = dashboardData.clients_summary.map(client => {
+                    const status = client.balance_status || (parseFloat(client.current_balance) > 0 ? 'Unsettled Balance' : 'Settled');
+                    const statusClass = status === 'Settled' ? 'badge-paid' : 'badge-unpaid';
+                    const cohort = client.cohort || 'Low Engagement';
+                    
+                    return '<tr class="clickable" onclick="openClientSOModal(' + client.id + ')"><td data-label="Client Name">' + client.client_name + '</td><td data-label="Contact">' + (client.contact_info || '-') + '</td><td data-label="Total Invoices">' + (client.total_invoices || 0) + '</td><td data-label="Client Score">' + Number(client.client_performance_score || 0).toFixed(2) + '</td><td data-label="Cohort">' + cohort + '</td><td data-label="Balance Due"><span class="' + kpiClassFor('accounts_receivable', client.current_balance) + '">' + formatCurrency(client.current_balance) + '</span><br><small><span class="' + kpiClassFor('revenue', client.total_revenue || 0) + '">Revenue ' + formatCurrency(client.total_revenue || 0) + '</span> / <span class="' + kpiClassFor('revenue', client.total_paid || 0) + '">Paid ' + formatCurrency(client.total_paid || 0) + '</span></small></td><td data-label="Status"><span class="badge ' + statusClass + '">' + status + '</span></td></tr>';
+                }).join('');
+            }
+        }
+
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tab).classList.add('active');
+        }
+
+        // Modal functions
+        function openARModal() {
+            document.getElementById('ar-modal').classList.remove('hidden');
+            loadARInvoices();
+        }
+
+        function closeARModal() {
+            document.getElementById('ar-modal').classList.add('hidden');
+        }
+
+        function openClientSOModal(clientId) {
+            const client = dashboardData.clients_summary.find(item => item.id === clientId);
+            const container = document.getElementById('client-so-list');
+            document.getElementById('client-so-title').textContent = (client ? client.client_name : 'Client') + ' - Unpaid Sales Orders';
+
+            if (!client || !client.unpaid_sales_orders || client.unpaid_sales_orders.length === 0) {
+                container.innerHTML = '<p class="no-data">No unpaid sales orders found.</p>';
+            } else {
+                let tableHTML = '<div class="table-wrap"><table class="data-table"><thead><tr><th>SO #</th><th>Date</th><th>Total</th><th>Paid</th><th>Unpaid Balance</th><th>Status</th></tr></thead><tbody>';
+                client.unpaid_sales_orders.forEach(order => {
+                    tableHTML += '<tr><td data-label="SO #">' + order.so_number + '</td><td data-label="Date">' + formatDate(order.order_date) + '</td><td data-label="Total">' + formatCurrency(order.total_amount) + '</td><td data-label="Paid">' + formatCurrency(order.paid_total) + '</td><td data-label="Unpaid Balance">' + formatCurrency(order.unpaid_balance) + '</td><td data-label="Status">' + statusBadge(order.status || 'PENDING') + '</td></tr>';
+                });
+                tableHTML += '</tbody></table></div>';
+                container.innerHTML = tableHTML;
+            }
+
+            document.getElementById('client-so-modal').classList.remove('hidden');
+        }
+
+        function closeClientSOModal() {
+            document.getElementById('client-so-modal').classList.add('hidden');
+        }
+
+        function loadARInvoices() {
+            const container = document.getElementById('ar-invoices-list');
+            const clientsWithBalance = dashboardData.clients_summary.filter(client => parseFloat(client.current_balance || 0) > 0);
+            
+            if (clientsWithBalance.length === 0) {
+                container.innerHTML = '<p class="no-data">No client balances found.</p>';
+                return;
+            }
+
+            let tableHTML = '<div class="table-wrap"><table class="data-table" id="ar-table"><thead><tr><th>Client</th><th>Total Revenue</th><th>Total Paid</th><th>Balance</th><th>Status</th></tr></thead><tbody>';
+            
+            clientsWithBalance.forEach(client => {
+                tableHTML += '<tr><td data-label="Client">' + client.client_name + '</td><td data-label="Total Revenue" class="' + kpiClassFor('revenue', client.total_revenue || 0) + '">' + formatCurrency(client.total_revenue || 0) + '</td><td data-label="Total Paid" class="' + kpiClassFor('revenue', client.total_paid || 0) + '">' + formatCurrency(client.total_paid || 0) + '</td><td data-label="Balance" class="' + kpiClassFor('accounts_receivable', client.current_balance || 0) + '">' + formatCurrency(client.current_balance || 0) + '</td><td data-label="Status">' + statusBadge(client.balance_status || 'Unsettled Balance') + '</td></tr>';
+            });
+            
+            tableHTML += '</tbody></table></div>';
+            container.innerHTML = tableHTML;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDashboardStats();
+            loadAnalytics();
+            loadTables();
+        });
+    </script>
+</body>
+</html>

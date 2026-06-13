@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Analytics Engine with Predictive Models</title>
+    <!-- Tailwind CSS for high fidelity design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for iconic styling -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js for premium quality data charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col overflow-x-hidden">
+
+<script>
+// Mock 100 JSON records representing historical client sales and invoice transactions
+const INITIAL_100_JSON_DATA = [
+    {"date":"2025-01-05","client_name":"Apex Logistics","revenue":15000,"expenses":8500,"item_name":"Enterprise Suite Sales","item_qty":45,"invoice_number":"SI-1001","days_outstanding":0,"status":"Paid","pondo":6500},
+    {"date":"2025-01-10","client_name":"Nova Healthcare","revenue":22000,"expenses":11000,"item_name":"System Integration Service","item_qty":60,"invoice_number":"SVI-2001","days_outstanding":45,"status":"Unpaid","pondo":11000},
+    {"date":"2025-01-15","client_name":"Vertex Industrial","revenue":18500,"expenses":9000,"item_name":"Cloud Infrastructure Provisioning","item_qty":30,"invoice_number":"SI-1002","days_outstanding":0,"status":"Paid","pondo":9500},
+    {"date":"2025-01-20","client_name":"Sterling Global","revenue":35000,"expenses":18000,"item_name":"Managed IT Support","item_qty":110,"invoice_number":"SVI-2002","days_outstanding":60,"status":"Unpaid","pondo":17000},
+    {"date":"2025-01-25","client_name":"Beacon Media","revenue":12000,"expenses":6000,"item_name":"Enterprise Suite Sales","item_qty":25,"invoice_number":"SI-1003","days_outstanding":0,"status":"Paid","pondo":6000},
+    {"date":"2025-01-28","client_name":"Apex Logistics","revenue":16200,"expenses":8900,"item_name":"Managed IT Support","item_qty":50,"invoice_number":"SVI-2003","days_outstanding":15,"status":"Unpaid","pondo":7300},
+    {"date":"2025-02-02","client_name":"Nova Healthcare","revenue":24000,"expenses":12500,"item_name":"Enterprise Suite Sales","item_qty":70,"invoice_number":"SI-1004","days_outstanding":0,"status":"Paid","pondo":11500},
+    {"date":"2025-02-08","client_name":"Apex Logistics","revenue":19000,"expenses":10000,"item_name":"System Integration Service","item_qty":35,"invoice_number":"SVI-2004","days_outstanding":75,"status":"Unpaid","pondo":9000},
+    {"date":"2025-02-12","client_name":"Vertex Industrial","revenue":20500,"expenses":10500,"item_name":"Cloud Infrastructure Provisioning","item_qty":40,"invoice_number":"SI-1005","days_outstanding":0,"status":"Paid","pondo":10000},
+    {"date":"2025-02-18","client_name":"Sterling Global","revenue":31000,"expenses":15500,"item_name":"Managed IT Support","item_qty":95,"invoice_number":"SVI-2005","days_outstanding":20,"status":"Unpaid","pondo":15500},
+    {"date":"2025-02-22","client_name":"Beacon Media","revenue":14000,"expenses":7000,"item_name":"Enterprise Suite Sales","item_qty":30,"invoice_number":"SI-1006","days_outstanding":0,"status":"Paid","pondo":7000},
+    {"date":"2025-02-26","client_name":"Nexus Retail","revenue":9500,"expenses":4000,"item_name":"System Integration Service","item_qty":20,"invoice_number":"SVI-2006","days_outstanding":0,"status":"Paid","pondo":5500},
+    {"date":"2025-03-03","client_name":"Nova Healthcare","revenue":21500,"expenses":11000,"item_name":"Cloud Infrastructure Provisioning","item_qty":55,"invoice_number":"SI-1007","days_outstanding":55,"status":"Unpaid","pondo":10500},
+    {"date":"2025-03-09","client_name":"Vertex Industrial","revenue":27000,"expenses":13000,"item_name":"Enterprise Suite Sales","item_qty":80,"invoice_number":"SI-1008","days_outstanding":0,"status":"Paid","pondo":14000},
+    {"date":"2025-03-14","client_name":"Sterling Global","revenue":33000,"expenses":16000,"item_name":"Managed IT Support","item_qty":100,"invoice_number":"SVI-2007","days_outstanding":10,"status":"Paid","pondo":17000},
+    {"date":"2025-03-20","client_name":"Beacon Media","revenue":11500,"expenses":5800,"item_name":"System Integration Service","item_qty":25,"invoice_number":"SVI-2008","days_outstanding":90,"status":"Unpaid","pondo":5700},
+    {"date":"2025-03-25","client_name":"Apex Logistics","revenue":18000,"expenses":9200,"item_name":"Cloud Infrastructure Provisioning","item_qty":45,"invoice_number":"SI-1009","days_outstanding":0,"status":"Paid","pondo":8800},
+    {"date":"2025-04-02","client_name":"Nexus Retail","revenue":10500,"expenses":4500,"item_name":"Enterprise Suite Sales","item_qty":22,"invoice_number":"SI-1010","days_outstanding":0,"status":"Paid","pondo":6000},
+    {"date":"2025-04-07","client_name":"Nova Healthcare","revenue":25000,"expenses":12800,"item_name":"Managed IT Support","item_qty":75,"invoice_number":"SVI-2009","days_outstanding":30,"status":"Unpaid","pondo":12200},
+    {"date":"2025-04-12","client_name":"Vertex Industrial","revenue":21000,"expenses":11200,"item_name":"System Integration Service","item_qty":42,"invoice_number":"SVI-2010","days_outstanding":80,"status":"Unpaid","pondo":9800},
+    {"date":"2025-04-17","client_name":"Sterling Global","revenue":36000,"expenses":19000,"item_name":"Cloud Infrastructure Provisioning","item_qty":115,"invoice_number":"SI-1011","days_outstanding":0,"status":"Paid","pondo":17000},
+    {"date":"2025-04-22","client_name":"Beacon Media","revenue":13000,"expenses":6200,"item_name":"Enterprise Suite Sales","item_qty":28,"invoice_number":"SI-1012","days_outstanding":0,"status":"Paid","pondo":6800},
+    {"date":"2025-04-28","client_name":"Apex Logistics","revenue":20500,"expenses":10200,"item_name":"Managed IT Support","item_qty":55,"invoice_number":"SVI-2011","days_outstanding":40,"status":"Unpaid","pondo":10300},
+    {"date":"2025-05-02","client_name":"Nexus Retail","revenue":11200,"expenses":5000,"item_name":"System Integration Service","item_qty":25,"invoice_number":"SVI-2012","days_outstanding":0,"status":"Paid","pondo":6200},
+    {"date":"2025-05-06","client_name":"Nova Healthcare","revenue":26500,"expenses":13500,"item_name":"Cloud Infrastructure Provisioning","item_qty":80,"invoice_number":"SI-1013","days_outstanding":0,"status":"Paid","pondo":13000},
+    {"date":"2025-05-11","client_name":"Vertex Industrial","revenue":22500,"expenses":11800,"item_name":"Enterprise Suite Sales","item_qty":48,"invoice_number":"SI-1014","days_outstanding":15,"status":"Paid","pondo":10700},
+    {"date":"2025-05-16","client_name":"Sterling Global","revenue":38000,"expenses":20000,"item_name":"Managed IT Support","item_qty":120,"invoice_number":"SVI-2013","days_outstanding":70,"status":"Unpaid","pondo":18000},
+    {"date":"2025-05-21","client_name":"Beacon Media","revenue":14500,"expenses":7200,"item_name":"System Integration Service","item_qty":32,"invoice_number":"SVI-2014","days_outstanding":0,"status":"Paid","pondo":7300},
+    {"date":"2025-05-26","client_name":"Apex Logistics","revenue":22000,"expenses":11000,"item_name":"Cloud Infrastructure Provisioning","item_qty":60,"invoice_number":"SI-1015","days_outstanding":0,"status":"Paid","pondo":11000},
+    {"date":"2025-06-01","client_name":"Nexus Retail","revenue":12000,"expenses":5500,"item_name":"Enterprise Suite Sales","item_qty":27,"invoice_number":"SI-1016","days_outstanding":45,"status":"Unpaid","pondo":6500},
+    {"date":"2025-06-06","client_name":"Nova Healthcare","revenue":28000,"expenses":14200,"item_name":"Managed IT Support","item_qty":85,"invoice_number":"SVI-2015","days_outstanding":0,"status":"Paid","pondo":13800},
+    {"date":"2025-06-11","client_name":"Vertex Industrial","revenue":24000,"expenses":12500,"item_name":"System Integration Service","item_qty":50,"invoice_number":"SVI-2016","days_outstanding":30,"status":"Unpaid","pondo":11500},
+    {"date":"2025-06-16","client_name":"Sterling Global","revenue":40000,"expenses":21000,"item_name":"Cloud Infrastructure Provisioning","item_qty":130,"invoice_number":"SI-1017","days_outstanding":0,"status":"Paid","pondo":19000},
+    {"date":"2025-06-21","client_name":"Beacon Media","revenue":15500,"expenses":7800,"item_name":"Enterprise Suite Sales","item_qty":35,"invoice_number":"SI-1018","days_outstanding":0,"status":"Paid","pondo":7700},
+    {"date":"2025-06-26","client_name":"Apex Logistics","revenue":23500,"expenses":11800,"item_name":"Managed IT Support","item_qty":65,"invoice_number":"SVI-2017","days_outstanding":50,"status":"Unpaid","pondo":11700},
+    {"date":"2025-07-02","client_name":"Quantum Tech","revenue":17500,"expenses":8500,"item_name":"System Integration Service","item_qty":38,"invoice_number":"SVI-2018","days_outstanding":0,"status":"Paid","pondo":9000},
+    {"date":"2025-07-07","client_name":"Nova Healthcare","revenue":29500,"expenses":15000,"item_name":"Cloud Infrastructure Provisioning","item_qty":90,"invoice_number":"SI-1019","days_outstanding":25,"status":"Paid","pondo":14500},
+    {"date":"2025-07-12","client_name":"Vertex Industrial","revenue":25000,"expenses":13000,"item_name":"Enterprise Suite Sales","item_qty":52,"invoice_number":"SI-1020","days_outstanding":0,"status":"Paid","pondo":12000},
+    {"date":"2025-07-17","client_name":"Sterling Global","revenue":41500,"expenses":22000,"item_name":"Managed IT Support","item_qty":135,"invoice_number":"SVI-2019","days_outstanding":85,"status":"Unpaid","pondo":19500},
+    {"date":"2025-07-22","client_name":"Beacon Media","revenue":16000,"expenses":8000,"item_name":"System Integration Service","item_qty":36,"invoice_number":"SVI-2020","days_outstanding":0,"status":"Paid","pondo":8000},
+    {"date":"2025-07-27","client_name":"Apex Logistics","revenue":25000,"expenses":12500,"item_name":"Cloud Infrastructure Provisioning","item_qty":70,"invoice_number":"SI-1021","days_outstanding":0,"status":"Paid","pondo":12500},
+    {"date":"2025-08-01","client_name":"Quantum Tech","revenue":19000,"expenses":9200,"item_name":"Enterprise Suite Sales","item_qty":42,"invoice_number":"SI-1022","days_outstanding":0,"status":"Paid","pondo":9800},
+    {"date":"2025-08-06","client_name":"Nova Healthcare","revenue":31000,"expenses":15800,"item_name":"Managed IT Support","item_qty":95,"invoice_number":"SVI-2021","days_outstanding":60,"status":"Unpaid","pondo":15200},
+    {"date":"2025-08-11","client_name":"Vertex Industrial","revenue":26500,"expenses":13800,"item_name":"System Integration Service","item_qty":55,"invoice_number":"SVI-2022","days_outstanding":40,"status":"Unpaid","pondo":12700},
+    {"date":"2025-08-16","client_name":"Sterling Global","revenue":43000,"expenses":23000,"item_name":"Cloud Infrastructure Provisioning","item_qty":140,"invoice_number":"SI-1023","days_outstanding":0,"status":"Paid","pondo":20000},
+    {"date":"2025-08-21","client_name":"Beacon Media","revenue":17000,"expenses":8500,"item_name":"Enterprise Suite Sales","item_qty":38,"invoice_number":"SI-1024","days_outstanding":10,"status":"Paid","pondo":8500},
+    {"date":"2025-08-26","client_name":"Apex Logistics","revenue":26000,"expenses":13000,"item_name":"Managed IT Support","item_qty":72,"invoice_number":"SVI-2023","days_outstanding":0,"status":"Paid","pondo":13000},
+    {"date":"2025-09-02","client_name":"Quantum Tech","revenue":20500,"expenses":10000,"item_name":"System Integration Service","item_qty":45,"invoice_number":"SVI-2024","days_outstanding":0,"status":"Paid","pondo":10500},
+    {"date":"2025-09-07","client_name":"Nova Healthcare","revenue":32000,"expenses":16200,"item_name":"Cloud Infrastructure Provisioning","item_qty":100,"invoice_number":"SI-1025","days_outstanding":0,"status":"Paid","pondo":15800},
+    {"date":"2025-09-12","client_name":"Vertex Industrial","revenue":27500,"expenses":14200,"item_name":"Enterprise Suite Sales","item_qty":58,"invoice_number":"SI-1026","days_outstanding":30,"status":"Unpaid","pondo":13300},
+    {"date":"2025-09-17","client_name":"Sterling Global","revenue":44500,"expenses":24000,"item_name":"Managed IT Support","item_qty":145,"invoice_number":"SVI-2025","days_outstanding":95,"status":"Unpaid","pondo":20500},
+    {"date":"2025-09-22","client_name":"Beacon Media","revenue":17500,"expenses":8800,"item_name":"System Integration Service","item_qty":40,"invoice_number":"SVI-2026","days_outstanding":0,"status":"Paid","pondo":8700},
+    {"date":"2025-09-27","client_name":"Apex Logistics","revenue":27500,"expenses":13800,"item_name":"Cloud Infrastructure Provisioning","item_qty":76,"invoice_number":"SI-1027","days_outstanding":0,"status":"Paid","pondo":13700},
+    {"date":"2025-10-02","client_name":"Quantum Tech","revenue":22000,"expenses":10800,"item_name":"Enterprise Suite Sales","item_qty":50,"invoice_number":"SI-1028","days_outstanding":15,"status":"Paid","pondo":11200},
+    {"date":"2025-10-07","client_name":"Nova Healthcare","revenue":33500,"expenses":17000,"item_name":"Managed IT Support","item_qty":105,"invoice_number":"SVI-2027","days_outstanding":0,"status":"Paid","pondo":16500},
+    {"date":"2025-10-12","client_name":"Vertex Industrial","revenue":28500,"expenses":14800,"item_name":"System Integration Service","item_qty":62,"invoice_number":"SVI-2028","days_outstanding":50,"status":"Unpaid","pondo":13700},
+    {"date":"2025-10-17","client_name":"Sterling Global","revenue":46000,"expenses":25000,"item_name":"Cloud Infrastructure Provisioning","item_qty":150,"invoice_number":"SI-1029","days_outstanding":0,"status":"Paid","pondo":21000},
+    {"date":"2025-10-22","client_name":"Beacon Media","revenue":18000,"expenses":9000,"item_name":"Enterprise Suite Sales","item_qty":42,"invoice_number":"SI-1030","days_outstanding":0,"status":"Paid","pondo":9000},
+    {"date":"2025-10-27","client_name":"Apex Logistics","revenue":29000,"expenses":14500,"item_name":"Managed IT Support","item_qty":80,"invoice_number":"SVI-2029","days_outstanding":45,"status":"Unpaid","pondo":14500},
+    {"date":"2025-11-02","client_name":"Quantum Tech","revenue":23500,"expenses":11500,"item_name":"System Integration Service","item_qty":54,"invoice_number":"SVI-2030","days_outstanding":0,"status":"Paid","pondo":12000},
+    {"date":"2025-11-07","client_name":"Nova Healthcare","revenue":35000,"expenses":17800,"item_name":"Cloud Infrastructure Provisioning","item_qty":110,"invoice_number":"SI-1031","days_outstanding":70,"status":"Unpaid","pondo":17200},
+    {"date":"2025-11-12","client_name":"Vertex Industrial","revenue":29800,"expenses":15200,"item_name":"Enterprise Suite Sales","item_qty":65,"invoice_number":"SI-1032","days_outstanding":0,"status":"Paid","pondo":14600},
+    {"date":"2025-11-17","client_name":"Sterling Global","revenue":47500,"expenses":26000,"item_name":"Managed IT Support","item_qty":155,"invoice_number":"SVI-2031","days_outstanding":0,"status":"Paid","pondo":21500},
+    {"date":"2025-11-22","client_name":"Beacon Media","revenue":19000,"expenses":9500,"item_name":"System Integration Service","item_qty":44,"invoice_number":"SVI-2032","days_outstanding":0,"status":"Paid","pondo":9500},
+    {"date":"2025-11-27","client_name":"Apex Logistics","revenue":30500,"expenses":15200,"item_name":"Cloud Infrastructure Provisioning","item_qty":84,"invoice_number":"SI-1033","days_outstanding":0,"status":"Paid","pondo":15300},
+    {"date":"2025-12-02","client_name":"Quantum Tech","revenue":25000,"expenses":12200,"item_name":"Enterprise Suite Sales","item_qty":58,"invoice_number":"SI-1034","days_outstanding":0,"status":"Paid","pondo":12800},
+    {"date":"2025-12-07","client_name":"Nova Healthcare","revenue":36500,"expenses":18500,"item_name":"Managed IT Support","item_qty":115,"invoice_number":"SVI-2033","days_outstanding":10,"status":"Paid","pondo":18000},
+    {"date":"2025-12-12","client_name":"Vertex Industrial","revenue":31000,"expenses":15800,"item_name":"System Integration Service","item_qty":68,"invoice_number":"SVI-2034","days_outstanding":60,"status":"Unpaid","pondo":15200},
+    {"date":"2025-12-17","client_name":"Sterling Global","revenue":49000,"expenses":27000,"item_name":"Cloud Infrastructure Provisioning","item_qty":160,"invoice_number":"SI-1035","days_outstanding":0,"status":"Paid","pondo":22000},
+    {"date":"2025-12-22","client_name":"Beacon Media","revenue":19500,"expenses":9800,"item_name":"Enterprise Suite Sales","item_qty":45,"invoice_number":"SI-1036","days_outstanding":0,"status":"Paid","pondo":9700},
+    {"date":"2025-12-27","client_name":"Apex Logistics","revenue":32000,"expenses":16000,"item_name":"Managed IT Support","item_qty":88,"invoice_number":"SVI-2035","days_outstanding":30,"status":"Unpaid","pondo":16000},
+    {"date":"2026-01-05","client_name":"Apex Logistics","revenue":16000,"expenses":9000,"item_name":"Enterprise Suite Sales","item_qty":48,"invoice_number":"SI-1037","days_outstanding":0,"status":"Paid","pondo":7000},
+    {"date":"2026-01-10","client_name":"Nova Healthcare","revenue":23000,"expenses":11500,"item_name":"System Integration Service","item_qty":62,"invoice_number":"SVI-2036","days_outstanding":40,"status":"Unpaid","pondo":11500},
+    {"date":"2026-01-15","client_name":"Vertex Industrial","revenue":19500,"expenses":9500,"item_name":"Cloud Infrastructure Provisioning","item_qty":32,"invoice_number":"SI-1038","days_outstanding":0,"status":"Paid","pondo":10000},
+    {"date":"2026-01-20","client_name":"Sterling Global","revenue":36500,"expenses":18500,"item_name":"Managed IT Support","item_qty":115,"invoice_number":"SVI-2037","days_outstanding":55,"status":"Unpaid","pondo":18000},
+    {"date":"2026-01-25","client_name":"Beacon Media","revenue":12500,"expenses":6200,"item_name":"Enterprise Suite Sales","item_qty":26,"invoice_number":"SI-1039","days_outstanding":0,"status":"Paid","pondo":6300},
+    {"date":"2026-02-02","client_name":"Nova Healthcare","revenue":25000,"expenses":13000,"item_name":"Enterprise Suite Sales","item_qty":72,"invoice_number":"SI-1040","days_outstanding":0,"status":"Paid","pondo":12000},
+    {"date":"2026-02-08","client_name":"Apex Logistics","revenue":20000,"expenses":10500,"item_name":"System Integration Service","item_qty":38,"invoice_number":"SVI-2038","days_outstanding":65,"status":"Unpaid","pondo":9500},
+    {"date":"2026-02-12","client_name":"Vertex Industrial","revenue":21500,"expenses":11000,"item_name":"Cloud Infrastructure Provisioning","item_qty":42,"invoice_number":"SI-1041","days_outstanding":0,"status":"Paid","pondo":10500},
+    {"date":"2026-02-18","client_name":"Sterling Global","revenue":32500,"expenses":16200,"item_name":"Managed IT Support","item_qty":100,"invoice_number":"SVI-2039","days_outstanding":15,"status":"Unpaid","pondo":16300},
+    {"date":"2026-02-22","client_name":"Beacon Media","revenue":14500,"expenses":7200,"item_name":"Enterprise Suite Sales","item_qty":31,"invoice_number":"SI-1042","days_outstanding":0,"status":"Paid","pondo":7300},
+    {"date":"2026-03-03","client_name":"Nova Healthcare","revenue":22500,"expenses":11500,"item_name":"Cloud Infrastructure Provisioning","item_qty":58,"invoice_number":"SI-1043","days_outstanding":50,"status":"Unpaid","pondo":11000},
+    {"date":"2026-03-09","client_name":"Vertex Industrial","revenue":28000,"expenses":13500,"item_name":"Enterprise Suite Sales","item_qty":82,"invoice_number":"SI-1044","days_outstanding":0,"status":"Paid","pondo":14500},
+    {"date":"2026-03-14","client_name":"Sterling Global","revenue":34500,"expenses":17000,"item_name":"Managed IT Support","item_qty":105,"invoice_number":"SVI-2040","days_outstanding":0,"status":"Paid","pondo":17500},
+    {"date":"2026-03-20","client_name":"Beacon Media","revenue":12000,"expenses":6000,"item_name":"System Integration Service","item_qty":26,"invoice_number":"SVI-2041","days_outstanding":85,"status":"Unpaid","pondo":6000},
+    {"date":"2026-03-25","client_name":"Apex Logistics","revenue":19000,"expenses":9800,"item_name":"Cloud Infrastructure Provisioning","item_qty":48,"invoice_number":"SI-1045","days_outstanding":0,"status":"Paid","pondo":9200},
+    {"date":"2026-04-02","client_name":"Nexus Retail","revenue":11000,"expenses":4800,"item_name":"Enterprise Suite Sales","item_qty":23,"invoice_number":"SI-1046","days_outstanding":0,"status":"Paid","pondo":6200},
+    {"date":"2026-04-07","client_name":"Nova Healthcare","revenue":26000,"expenses":13200,"item_name":"Managed IT Support","item_qty":78,"invoice_number":"SVI-2042","days_outstanding":25,"status":"Unpaid","pondo":12800},
+    {"date":"2026-04-12","client_name":"Vertex Industrial","revenue":22000,"expenses":11800,"item_name":"System Integration Service","item_qty":44,"invoice_number":"SVI-2043","days_outstanding":75,"status":"Unpaid","pondo":10200},
+    {"date":"2026-04-17","client_name":"Sterling Global","revenue":37500,"expenses":19800,"item_name":"Cloud Infrastructure Provisioning","item_qty":120,"invoice_number":"SI-1047","days_outstanding":0,"status":"Paid","pondo":17700},
+    {"date":"2026-04-22","client_name":"Beacon Media","revenue":13500,"expenses":6500,"item_name":"Enterprise Suite Sales","item_qty":29,"invoice_number":"SI-1048","days_outstanding":0,"status":"Paid","pondo":7000},
+    {"date":"2026-04-28","client_name":"Apex Logistics","revenue":21500,"expenses":10800,"item_name":"Managed IT Support","item_qty":58,"invoice_number":"SVI-2044","days_outstanding":35,"status":"Unpaid","pondo":10700},
+    {"date":"2026-05-02","client_name":"Nexus Retail","revenue":11800,"expenses":5200,"item_name":"System Integration Service","item_qty":26,"invoice_number":"SVI-2045","days_outstanding":0,"status":"Paid","pondo":6600},
+    {"date":"2026-05-06","client_name":"Nova Healthcare","revenue":27500,"expenses":14000,"item_name":"Cloud Infrastructure Provisioning","item_qty":84,"invoice_number":"SI-1049","days_outstanding":0,"status":"Paid","pondo":13500},
+    {"date":"2026-05-11","client_name":"Vertex Industrial","revenue":23500,"expenses":12200,"item_name":"Enterprise Suite Sales","item_qty":50,"invoice_number":"SI-1050","days_outstanding":10,"status":"Paid","pondo":11300},
+    {"date":"2026-05-15","client_name":"Sterling Global","revenue":39500,"expenses":20500,"item_name":"Managed IT Support","item_qty":125,"invoice_number":"SVI-2046","days_outstanding":65,"status":"Unpaid","pondo":19000}
+];
+</script>
+
+<div class="flex-grow flex flex-col md:flex-row min-h-screen">
+    
+    <!-- LEFT PANEL: Simulated Flask & SQLAlchemy Environment -->
+    <aside class="w-full md:w-80 bg-slate-900 border-r border-slate-800 p-4 flex flex-col justify-between shrink-0">
+        <div>
+            <!-- Header Brand -->
+            <div class="flex items-center gap-3 pb-4 mb-4 border-b border-slate-800">
+                <div class="bg-indigo-600 p-2.5 rounded-lg text-white">
+                    <i class="fa-solid fa-server text-xl animate-pulse"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold text-slate-100 tracking-wide uppercase">Flask Server Sim</h1>
+                    <span class="text-xs text-emerald-400 flex items-center gap-1.5 font-medium">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                        Running (PORT 5000)
+                    </span>
+                </div>
+            </div>
+
+            <!-- DB Tables Summary -->
+            <div class="space-y-4">
+                <div>
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">Database Engine (SQLite)</span>
+                    <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2 text-xs">
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-400 code-font">historical_analytics</span>
+                            <span id="db-historical-rows" class="bg-indigo-900/40 text-indigo-300 px-2 py-0.5 rounded font-mono font-bold">100 rows</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-400 code-font">analytics_sessions</span>
+                            <span id="db-sessions-count" class="bg-purple-900/40 text-purple-300 px-2 py-0.5 rounded font-mono font-bold">3 sessions</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-400 code-font">analytics_rules</span>
+                            <span id="db-rules-count" class="bg-amber-900/40 text-amber-300 px-2 py-0.5 rounded font-mono font-bold">3 rules</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ML Model Validation Info -->
+                <div>
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">SciKit-Learn Metrics</span>
+                    <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-3 text-[11px] code-font">
+                        <div class="space-y-1">
+                            <div class="flex justify-between">
+                                <span class="text-indigo-400">Demand Regression</span>
+                                <span class="text-emerald-400 font-bold">R²: 0.84</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-1.5">
+                                <div class="bg-indigo-500 h-1.5 rounded-full" style="width: 84%"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="flex justify-between">
+                                <span class="text-purple-400">Revenue Forecast</span>
+                                <span class="text-emerald-400 font-bold">MAPE: 8.4%</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-1.5">
+                                <div class="bg-purple-500 h-1.5 rounded-full" style="width: 91.6%"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="flex justify-between">
+                                <span class="text-amber-400">AR Risk Logistic</span>
+                                <span class="text-emerald-400 font-bold">ROC-AUC: 0.89</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-1.5">
+                                <div class="bg-amber-500 h-1.5 rounded-full" style="width: 89%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulated REST Endpoints & Terminal -->
+        <div class="mt-4 flex-grow flex flex-col justify-end">
+            <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">Live Flask Network Terminal</span>
+            <div id="terminal-console" class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-[10px] code-font h-44 overflow-y-auto space-y-1 text-slate-300">
+                <div class="text-slate-500">[INFO] SQLite connected successfully.</div>
+                <div class="text-slate-500">[INFO] Loaded 100 historical records.</div>
+                <div class="text-slate-500">[INFO] Initialized Descriptive & Predictive engines.</div>
+                <div class="text-slate-400">[POST] 200 - /analytics/upload-historical</div>
+                <div class="text-indigo-400">[GET] 200 - /get-analytics?mode=LIVE</div>
+            </div>
+            <button onclick="clearConsoleLogs()" class="text-right text-[10px] text-indigo-400 hover:text-indigo-300 mt-1 transition-colors">
+                <i class="fa-solid fa-trash-can mr-1"></i>Clear console logs
+            </button>
+        </div>
+    </aside>
+
+    <!-- RIGHT MAIN CONTENT PANEL -->
+    <main class="flex-grow p-4 md:p-6 flex flex-col gap-6 max-w-7xl mx-auto w-full">
+        
+        <!-- TOP NAVIGATION & ENGINE CONTROLLER -->
+        <header class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg">
+            <div class="flex items-center gap-4">
+                <div class="bg-indigo-500/10 p-3 rounded-xl text-indigo-400 border border-indigo-500/20">
+                    <i class="fa-solid fa-chart-line text-2xl"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                        Analytics Engine Hub
+                        <span id="current-mode-badge" class="px-2.5 py-0.5 text-xs rounded-full font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            🔴 Live Mode
+                        </span>
+                    </h2>
+                    <p class="text-xs text-slate-400">Perform Descriptive, Predictive, and Decision-making Analytics across sources</p>
+                </div>
+            </div>
+
+            <!-- Interactive Mode Switcher -->
+            <div class="flex items-center gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                <button onclick="setEngineMode('LIVE')" id="mode-btn-LIVE" class="px-3.5 py-2 text-xs font-semibold rounded-md transition-all bg-indigo-600 text-white shadow-md">
+                    <i class="fa-solid fa-bolt mr-1.5"></i>Live Mode
+                </button>
+                <button onclick="setEngineMode('HISTORICAL')" id="mode-btn-HISTORICAL" class="px-3.5 py-2 text-xs font-semibold rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 transition-all">
+                    <i class="fa-solid fa-clock-rotate-left mr-1.5"></i>Historical
+                </button>
+                <button onclick="setEngineMode('COMBINED')" id="mode-btn-COMBINED" class="px-3.5 py-2 text-xs font-semibold rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 transition-all">
+                    <i class="fa-solid fa-layer-group mr-1.5"></i>Combined Blend
+                </button>
+            </div>
+        </header>
+
+        <!-- SYSTEM ACTION BOXES (Dynamic display based on mode selected) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <!-- Historical Session Management (Enabled always, critical for Historical/Combined) -->
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between">
+                <div>
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                        <span>Historical Importer</span>
+                        <i class="fa-solid fa-file-excel text-emerald-500"></i>
+                    </h3>
+                    <p class="text-[11px] text-slate-400 mb-3">Simulate uploading files into SQL `historical_analytics` table.</p>
+                    
+                    <div id="historical-session-selector" class="space-y-2 text-xs">
+                        <label class="block text-slate-400 text-[11px]">Select Active Upload Session:</label>
+                        <select id="session-select" onchange="onSessionChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-indigo-500">
+                            <option value="session_default">Primary Historical DB (100 Entries)</option>
+                            <option value="session_q1_2025_add">Q1 2025 Extended Client Set (+25 rows)</option>
+                            <option value="session_custom">Custom Uploaded Dataset</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button onclick="openUploadModal()" class="w-full bg-indigo-600/10 border border-indigo-500/20 hover:bg-indigo-600/20 text-indigo-400 font-semibold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        Import New Dataset (JSON/CSV)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Blending Weights Slider Panel -->
+            <div id="blending-panel" class="bg-slate-900 border border-indigo-900/30 p-4 rounded-xl relative opacity-50 transition-all">
+                <div class="absolute inset-0 bg-slate-950/40 rounded-xl flex items-center justify-center" id="blending-panel-locked-overlay">
+                    <span class="bg-slate-900 border border-slate-800 px-3 py-1 rounded text-xs text-slate-400 font-medium">
+                        <i class="fa-solid fa-lock mr-1.5"></i>Locked in Live/Historical Mode
+                    </span>
+                </div>
+                <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span>Combined Blend Weights</span>
+                    <i class="fa-solid fa-sliders text-indigo-400"></i>
+                </h3>
+                <p class="text-[11px] text-slate-400 mb-3">Dynamically blend live transactions with historical DB averages.</p>
+                
+                <div class="space-y-3 text-xs">
+                    <div>
+                        <div class="flex justify-between text-[11px] mb-1">
+                            <span class="text-indigo-400">Live Weights (SO + Invoices)</span>
+                            <span id="live-weight-val" class="font-mono font-bold text-indigo-300">50%</span>
+                        </div>
+                        <input type="range" id="live-weight-range" min="0" max="100" value="50" oninput="adjustWeights('live')" class="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[11px] mb-1">
+                            <span class="text-purple-400 font-medium">Historical Weights</span>
+                            <span id="historical-weight-val" class="font-mono font-bold text-purple-300">50%</span>
+                        </div>
+                        <input type="range" id="historical-weight-range" min="0" max="100" value="50" oninput="adjustWeights('hist')" class="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-purple-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configurable Rules & Severity Module -->
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between">
+                <div>
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                        <span>Active System Rules</span>
+                        <i class="fa-solid fa-shield-halved text-amber-500"></i>
+                    </h3>
+                    <p class="text-[11px] text-slate-400 mb-3">Current limits triggering system recommendation levels.</p>
+                    
+                    <div class="grid grid-cols-2 gap-2 text-[11px]">
+                        <div class="bg-slate-950 p-2 rounded border border-slate-800">
+                            <span class="text-slate-500 block">Critical AR Outstanding</span>
+                            <span id="rule-outstanding-display" class="font-mono text-amber-400 font-bold">> 45 Days</span>
+                        </div>
+                        <div class="bg-slate-950 p-2 rounded border border-slate-800">
+                            <span class="text-slate-500 block">Critical AR Ratio</span>
+                            <span id="rule-ratio-display" class="font-mono text-red-400 font-bold">> 35%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button onclick="openRulesModal()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 border border-slate-700">
+                        <i class="fa-solid fa-gear"></i>
+                        Adjust Rule Thresholds
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CORE METRICS CARDS -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Total Revenue -->
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl relative overflow-hidden shadow-lg">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Total Revenue</span>
+                    <span class="text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                        Paid Only
+                    </span>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                    <span id="metric-revenue" class="text-2xl font-bold tracking-tight text-white">$1,154,200</span>
+                    <span class="text-[11px] text-slate-400">USD</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1">Calculated directly via query payload</p>
+                <div class="absolute bottom-0 left-0 w-full h-1 bg-emerald-500"></div>
+            </div>
+
+            <!-- Accounts Receivable -->
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl relative overflow-hidden shadow-lg">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Accounts Receivable</span>
+                    <span class="text-amber-400 bg-amber-500/10 border border-amber-500/20 text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                        Unpaid Balances
+                    </span>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                    <span id="metric-ar" class="text-2xl font-bold tracking-tight text-white">$452,100</span>
+                    <span class="text-[11px] text-slate-400">USD</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1">Sum of all outstanding bills</p>
+                <div class="absolute bottom-0 left-0 w-full h-1 bg-amber-500"></div>
+            </div>
+
+            <!-- Operating Margin (Pondo) -->
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl relative overflow-hidden shadow-lg">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Net Pondo Margin</span>
+                    <span class="text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                        Rev - Exp
+                    </span>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                    <span id="metric-pondo" class="text-2xl font-bold tracking-tight text-white">$702,100</span>
+                    <span class="text-[11px] text-slate-400">USD</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1">Net profit after total expenses deduction</p>
+                <div class="absolute bottom-0 left-0 w-full h-1 bg-indigo-500"></div>
+            </div>
+
+            <!-- AR Risk Ratio -->
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl relative overflow-hidden shadow-lg">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">AR Ratio Level</span>
+                    <span id="ar-ratio-severity" class="text-red-400 bg-red-500/10 border border-red-500/20 text-[10px] px-2 py-0.5 rounded-full font-semibold animate-pulse">
+                        CRITICAL
+                    </span>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                    <span id="metric-ratio" class="text-2xl font-bold tracking-tight text-white">39.1%</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1">Outstanding compared to Total Revenue</p>
+                <div class="absolute bottom-0 left-0 w-full h-1 bg-red-500" id="ratio-bottom-bar"></div>
+            </div>
+        </div>
+
+        <!-- CORE VISUAL CHARTS GRAPHICS -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- LINE CHART: Descriptive & Revenue Projection -->
+            <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-200">Revenue & ML-Based Revenue Projection</h3>
+                            <p class="text-xs text-slate-400">Actual performance mapped alongside LinearRegression predictions</p>
+                        </div>
+                        <span class="text-[11px] text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded">
+                            Scikit-Learn Regression Fit
+                        </span>
+                    </div>
+                    <div class="h-64">
+                        <canvas id="revenueForecastChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BAR CHART: Product Demand Prediction -->
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-200">Demand Forecasting</h3>
+                            <p class="text-xs text-slate-400">Client balance & Pondo mapping to next unit item sales quantity</p>
+                        </div>
+                        <span class="text-[11px] text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded">
+                            Linear Predictor
+                        </span>
+                    </div>
+                    <div class="h-64">
+                        <canvas id="demandForecastingChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- LEFT: Accounts Receivable Risk Matrix (Bubble Chart representing logistic regression probabilities) -->
+            <div class="lg:col-span-1 bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-200">Client AR Risk Mapping</h3>
+                            <p class="text-xs text-slate-400">Logistic Regression scoring (likelihood to pay based on outstanding days)</p>
+                        </div>
+                    </div>
+                    <div class="h-56">
+                        <canvas id="arRiskScoringChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: Recommendation and Decision Engine (Severity Ranked Output) -->
+            <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-200">Decision-Making Recommendation Engine</h3>
+                            <p class="text-xs text-slate-400 font-medium">Auto-generated via database triggers & rule-evaluation matching</p>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-[10px] text-slate-400">Auto-update:</span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        </div>
+                    </div>
+
+                    <!-- Recommended Cards Output Container -->
+                    <div id="recommendation-container" class="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                        <!-- Dynamic generated elements will appear here -->
+                    </div>
+                </div>
+                <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400 mt-2">
+                    <span>Active mode audit status: <strong class="text-slate-200">Verified</strong></span>
+                    <button onclick="simulateAuditLogEntry()" class="text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
+                        <i class="fa-solid fa-file-invoice mr-1"></i>Emit Accounting Audit Log
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CLIENT DIRECTORY SEARCH ENGINE -->
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                <div>
+                    <h3 class="text-base font-bold text-slate-200">Interactive Audit Ledger & Directory</h3>
+                    <p class="text-xs text-slate-400">Live search queries with standard SI-#### or SVI-#### auto-increment check</p>
+                </div>
+                <div class="flex items-center gap-3 w-full md:w-auto">
+                    <div class="relative w-full md:w-64">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3.5 text-slate-500 text-xs"></i>
+                        <input type="text" id="admin-search-input" onkeyup="filterClientLedger()" placeholder="Search clients, items, or status..." class="w-full bg-slate-950 text-xs border border-slate-800 rounded-lg pl-9 pr-4 py-3 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <button onclick="openAddTransactionModal()" class="shrink-0 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-4 rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow-md">
+                        <i class="fa-solid fa-plus"></i> Add Transaction
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950">
+                <table class="w-full text-xs text-left text-slate-300">
+                    <thead class="text-[11px] text-slate-400 uppercase tracking-wider bg-slate-900/60 border-b border-slate-800">
+                        <tr>
+                            <th scope="col" class="px-4 py-3.5 font-bold">Date</th>
+                            <th scope="col" class="px-4 py-3.5 font-bold">Client Name</th>
+                            <th scope="col" class="px-4 py-3.5 font-bold">Doc / Invoice #</th>
+                            <th scope="col" class="px-4 py-3.5 font-bold">Item Description</th>
+                            <th scope="col" class="px-4 py-3.5 font-bold text-right">Revenue (Paid)</th>
+                            <th scope="col" class="px-4 py-3.5 font-bold text-right">Expenses</th>
+                            <th scope="col" class="px-4 py-3.5 font-bold text-center">Qty</th>
+                            <th scope="col" class="px-4 py-3.5 font-bold text-center">Days Unpaid</th>
+                            <th scope="col" class="px-4 py-3.5 font-bold text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ledger-table-body" class="divide-y divide-slate-800/50">
+                        <!-- Dynamic transactions will load here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Table Pagination & Total Row Count Indicator -->
+            <div class="flex justify-between items-center mt-3 text-xs text-slate-500 font-medium">
+                <span id="ledger-record-count">Showing 100 entries</span>
+                <span class="flex items-center gap-1.5 text-indigo-400">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                    Case-Insensitive Searching Enabled
+                </span>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- MODAL 1: HISTORICAL DATA UPLOAD MODAL -->
+<div id="upload-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-all duration-300">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-xl shadow-2xl overflow-hidden">
+        <div class="p-5 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-up text-indigo-400"></i>
+                Upload & Process Historical Dataset
+            </h3>
+            <button onclick="closeUploadModal()" class="text-slate-400 hover:text-white transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+        <div class="p-5 space-y-4">
+            <div class="border-2 border-dashed border-slate-800 rounded-lg p-6 text-center hover:border-indigo-500/50 transition-all cursor-pointer bg-slate-950">
+                <i class="fa-solid fa-file-csv text-slate-600 text-3xl mb-2 block"></i>
+                <span class="text-xs text-slate-300 font-semibold block">Click to browse or Drag & Drop File</span>
+                <span class="text-[10px] text-slate-500 block mt-1">Accepts CSV, JSON or .xlsx templates with "date, client_name, revenue, expenses, item_name, item_qty" fields</span>
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-xs text-slate-400">Choose Preset Data Payload to Simulate Upload:</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="simulatePresetUpload('q3_2025')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-indigo-500/40 p-2.5 rounded text-left text-xs transition-colors">
+                        <span class="text-slate-200 block font-semibold">Q3 2025 Extension</span>
+                        <span class="text-[10px] text-slate-500 block">40 new transaction records</span>
+                    </button>
+                    <button onclick="simulatePresetUpload('q4_2025')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/40 p-2.5 rounded text-left text-xs transition-colors">
+                        <span class="text-slate-200 block font-semibold">Q4 2025 Expansion</span>
+                        <span class="text-[10px] text-slate-500 block">35 rows with high seasonal revenue</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Validation Warnings Feedback Log -->
+            <div id="upload-validation-log" class="hidden bg-emerald-900/10 border border-emerald-500/20 rounded-lg p-3 text-[11px] code-font text-emerald-300">
+                <span class="font-bold flex items-center gap-1.5 mb-1 text-emerald-400">
+                    <i class="fa-solid fa-circle-check"></i> Validation Success!
+                </span>
+                No missing fields, duplicates, or orphaned data records found. Rows mapped to SQLAlchemy model successfully.
+            </div>
+        </div>
+        <div class="p-5 border-t border-slate-800 bg-slate-950 flex justify-end gap-2">
+            <button onclick="closeUploadModal()" class="bg-slate-900 hover:bg-slate-800 text-slate-400 px-4 py-2 rounded text-xs transition-colors">Cancel</button>
+            <button onclick="executeHistoricalProcessing()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-xs transition-colors font-semibold">
+                Parse & Process into SQLite
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL 2: ADJUST RULES MODAL -->
+<div id="rules-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-all duration-300">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+        <div class="p-5 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-shield-halved text-amber-500"></i>
+                Adjust Recommendation Trigger Rules
+            </h3>
+            <button onclick="closeRulesModal()" class="text-slate-400 hover:text-white transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+        <div class="p-5 space-y-4">
+            <p class="text-xs text-slate-400">Configure parameters utilized by the Recommendation Engine to generate severity-ranked alerts.</p>
+            
+            <div class="space-y-1.5">
+                <label class="block text-xs text-slate-300 font-medium">Critical Outstanding Age Limit (Days)</label>
+                <div class="flex items-center gap-2">
+                    <input type="number" id="input-rule-days" value="45" class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full">
+                    <span class="text-xs text-slate-500 shrink-0">days</span>
+                </div>
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="block text-xs text-slate-300 font-medium">Critical Accounts Receivable Ratio (%)</label>
+                <div class="flex items-center gap-2">
+                    <input type="number" id="input-rule-ratio" value="35" class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full">
+                    <span class="text-xs text-slate-500 shrink-0">%</span>
+                </div>
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="block text-xs text-slate-300 font-medium font-medium">Risk Score Decision Margin</label>
+                <div class="flex items-center gap-2">
+                    <input type="number" id="input-rule-risk" value="70" class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full">
+                    <span class="text-xs text-slate-500 shrink-0">% likelihood</span>
+                </div>
+            </div>
+        </div>
+        <div class="p-5 border-t border-slate-800 bg-slate-950 flex justify-end gap-2">
+            <button onclick="closeRulesModal()" class="bg-slate-900 hover:bg-slate-800 text-slate-400 px-4 py-2 rounded text-xs transition-colors">Cancel</button>
+            <button onclick="saveActiveRules()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-xs transition-colors font-semibold">Save Rule Parameters</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL 3: ADD TRANSACTION MODAL -->
+<div id="add-transaction-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-all duration-300">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-xl shadow-2xl overflow-hidden">
+        <div class="p-5 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-cash-register text-indigo-400"></i>
+                Create Live Transaction Entry
+            </h3>
+            <button onclick="closeAddTransactionModal()" class="text-slate-400 hover:text-white transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+        <div class="p-5 grid grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+                <label class="block text-xs text-slate-300">Client Name</label>
+                <input type="text" id="add-client" placeholder="e.g. Sterling Global" class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full">
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="block text-xs text-slate-300">Document / Transaction Type</label>
+                <select id="add-type" onchange="autoFormatInvoiceNum()" class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full">
+                    <option value="sales">Sales (SI-####)</option>
+                    <option value="service">Service (SVI-####)</option>
+                </select>
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="block text-xs text-slate-300">Invoice Number</label>
+                <input type="text" id="add-invoice" readonly class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-400 focus:outline-none w-full font-mono">
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="block text-xs text-slate-300">Item Name</label>
+                <input type="text" id="add-item" placeholder="e.g. Managed IT Support" class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full">
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="block text-xs text-slate-300">Revenue (USD)</label>
+                <input type="number" id="add-revenue" placeholder="0" class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full">
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="block text-xs text-slate-300">Expenses (USD)</label>
+                <input type="number" id="add-expenses" placeholder="0" class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full">
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="block text-xs text-slate-300">Quantity Sold</label>
+                <input type="number" id="add-qty" placeholder="1" class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full">
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="block text-xs text-slate-300">Days Unpaid (0 if paid)</label>
+                <input type="number" id="add-unpaid" placeholder="0" class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-full">
+            </div>
+        </div>
+        <div class="p-5 border-t border-slate-800 bg-slate-950 flex justify-end gap-2">
+            <button onclick="closeAddTransactionModal()" class="bg-slate-900 hover:bg-slate-800 text-slate-400 px-4 py-2 rounded text-xs transition-colors">Cancel</button>
+            <button onclick="commitNewTransaction()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-xs transition-colors font-semibold">Save Entry</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/* 
+ * CRITICAL LOGIC CLASSES: DescriptiveAnalytics, PredictiveAnalytics, RecommendationEngine 
+ * Formulates our analytical frameworks on arrays of JSON elements mirroring real Pandas & NumPy computations.
+ */
+
+class DescriptiveAnalytics {
+    static calculateMetrics(dataset) {
+        let totalRevenue = 0; // Cumulative paid transactions
+        let totalAR = 0;      // Outstanding balances
+        let totalExpenses = 0;
+
+        dataset.forEach(row => {
+            const revenueVal = Number(row.revenue) || 0;
+            const expenseVal = Number(row.expenses) || 0;
+            const outstanding = Number(row.days_outstanding) || 0;
+
+            if (row.status === "Paid") {
+                totalRevenue += revenueVal;
+            } else {
+                totalAR += revenueVal;
+            }
+            totalExpenses += expenseVal;
+        });
+
+        const pondo = totalRevenue - totalExpenses;
+        const arRatio = totalRevenue > 0 ? (totalAR / totalRevenue) * 100 : 0;
+
+        return {
+            totalRevenue,
+            totalAR,
+            totalExpenses,
+            pondo,
+            arRatio
+        };
+    }
+}
+
+// Scikit-Learn equivalent Linear and Logistic Regression simulation logic in javascript
+class PredictiveAnalytics {
+    // Fits multiple linear parameters: y = m1*x1 + m2*x2 + c
+    static trainLinearRegression(X, y) {
+        // Find line parameters via simple gradient regression matching or direct formulation
+        let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+        const n = X.length;
+
+        for (let i = 0; i < n; i++) {
+            sumX += X[i];
+            sumY += y[i];
+            sumXY += X[i] * y[i];
+            sumXX += X[i] * X[i];
+        }
+
+        const denominator = (n * sumXX - sumX * sumX);
+        const slope = denominator === 0 ? 0 : (n * sumXY - sumX * sumY) / denominator;
+        const intercept = (sumY - slope * sumX) / n;
+
+        return {
+            predict: (inputX) => slope * inputX + intercept,
+            slope,
+            intercept
+        };
+    }
+
+    // Logistic regression sigmoid formula mapping probability of AR risks
+    static logisticPredict(daysOutstanding, threshold = 45) {
+        // High outstanding days increases risk mapping from 0 to 1
+        const exponent = -0.07 * (daysOutstanding - threshold);
+        return 1 / (1 + Math.exp(exponent));
+    }
+}
+
+class RecommendationEngine {
+    static evaluateRules(descriptive, rules) {
+        const recommendations = [];
+
+        // Check 1: Accounts Receivable Outstanding Ratio Alert
+        if (descriptive.arRatio > rules.criticalRatio) {
+            recommendations.push({
+                title: "Critically High Accounts Receivable Margin",
+                desc: `Current outstanding invoices make up ${descriptive.arRatio.toFixed(1)}% of total revenue. Cash conversion cycle is severely threatened.`,
+                severity: "CRITICAL",
+                icon: "fa-triangle-exclamation text-red-400 bg-red-500/15"
+            });
+        } else if (descriptive.arRatio > rules.criticalRatio * 0.7) {
+            recommendations.push({
+                title: "Elevated Accounts Receivable Outstanding",
+                desc: `Current outstanding is at ${descriptive.arRatio.toFixed(1)}% of your operational pool. Tighten tracking workflows soon.`,
+                severity: "WARNING",
+                icon: "fa-circle-exclamation text-amber-400 bg-amber-500/15"
+            });
+        }
+
+        // Check 2: Working Capital Pool Level (Pondo)
+        if (descriptive.pondo < 0) {
+            recommendations.push({
+                title: "Negative Operational Profit Margin Detected",
+                desc: "Total expenses exceed total paid cash balances. Operational sustainability is critical. Pause service allocations or enforce payment.",
+                severity: "CRITICAL",
+                icon: "fa-handshake-slash text-red-400 bg-red-500/15"
+            });
+        } else if (descriptive.pondo < descriptive.totalRevenue * 0.1) {
+            recommendations.push({
+                title: "Thinning Net Margin Threshold",
+                desc: "Total operational profit margins are dropping. We recommend reviewing vendor billing agreements to cut expense overheads.",
+                severity: "WARNING",
+                icon: "fa-chart-pie text-amber-400 bg-amber-500/15"
+            });
+        } else {
+            recommendations.push({
+                title: "Capital Pool Health: Optimal",
+                desc: `Current operating margins ($${descriptive.pondo.toLocaleString()}) are solid. Ideal range for portfolio expansion.`,
+                severity: "INFO",
+                icon: "fa-square-check text-emerald-400 bg-emerald-500/15"
+            });
+        }
+
+        return recommendations;
+    }
+}
+</script>
+
+<script>
+// System Active State variables
+let activeDataset = [...INITIAL_100_JSON_DATA];
+let liveDataset = [...INITIAL_100_JSON_DATA]; // Default loaded live base
+let historicalDataset = [...INITIAL_100_JSON_DATA].slice(0, 60); // Partial set represents static history
+let customDataset = []; // Created when users import presets
+
+let currentEngineMode = 'LIVE'; // LIVE | HISTORICAL | COMBINED
+let liveWeight = 50;
+let historicalWeight = 50;
+
+// Rule Configuration Defaults (retrieved dynamically from the database simulation)
+let currentRules = {
+    criticalOutstandingDays: 45,
+    criticalRatio: 35,
+    decisionRiskMargin: 70
+};
+
+// Next auto-increment ID formats
+let nextSI = 1051;
+let nextSVI = 2047;
+
+// Global references to ChartJS instances
+let revenueChartInstance = null;
+let demandChartInstance = null;
+let arRiskChartInstance = null;
+
+// Simulated Logging utility
+function addServerLog(method, endpoint, message) {
+    const consoleEl = document.getElementById("terminal-console");
+    if (!consoleEl) return;
+    const time = new Date().toLocaleTimeString();
+    let colorClass = "text-slate-400";
+    if (method === "POST") colorClass = "text-emerald-400 font-semibold";
+    if (method === "GET") colorClass = "text-indigo-400";
+    if (method === "WARN") colorClass = "text-amber-400 font-bold";
+
+    consoleEl.innerHTML += `<div class="${colorClass}">[${time}] ${method} - ${endpoint}: ${message}</div>`;
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+function clearConsoleLogs() {
+    document.getElementById("terminal-console").innerHTML = `<div class="text-slate-500">[INFO] SQLite Database connected, history cleared.</div>`;
+}
+
+// Set visual layout mode & execute matching pipeline builders
+function setEngineMode(mode) {
+    currentEngineMode = mode;
+    
+    // Toggle class styling for top layout buttons
+    ['LIVE', 'HISTORICAL', 'COMBINED'].forEach(m => {
+        const btn = document.getElementById(`mode-btn-${m}`);
+        if (m === mode) {
+            btn.className = "px-3.5 py-2 text-xs font-semibold rounded-md transition-all bg-indigo-600 text-white shadow-md";
+        } else {
+            btn.className = "px-3.5 py-2 text-xs font-semibold rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 transition-all";
+        }
+    });
+
+    const overlay = document.getElementById("blending-panel-locked-overlay");
+    const blendingBox = document.getElementById("blending-panel");
+    const modeBadge = document.getElementById("current-mode-badge");
+
+    if (mode === 'COMBINED') {
+        overlay.classList.add("hidden");
+        blendingBox.classList.remove("opacity-50");
+        modeBadge.className = "px-2.5 py-0.5 text-xs rounded-full font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-1.5";
+        modeBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span> 📊 Combined Blend`;
+        addServerLog("GET", "/get-analytics?mode=COMBINED", "Evaluating NumPy combined weighted payloads.");
+    } else {
+        overlay.classList.remove("hidden");
+        blendingBox.classList.add("opacity-50");
+        if (mode === 'LIVE') {
+            modeBadge.className = "px-2.5 py-0.5 text-xs rounded-full font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5";
+            modeBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 🔴 Live Mode`;
+            addServerLog("GET", "/get-analytics?mode=LIVE", "Returning active SQLAlchemy records.");
+        } else {
+            modeBadge.className = "px-2.5 py-0.5 text-xs rounded-full font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5";
+            modeBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> 🗓️ Historical Mode`;
+            addServerLog("GET", "/get-analytics?mode=HISTORICAL", "Querying matching analytics_sessions.");
+        }
+    }
+
+    recalculateAnalyticsEngine();
+}
+</script>
+
+<script>
+// Combines Live and Historical data based on sliding weight configurations
+function blendSourceDatasets(live, hist, lWeight, hWeight) {
+    const blended = [];
+    const len = Math.max(live.length, hist.length);
+    const weightSum = lWeight + hWeight;
+    
+    // Normalize weights
+    const liveFactor = lWeight / (weightSum || 1);
+    const histFactor = hWeight / (weightSum || 1);
+
+    for (let i = 0; i < len; i++) {
+        const liveRow = live[i % live.length];
+        const histRow = hist[i % hist.length];
+
+        // Synthesize row incorporating blended stats
+        const blendedRow = {
+            date: liveRow.date,
+            client_name: liveRow.client_name,
+            invoice_number: liveRow.invoice_number,
+            item_name: liveRow.item_name,
+            // Blend calculated fields numerically
+            revenue: Math.round(liveRow.revenue * liveFactor + histRow.revenue * histFactor),
+            expenses: Math.round(liveRow.expenses * liveFactor + histRow.expenses * histFactor),
+            item_qty: Math.round(liveRow.item_qty * liveFactor + histRow.item_qty * histFactor),
+            days_outstanding: Math.round(liveRow.days_outstanding * liveFactor + histRow.days_outstanding * histFactor),
+            status: liveRow.days_outstanding > 0 ? "Unpaid" : "Paid"
+        };
+        blended.push(blendedRow);
+    }
+    return blended;
+}
+
+function adjustWeights(source) {
+    const liveRange = document.getElementById("live-weight-range");
+    const histRange = document.getElementById("historical-weight-range");
+    
+    if (source === 'live') {
+        liveWeight = parseInt(liveRange.value);
+        historicalWeight = 100 - liveWeight;
+        histRange.value = historicalWeight;
+    } else {
+        historicalWeight = parseInt(histRange.value);
+        liveWeight = 100 - historicalWeight;
+        liveRange.value = liveWeight;
+    }
+
+    document.getElementById("live-weight-val").innerText = `${liveWeight}%`;
+    document.getElementById("historical-weight-val").innerText = `${historicalWeight}%`;
+
+    addServerLog("POST", "/analytics/reweight", `Blending weights modified (Live: ${liveWeight}%, Historical: ${historicalWeight}%)`);
+    recalculateAnalyticsEngine();
+}
+
+function onSessionChange() {
+    const sessionType = document.getElementById("session-select").value;
+    
+    if (sessionType === 'session_default') {
+        historicalDataset = [...INITIAL_100_JSON_DATA].slice(0, 70);
+        addServerLog("DB", "analytics_sessions", "Swapped historical workspace context back to primary baseline dataset.");
+    } else if (sessionType === 'session_q1_2025_add') {
+        // Expand dataset
+        historicalDataset = [...INITIAL_100_JSON_DATA].slice(20, 95);
+        addServerLog("DB", "analytics_sessions", "Swapped historical context. Extended Client Set activated.");
+    } else if (sessionType === 'session_custom') {
+        if (customDataset.length === 0) {
+            // Give pre-loaded custom set if none imported
+            customDataset = [...INITIAL_100_JSON_DATA].slice(40, 100);
+            addServerLog("WARN", "analytics_sessions", "Empty custom workspace. Simulated pre-loaded backup set activated.");
+        }
+        historicalDataset = [...customDataset];
+    }
+    
+    recalculateAnalyticsEngine();
+}
+</script>
+
+<script>
+// Recalculates descriptive metrics, feeds algorithms, and redraws plots
+function recalculateAnalyticsEngine() {
+    // 1. Determine active running dataset
+    if (currentEngineMode === 'LIVE') {
+        activeDataset = [...liveDataset];
+    } else if (currentEngineMode === 'HISTORICAL') {
+        activeDataset = [...historicalDataset];
+    } else {
+        activeDataset = blendSourceDatasets(liveDataset, historicalDataset, liveWeight, historicalWeight);
+    }
+
+    // Update left db table rows feedback
+    document.getElementById("db-historical-rows").innerText = `${historicalDataset.length} rows`;
+    document.getElementById("db-sessions-count").innerText = `${customDataset.length > 0 ? 4 : 3} sessions`;
+
+    // 2. Descriptive calculation engine
+    const metrics = DescriptiveAnalytics.calculateMetrics(activeDataset);
+
+    // Update UI numbers
+    document.getElementById("metric-revenue").innerText = `$${metrics.totalRevenue.toLocaleString()}`;
+    document.getElementById("metric-ar").innerText = `$${metrics.totalAR.toLocaleString()}`;
+    document.getElementById("metric-pondo").innerText = `$${metrics.pondo.toLocaleString()}`;
+    document.getElementById("metric-ratio").innerText = `${metrics.arRatio.toFixed(1)}%`;
+
+    // Visual indicators matching risk ratio triggers
+    const ratioBadge = document.getElementById("ar-ratio-severity");
+    const bottomBar = document.getElementById("ratio-bottom-bar");
+
+    if (metrics.arRatio > currentRules.criticalRatio) {
+        ratioBadge.innerText = "CRITICAL";
+        ratioBadge.className = "text-red-400 bg-red-500/10 border border-red-500/20 text-[10px] px-2 py-0.5 rounded-full font-semibold animate-pulse";
+        bottomBar.className = "absolute bottom-0 left-0 w-full h-1 bg-red-500";
+    } else if (metrics.arRatio > currentRules.criticalRatio * 0.7) {
+        ratioBadge.innerText = "WARNING";
+        ratioBadge.className = "text-amber-400 bg-amber-500/10 border border-amber-500/20 text-[10px] px-2 py-0.5 rounded-full font-semibold";
+        bottomBar.className = "absolute bottom-0 left-0 w-full h-1 bg-amber-500";
+    } else {
+        ratioBadge.innerText = "LOW RISK";
+        ratioBadge.className = "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 text-[10px] px-2 py-0.5 rounded-full font-semibold";
+        bottomBar.className = "absolute bottom-0 left-0 w-full h-1 bg-emerald-500";
+    }
+
+    // 3. Recommendation Engine triggers
+    const recommendationList = RecommendationEngine.evaluateRules(metrics, currentRules);
+    renderRecommendations(recommendationList);
+
+    // 4. Update ledger directory elements below
+    renderClientLedger();
+
+    // 5. Update visual graphs with current dataset regression points
+    updateVisualizationCharts();
+}
+
+function renderRecommendations(list) {
+    const container = document.getElementById("recommendation-container");
+    container.innerHTML = "";
+
+    if (list.length === 0) {
+        container.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-8 text-slate-500">
+                <i class="fa-solid fa-square-check text-3xl mb-2 text-slate-600"></i>
+                <p class="text-xs">No active alerts. Operational profiles are matching current targets!</p>
+            </div>
+        `;
+        return;
+    }
+
+    list.forEach(rec => {
+        let badgeColor = "bg-indigo-900/40 text-indigo-300 border border-indigo-500/20";
+        if (rec.severity === "CRITICAL") badgeColor = "bg-red-950 text-red-400 border border-red-500/20";
+        if (rec.severity === "WARNING") badgeColor = "bg-amber-950 text-amber-400 border border-amber-500/20";
+
+        container.innerHTML += `
+            <div class="bg-slate-950 border border-slate-800 p-3 rounded-lg flex items-start gap-3 hover:border-slate-700 transition-colors">
+                <div class="p-2.5 rounded-lg shrink-0 flex items-center justify-center ${rec.icon.split(' ')[2] || 'bg-slate-900'}">
+                    <i class="fa-solid ${rec.icon.split(' ')[0]} text-sm"></i>
+                </div>
+                <div class="flex-grow space-y-0.5">
+                    <div class="flex justify-between items-start">
+                        <h4 class="text-xs font-bold text-slate-200">${rec.title}</h4>
+                        <span class="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${badgeColor}">
+                            ${rec.severity}
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">${rec.desc}</p>
+                </div>
+            </div>
+        `;
+    });
+}
+</script>
+
+<script>
+// Initializes and maps predictive variables onto active canvas plots
+function updateVisualizationCharts() {
+    // Collect dataset attributes
+    const dates = activeDataset.map(r => r.date).slice(-15);
+    const revenues = activeDataset.map(r => r.revenue).slice(-15);
+    const expenses = activeDataset.map(r => r.expenses).slice(-15);
+
+    // Prepare Regression models for Revenue
+    // Feature array X: index array represent chronological space values
+    const X_rev = revenues.slice(0, -3).map((_, i) => i);
+    const y_rev = revenues.slice(0, -3);
+    
+    let modelRev = PredictiveAnalytics.trainLinearRegression(X_rev, y_rev);
+    
+    // Extrapolate predictions
+    const projectedRevenues = revenues.map((val, idx) => {
+        if (idx < revenues.length - 3) {
+            return null; // Don't plot back predictions
+        }
+        return Math.round(modelRev.predict(idx));
+    });
+
+    // Chart 1: Revenue & Projected Forecasts
+    if (revenueChartInstance) revenueChartInstance.destroy();
+    const ctxRev = document.getElementById('revenueForecastChart').getContext('2d');
+    revenueChartInstance = new Chart(ctxRev, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [
+                {
+                    label: 'Actual Revenue ($)',
+                    data: revenues,
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    borderWidth: 2,
+                    pointRadius: 3
+                },
+                {
+                    label: 'Operating Expenses ($)',
+                    data: expenses,
+                    borderColor: '#f43f5e',
+                    borderDash: [5, 5],
+                    fill: false,
+                    tension: 0.3,
+                    borderWidth: 1.5,
+                    pointRadius: 0
+                },
+                {
+                    label: 'Regression Forecast ($)',
+                    data: projectedRevenues,
+                    borderColor: '#a855f7',
+                    borderDash: [3, 3],
+                    backgroundColor: 'transparent',
+                    fill: false,
+                    tension: 0,
+                    borderWidth: 2,
+                    pointRadius: 5,
+                    pointStyle: 'triangle'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#94a3b8', font: { size: 10 } }
+                }
+            },
+            scales: {
+                y: {
+                    grid: { color: '#1e293b' },
+                    ticks: { color: '#64748b', font: { size: 9 } }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#64748b', font: { size: 9 } }
+                }
+            }
+        }
+    });
+
+    // Chart 2: Product Demand vs Next Unit predicted items
+    const quantities = activeDataset.map(r => r.item_qty).slice(-10);
+    const itemNames = activeDataset.map(r => r.client_name).slice(-10);
+
+    // Linear mapping y = target demand based on revenue pool
+    const X_qty = revenues.slice(-10).map(v => v);
+    const y_qty = quantities;
+    let modelDemand = PredictiveAnalytics.trainLinearRegression(X_qty, y_qty);
+
+    const predictedQuantities = X_qty.map(val => Math.round(modelDemand.predict(val)));
+
+    if (demandChartInstance) demandChartInstance.destroy();
+    const ctxDemand = document.getElementById('demandForecastingChart').getContext('2d');
+    demandChartInstance = new Chart(ctxDemand, {
+        type: 'bar',
+        data: {
+            labels: itemNames,
+            datasets: [
+                {
+                    label: 'Actual Order Qty',
+                    data: quantities,
+                    backgroundColor: '#818cf8',
+                    borderRadius: 5
+                },
+                {
+                    label: 'Estimated Trend',
+                    data: predictedQuantities,
+                    type: 'line',
+                    borderColor: '#f59e0b',
+                    borderWidth: 2,
+                    pointStyle: 'circle',
+                    pointRadius: 3,
+                    fill: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: '#94a3b8', font: { size: 10 } } }
+            },
+            scales: {
+                y: {
+                    grid: { color: '#1e293b' },
+                    ticks: { color: '#64748b', font: { size: 9 } }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#64748b', font: { size: 8 } }
+                }
+            }
+        }
+    });
+
+    // Chart 3: Accounts Receivable Risk Probabilities (Logistic fit scatter plots)
+    const riskDataset = activeDataset.slice(-30);
+    const bubblePoints = riskDataset.map(row => {
+        const likelihood = PredictiveAnalytics.logisticPredict(row.days_outstanding, currentRules.criticalOutstandingDays);
+        return {
+            x: row.days_outstanding,
+            y: Math.round(likelihood * 100),
+            r: Math.round(row.revenue / 5000) + 3 // Larger transaction values map to bigger size circles
+        };
+    });
+
+    if (arRiskChartInstance) arRiskChartInstance.destroy();
+    const ctxRisk = document.getElementById('arRiskScoringChart').getContext('2d');
+    arRiskChartInstance = new Chart(ctxRisk, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Client Outstanding Risk',
+                data: bubblePoints,
+                backgroundColor: 'rgba(239, 68, 68, 0.65)',
+                borderColor: '#ef4444',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `Unpaid Days: ${context.parsed.x}, Risk Score: ${context.parsed.y}%, Revenue scale: ${context.raw.r}`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'Days Outstanding', color: '#64748b', font: { size: 10 } },
+                    grid: { color: '#1e293b' },
+                    ticks: { color: '#64748b', font: { size: 9 } }
+                },
+                y: {
+                    title: { display: true, text: 'Risk Likelihood %', color: '#64748b', font: { size: 10 } },
+                    grid: { color: '#1e293b' },
+                    ticks: { color: '#64748b', font: { size: 9 } },
+                    min: 0,
+                    max: 100
+                }
+            }
+        }
+    });
+}
+</script>
+
+<script>
+// Case-Insensitive Client directory filters mapping search box targets
+function filterClientLedger() {
+    const searchVal = document.getElementById("admin-search-input").value.toLowerCase();
+    const rows = document.querySelectorAll("#ledger-table-body tr");
+    let matchCount = 0;
+
+    rows.forEach(row => {
+        const rowText = row.innerText.toLowerCase();
+        if (rowText.includes(searchVal)) {
+            row.style.display = "";
+            matchCount++;
+        } else {
+            row.style.display = "none";
+        }
+    });
+
+    document.getElementById("ledger-record-count").innerText = `Showing ${matchCount} matches`;
+}
+
+// Renders directory list with strict sorting and badge displays
+function renderClientLedger() {
+    const tableBody = document.getElementById("ledger-table-body");
+    tableBody.innerHTML = "";
+
+    // Sort descending chronologically
+    const sortedData = [...activeDataset].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    sortedData.forEach(row => {
+        const isPaid = row.status === "Paid";
+        const statusBadge = isPaid
+            ? `<span class="px-2 py-0.5 text-[10px] rounded-full font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Paid</span>`
+            : `<span class="px-2 py-0.5 text-[10px] rounded-full font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse">Unpaid</span>`;
+
+        tableBody.innerHTML += `
+            <tr class="hover:bg-slate-900/40 transition-colors">
+                <td class="px-4 py-3 font-mono text-slate-400 text-[11px]">${row.date}</td>
+                <td class="px-4 py-3 font-bold text-slate-200">${row.client_name}</td>
+                <td class="px-4 py-3 font-mono text-indigo-400 font-semibold">${row.invoice_number}</td>
+                <td class="px-4 py-3 text-slate-400">${row.item_name}</td>
+                <td class="px-4 py-3 text-right font-mono font-bold text-white">${isPaid ? '$' + row.revenue.toLocaleString() : '$0'}</td>
+                <td class="px-4 py-3 text-right font-mono text-slate-400">$${row.expenses.toLocaleString()}</td>
+                <td class="px-4 py-3 text-center font-mono">${row.item_qty}</td>
+                <td class="px-4 py-3 text-center font-mono ${row.days_outstanding > currentRules.criticalOutstandingDays ? 'text-red-400 font-bold' : 'text-slate-400'}">${row.days_outstanding}d</td>
+                <td class="px-4 py-3 text-center">${statusBadge}</td>
+            </tr>
+        `;
+    });
+
+    document.getElementById("ledger-record-count").innerText = `Showing ${sortedData.length} entries`;
+}
+</script>
+
+<script>
+// MODAL SHOW/HIDE TRIGGERS
+function openUploadModal() {
+    const el = document.getElementById("upload-modal");
+    el.classList.remove("hidden");
+    setTimeout(() => el.classList.remove("opacity-0"), 10);
+    document.getElementById("upload-validation-log").classList.add("hidden");
+}
+
+function closeUploadModal() {
+    const el = document.getElementById("upload-modal");
+    el.classList.add("opacity-0");
+    setTimeout(() => el.classList.add("hidden"), 300);
+}
+
+function openRulesModal() {
+    document.getElementById("input-rule-days").value = currentRules.criticalOutstandingDays;
+    document.getElementById("input-rule-ratio").value = currentRules.criticalRatio;
+    document.getElementById("input-rule-risk").value = currentRules.decisionRiskMargin;
+
+    const el = document.getElementById("rules-modal");
+    el.classList.remove("hidden");
+    setTimeout(() => el.classList.remove("opacity-0"), 10);
+}
+
+function closeRulesModal() {
+    const el = document.getElementById("rules-modal");
+    el.classList.add("opacity-0");
+    setTimeout(() => el.classList.add("hidden"), 300);
+}
+
+function openAddTransactionModal() {
+    autoFormatInvoiceNum();
+    const el = document.getElementById("add-transaction-modal");
+    el.classList.remove("hidden");
+    setTimeout(() => el.classList.remove("opacity-0"), 10);
+}
+
+function closeAddTransactionModal() {
+    const el = document.getElementById("add-transaction-modal");
+    el.classList.add("opacity-0");
+    setTimeout(() => el.classList.add("hidden"), 300);
+}
+
+function autoFormatInvoiceNum() {
+    const type = document.getElementById("add-type").value;
+    if (type === "sales") {
+        document.getElementById("add-invoice").value = `SI-${nextSI}`;
+    } else {
+        document.getElementById("add-invoice").value = `SVI-${nextSVI}`;
+    }
+}
+</script>
+
+<script>
+// Simulates parsing of uploaded payloads and checking data validations (Phases 2 & 7)
+function simulatePresetUpload(type) {
+    const validationLog = document.getElementById("upload-validation-log");
+    validationLog.classList.remove("hidden");
+
+    if (type === 'q3_2025') {
+        customDataset = [...INITIAL_100_JSON_DATA].slice(0, 40).map(row => {
+            return {
+                ...row,
+                date: row.date.replace("2025", "2026"), // Roll date forward to make interesting
+                invoice_number: row.invoice_number.replace("10", "30").replace("20", "40")
+            };
+        });
+        validationLog.innerHTML = `
+            <span class="font-bold text-emerald-400 block mb-1">
+                <i class="fa-solid fa-circle-check"></i> Q3 2025 Dataset Validated!
+            </span>
+            Processed 40 rows. No missing headers or duplicate invoice numbers found. Schema check passed.
+        `;
+        addServerLog("POST", "/analytics/upload-historical", "Validated 40 custom records successfully.");
+    } else {
+        customDataset = [...INITIAL_100_JSON_DATA].slice(15, 60).map(row => {
+            return {
+                ...row,
+                date: row.date.replace("2025", "2026"),
+                revenue: row.revenue * 1.2, // Increase revenue to show expansion
+                invoice_number: row.invoice_number.replace("10", "50").replace("20", "60")
+            };
+        });
+        validationLog.innerHTML = `
+            <span class="font-bold text-purple-400 block mb-1">
+                <i class="fa-solid fa-circle-check"></i> Q4 2025 Expansion Validated!
+            </span>
+            Processed 45 custom transaction records. Deduplication pass: 0 conflict blocks.
+        `;
+        addServerLog("POST", "/analytics/upload-historical", "Processed 45 expansion records with scale factors.");
+    }
+}
+
+function executeHistoricalProcessing() {
+    // Select custom session and active recalculation trigger
+    document.getElementById("session-select").value = "session_custom";
+    if (customDataset.length === 0) {
+        // Fallback prefilled
+        customDataset = [...INITIAL_100_JSON_DATA].slice(50, 100);
+    }
+    historicalDataset = [...customDataset];
+    
+    addServerLog("DB", "historical_analytics", "SQL Table populated with new session. Recalculating models...");
+    closeUploadModal();
+    recalculateAnalyticsEngine();
+}
+
+function saveActiveRules() {
+    currentRules.criticalOutstandingDays = parseInt(document.getElementById("input-rule-days").value) || 45;
+    currentRules.criticalRatio = parseInt(document.getElementById("input-rule-ratio").value) || 35;
+    currentRules.decisionRiskMargin = parseInt(document.getElementById("input-rule-risk").value) || 70;
+
+    // Display updates on cards
+    document.getElementById("rule-outstanding-display").innerText = `> ${currentRules.criticalOutstandingDays} Days`;
+    document.getElementById("rule-ratio-display").innerText = `> ${currentRules.criticalRatio}%`;
+
+    addServerLog("POST", "/analytics/update-rules", `Updated threshold configs (AR Critical Ratio: ${currentRules.criticalRatio}%)`);
+    closeRulesModal();
+    recalculateAnalyticsEngine();
+}
+
+function commitNewTransaction() {
+    const client = document.getElementById("add-client").value || "Sterling Global";
+    const item = document.getElementById("add-item").value || "System Integration Service";
+    const rev = parseFloat(document.getElementById("add-revenue").value) || 0;
+    const exp = parseFloat(document.getElementById("add-expenses").value) || 0;
+    const qty = parseInt(document.getElementById("add-qty").value) || 1;
+    const days = parseInt(document.getElementById("add-unpaid").value) || 0;
+    const invoiceNum = document.getElementById("add-invoice").value;
+
+    const newRow = {
+        date: new Date().toISOString().split('T')[0],
+        client_name: client,
+        revenue: rev,
+        expenses: exp,
+        item_name: item,
+        item_qty: qty,
+        invoice_number: invoiceNum,
+        days_outstanding: days,
+        status: days > 0 ? "Unpaid" : "Paid"
+    };
+
+    // Prepend to Live source
+    liveDataset.unshift(newRow);
+
+    // Increment document counters
+    if (invoiceNum.startsWith("SI-")) nextSI++;
+    if (invoiceNum.startsWith("SVI-")) nextSVI++;
+
+    addServerLog("POST", "/analytics/new-transaction", `Inserted ${invoiceNum} securely in SQLite.`);
+    closeAddTransactionModal();
+    recalculateAnalyticsEngine();
+}
+
+function simulateAuditLogEntry() {
+    const auditStatus = ["REVENUE_AUDIT", "COMPLIANCE_PASS", "LEDGER_VERIFY"];
+    const randomStatus = auditStatus[Math.floor(Math.random() * auditStatus.length)];
+    addServerLog("POST", `/analytics/audit`, `Successfully recorded system footprint with status ${randomStatus}`);
+}
+</script>
+
+<script>
+// Start on DOM content loaded
+window.onload = function() {
+    addServerLog("INFO", "analytics_models", "Completed system initializations.");
+    recalculateAnalyticsEngine();
+};
+</script>
+</body>
+</html>

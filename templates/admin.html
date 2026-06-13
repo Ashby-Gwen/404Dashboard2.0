@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syluxent - Admin Database</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
+
+    <style>
+        body {
+            background: var(--bg-canvas);
+        }
+
+        .admin-shell {
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+
+        .admin-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: var(--shadow);
+        }
+
+        .grid-toolbar {
+            display: grid;
+            grid-template-columns: 180px 1fr 160px auto auto;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .client-list-layout {
+            display: grid;
+            grid-template-columns: minmax(280px, 380px) 1fr;
+            gap: 1rem;
+            align-items: start;
+        }
+
+        .client-list-panel,
+        .client-order-panel {
+            min-height: 420px;
+        }
+
+        .client-search-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .admin-client-list {
+            display: grid;
+            gap: 0.5rem;
+            max-height: 620px;
+            overflow: auto;
+            padding-right: 0.25rem;
+        }
+
+        .admin-client-button {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text-main);
+            text-align: left;
+        }
+
+        .admin-client-button.active,
+        .admin-client-button:hover {
+            border-color: var(--brand-orange);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-orange) 16%, transparent);
+        }
+
+        .client-mini-meta,
+        .order-mini-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            margin-top: 0.45rem;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        .client-order-card {
+            display: grid;
+            gap: 0.75rem;
+            padding: 0.9rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--surface);
+            margin-bottom: 0.75rem;
+        }
+
+        .client-order-grid {
+            display: grid;
+            grid-template-columns: minmax(180px, 1.2fr) minmax(150px, 0.9fr) minmax(150px, 0.9fr) auto;
+            gap: 0.75rem;
+            align-items: end;
+        }
+
+        .client-match-results {
+            display: grid;
+            gap: 0.35rem;
+            margin-top: 0.4rem;
+        }
+
+        .client-match-option {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--card-bg);
+            color: var(--text-main);
+            padding: 0.45rem 0.6rem;
+            text-align: left;
+            font-size: 0.86rem;
+        }
+
+        .client-match-option:hover {
+            border-color: var(--brand-orange);
+        }
+
+        .schema-box,
+        .sql-result {
+            max-height: 460px;
+            overflow: auto;
+            scrollbar-width: none;
+        }
+
+        .audit-diff {
+            max-width: 420px;
+            white-space: pre-wrap;
+            font-size: 0.8rem;
+        }
+
+        .theme-editor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 1rem;
+        }
+
+        .theme-preset-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1rem;
+        }
+
+        .theme-preset-btn {
+            --preset-bg: var(--card-bg);
+            --preset-bg-2: var(--surface);
+            --preset-text: var(--text-main);
+            --preset-muted: var(--text-muted);
+            --preset-accent: var(--brand-orange);
+            --preset-border: rgba(15, 23, 42, 0.16);
+            min-height: 148px;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1.1rem;
+            text-align: left;
+            border: 2px solid var(--preset-border);
+            border-radius: var(--radius-lg);
+            background:
+                linear-gradient(135deg, color-mix(in srgb, var(--preset-bg-2) 78%, transparent), transparent 62%),
+                var(--preset-bg);
+            color: var(--preset-text) !important;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .theme-preset-btn:hover,
+        .theme-preset-btn:focus-visible,
+        .theme-preset-btn.is-selected {
+            border-color: var(--preset-accent);
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.18);
+            transform: translateY(-1px);
+        }
+
+        .theme-preset-btn.is-selected {
+            outline: 3px solid color-mix(in srgb, var(--preset-accent) 42%, transparent);
+            outline-offset: 3px;
+        }
+
+        .theme-preset-btn strong,
+        .theme-preset-btn span {
+            display: block;
+        }
+
+        .theme-preset-btn strong {
+            margin-bottom: 0.25rem;
+            color: var(--preset-text);
+            font-size: 1rem;
+        }
+
+        .theme-preset-btn span {
+            color: var(--preset-muted);
+            font-size: 0.82rem;
+            line-height: 1.35;
+        }
+
+        .theme-preset-swatches {
+            display: flex;
+            gap: 0.45rem;
+            margin-top: 1rem;
+        }
+
+        .theme-preset-swatches i {
+            width: clamp(56px, 8vw, 76px);
+            height: 42px;
+            border: 2px solid rgba(255, 255, 255, 0.9);
+            border-radius: var(--radius-md);
+            box-shadow:
+                inset 1px 1px 0 rgba(255, 255, 255, 0.55),
+                0 0 0 1px rgba(15, 23, 42, 0.22),
+                0 4px 10px rgba(15, 23, 42, 0.16);
+        }
+
+        .theme-preset-dark {
+            --preset-bg: #151515;
+            --preset-bg-2: #2A2A2A;
+            --preset-text: #F8FAFC;
+            --preset-muted: #CBD5E1;
+            --preset-accent: #FF6A00;
+            --preset-border: #334155;
+        }
+
+        .theme-preset-light {
+            --preset-bg: #F3EFE6;
+            --preset-bg-2: #FFF9ED;
+            --preset-text: #15130F;
+            --preset-muted: #70695D;
+            --preset-accent: #FF6A00;
+            --preset-border: #D6CFC2;
+        }
+
+        .theme-preset-contrast {
+            --preset-bg: #111827;
+            --preset-bg-2: #1F2937;
+            --preset-text: #F9FAFB;
+            --preset-muted: #CBD5E1;
+            --preset-accent: #F59E0B;
+            --preset-border: #475569;
+        }
+
+        .theme-preset-rose {
+            --preset-bg: #E7F1DD;
+            --preset-bg-2: #D6BEA4;
+            --preset-text: #2D372E;
+            --preset-muted: #5F7061;
+            --preset-accent: #4A7C59;
+            --preset-border: #A9B999;
+        }
+
+        .theme-preset-ashby {
+            --preset-bg: #FFFFFF;
+            --preset-bg-2: #F7E7B5;
+            --preset-text: #3A332A;
+            --preset-muted: #8C8177;
+            --preset-accent: #C99700;
+            --preset-border: #D4AF37;
+        }
+
+        .theme-advanced {
+            margin-top: 1rem;
+        }
+
+        .theme-advanced summary {
+            width: fit-content;
+            cursor: pointer;
+            color: var(--brand-orange);
+            font-weight: 800;
+        }
+
+        .theme-field {
+            display: grid;
+            gap: 0.35rem;
+        }
+
+        .theme-field input[type="color"] {
+            min-height: 42px;
+            padding: 0.25rem;
+        }
+
+        .theme-preview {
+            display: grid;
+            gap: 1rem;
+            padding: 1rem;
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-xl);
+            background: var(--glass);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+        }
+
+        @media (max-width: 900px) {
+            .grid-toolbar {
+                grid-template-columns: 1fr;
+            }
+
+            .client-list-layout,
+            .client-order-grid,
+            .client-search-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="app-navbar">
+        <div class="nav-logo" onclick="window.location.href='{{ url_for('dashboard') }}';">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+            Syluxent
+        </div>
+        {% set nav_links = {
+        'staff': [
+        ('sales_order', 'Sales Order'),
+        ('invoices', 'Invoice'),
+        ('purchase_orders', 'Purchase Order')
+        ],
+        'manager': [
+        ('analytics', 'Analytics')
+        ],
+        'admin': [
+        ('sales_order', 'Sales Order'),
+        ('invoices', 'Invoice'),
+        ('purchase_orders', 'Purchase Order'),
+        ('analytics', 'Analytics'),
+        ('database_interface', 'Database Interface')
+        ]
+        } %}
+
+        <div class="nav-menu">
+            <a href="{{ url_for('dashboard') }}"
+                class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}">Home</a>
+
+            {% for endpoint, label in nav_links.get(session.role, []) %}
+            <a href="{{ url_for(endpoint) }}" class="nav-link {{ 'active' if request.endpoint == endpoint }}">
+                {{ label }}
+            </a>
+            {% endfor %}
+        </div>
+        <div class="nav-user">
+            <a class="profile-link" href="{{ url_for('profile') }}">
+                {% if current_user and current_user.profile_photo %}
+                <img class="profile-avatar" src="{{ url_for('static', filename=current_user.profile_photo) }}" alt="">
+                {% else %}
+                <span class="profile-avatar">{{ session.username[:1]|upper }}</span>
+                {% endif %}
+                {{ session.username }}
+            </a>
+            <!-- <button class="btn btn-outline btn-sm" type="button" data-bs-toggle="tab" data-bs-target="#notificationsPane" onclick="loadNotifications()">
+                Notifications
+                {% if pending_notification_count %}<span class="notification-badge" id="navNotificationCount">{{ pending_notification_count }}</span>{% endif %}
+            </button> -->
+            <span id="datetime"></span>
+            <a href="{{ url_for('logout') }}" class="btn btn-outline btn-sm">Logout</a>
+        </div>
+    </nav>
+
+    <div id="toastContainer" style="position: fixed; top: 1rem; right: 1rem; z-index: 9999;"></div>
+
+    <main class="admin-shell page-shell">
+        <div class="section-header">
+            <div class="page-title">
+                <h1>Admin Database Interface</h1>
+            </div>
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createUserModal" onclick="loadCreateUserRoles()">
+                Create User
+            </button>
+        </div>
+
+        <div class="alert alert-secondary">
+            Developer note: reusable admin data-grid, schema, SQL safety, and maintenance logic lives in
+            <strong>admin_services.py</strong>. Add a table to <strong>TABLE_CONFIG</strong> to expose it here.
+        </div>
+
+        <ul class="nav nav-tabs mb-3" role="tablist">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#gridPane"
+                    type="button">Data Grid</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#clientListPane"
+                    type="button" onclick="loadAdminClientList()">Client List</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#maintenancePane"
+                    type="button" onclick="loadHealth()">System Maintenance</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#schemaPane"
+                    type="button" onclick="loadSchema()">Schema Browser</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#auditPane" type="button"
+                    onclick="loadAuditLogs()">Audit Logs</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#notificationsPane" type="button"
+                    onclick="loadNotifications()">Notifications
+                    {% if pending_notification_count %}<span class="notification-badge" id="tabNotificationCount">{{ pending_notification_count }}</span>{% endif %}
+                </button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#themePane" type="button"
+                    onclick="loadThemeEditor()">Theme Editor</button></li>
+        </ul>
+
+        <div class="tab-content">
+            <section class="tab-pane fade show active" id="gridPane">
+                <div class="admin-card">
+                    <div class="grid-toolbar">
+                        <select class="form-select" id="gridTable" onchange="resetGrid()">
+                            <option value="users">Users</option>
+                            <option value="roles">Roles</option>
+                            <option value="clients">Clients</option>
+                            <option value="sales_orders">Sales Orders</option>
+                            <option value="invoices">Invoices</option>
+                            <option value="purchase_orders">Purchase Orders</option>
+                            <option value="session_records">Session Records</option>
+                            <option value="analytics_data">Analytics Data</option>
+                        </select>
+                        <input class="form-control" id="gridSearch" placeholder="Search multiple columns..."
+                            oninput="debouncedLoadGrid()">
+                        <input class="form-control" id="gridStatus" placeholder="Status filter">
+                        <button class="btn btn-primary" onclick="loadGrid()">Filter</button>
+                        <button class="btn btn-outline-secondary" onclick="exportGrid()">Export CSV</button>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <select class="form-select" id="bulkStatus" style="max-width: 220px;">
+                            <option value="">Bulk status...</option>
+                            <option value="ACTIVE">ACTIVE</option>
+                            <option value="INACTIVE">INACTIVE</option>
+                            <option value="PENDING">PENDING</option>
+                            <option value="PARTIAL">PARTIAL</option>
+                            <option value="COMPLETED">COMPLETED</option>
+                            <option value="PAID">PAID</option>
+                            <option value="UNPAID">UNPAID</option>
+                        </select>
+                        <button class="btn btn-outline-primary" onclick="bulkUpdateStatus()">Batch Update
+                            Status</button>
+                        <button class="btn btn-outline-danger" onclick="bulkDelete()">Batch Delete</button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle" id="dataGridTable"></table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div id="gridMeta" class="text-muted"></div>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="changePage(-1)">Previous</button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="changePage(1)">Next</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="tab-pane fade" id="clientListPane">
+                <div class="client-list-layout">
+                    <div class="admin-card client-list-panel">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                            <div>
+                                <h2>Client List</h2>
+                                <p class="text-muted mb-0">Canonical company records used for sales-order matching.</p>
+                            </div>
+                            <button class="btn btn-outline-secondary btn-sm" type="button" onclick="loadAdminClientList()">Refresh</button>
+                        </div>
+                        <div class="client-search-row">
+                            <input class="form-control" id="adminClientSearch" placeholder="Search clients, aliases, stores..."
+                                oninput="filterAdminClientList()">
+                            <span class="badge text-bg-secondary align-self-center" id="adminClientCount">0 clients</span>
+                        </div>
+                        <div id="adminClientList" class="admin-client-list">
+                            <div class="text-muted">Open this tab to load clients.</div>
+                        </div>
+                    </div>
+
+                    <div class="admin-card client-order-panel">
+                        <div id="adminClientDetail">
+                            <h2>Sales Orders</h2>
+                            <p class="text-muted">Select a client to edit Company, Store, and Branch on related sales orders.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="tab-pane fade" id="maintenancePane">
+                <div class="admin-card">
+                    <h2>Database Health Suite</h2>
+                    <div class="row g-3 my-2">
+                        <div class="col-md-4">
+                            <div class="alert alert-info mb-0">Size: <strong id="dbSize">-</strong></div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="alert alert-info mb-0">Last backup: <strong id="lastBackup">-</strong></div>
+                        </div>
+                    </div>
+                    <button class="btn btn-warning" onclick="runMaintenance('VACUUM')">Run VACUUM</button>
+                    <button class="btn btn-warning" onclick="runMaintenance('ANALYZE')">Run ANALYZE</button>
+                </div>
+            </section>
+
+            <section class="tab-pane fade" id="schemaPane">
+                <div class="admin-card mb-3">
+                    <h2>Schema Browser</h2>
+                    <div id="schemaBrowser" class="schema-box"></div>
+                </div>
+                <div class="admin-card">
+                    <h2>Safety Checked SQL Console</h2>
+                    <textarea class="form-control mb-2" id="sqlText" rows="5"
+                        placeholder="SELECT * FROM invoices LIMIT 10"></textarea>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="sqlDryRun" checked>
+                        <label class="form-check-label" for="sqlDryRun">Dry Run / Rollback</label>
+                    </div>
+                    <button class="btn btn-primary" onclick="runSql()">Run SQL</button>
+                    <div id="sqlResult" class="sql-result mt-3"></div>
+                </div>
+            </section>
+
+            <section class="tab-pane fade" id="auditPane">
+                <div class="admin-card">
+                    <h2>Audit Logs</h2>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <input class="form-control" id="auditUserFilter" placeholder="Filter by username" style="max-width: 220px;">
+                        <select class="form-select" id="auditRoleFilter" style="max-width: 220px;">
+                            <option value="">All roles</option>
+                            <option value="admin">Admin</option>
+                            <option value="manager">Manager</option>
+                            <option value="staff">Staff</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="loadAuditLogs()">Filter</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm" id="auditTable"></table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="tab-pane fade" id="notificationsPane">
+                <div class="admin-card">
+                    <h2>Password Reset Notifications</h2>
+                    <p class="text-muted">Resolve password reset requests after confirming your admin password.</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle" id="notificationsTable"></table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="tab-pane fade" id="themePane">
+                <div class="admin-card">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                        <div>
+                            <h2>Theme Editor</h2>
+                            <p class="text-muted mb-0">Choose a preset with one click. Advanced controls remain available for small adjustments.</p>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-outline-secondary" type="button" onclick="previewTheme()">Preview</button>
+                            <button class="btn btn-primary" type="button" onclick="saveTheme()">Save Theme</button>
+                            <button class="btn btn-outline-danger" type="button" onclick="resetTheme()">Reset</button>
+                        </div>
+                    </div>
+                    <div id="themeEditorStatus" class="text-muted mb-3">Loading theme controls...</div>
+                    <div class="theme-preset-grid mb-4" aria-label="Theme presets">
+                        <button class="theme-preset-btn theme-preset-dark btn" type="button" data-theme-preset="dark" onclick="applyThemePreset('dark')">
+                            <span>
+                                <strong>Dark Mode</strong>
+                                <span>Dark gray surfaces, light text, orange highlight.</span>
+                                <span class="theme-preset-swatches"><i style="background:#151515"></i><i style="background:#2A2A2A"></i><i style="background:#FF6A00"></i></span>
+                            </span>
+                        </button>
+                        <button class="theme-preset-btn theme-preset-light btn" type="button" data-theme-preset="light" onclick="applyThemePreset('light')">
+                            <span>
+                                <strong>Light Mode</strong>
+                                <span>Dirty white surfaces, dark text, orange highlight.</span>
+                                <span class="theme-preset-swatches"><i style="background:#F3EFE6"></i><i style="background:#FFF9ED"></i><i style="background:#FF6A00"></i></span>
+                            </span>
+                        </button>
+                        <button class="theme-preset-btn theme-preset-contrast btn" type="button" data-theme-preset="contrast" onclick="applyThemePreset('contrast')">
+                            <span>
+                                <strong>High Contrast</strong>
+                                <span>Deep slate surfaces with readable amber highlights.</span>
+                                <span class="theme-preset-swatches"><i style="background:#111827"></i><i style="background:#1F2937"></i><i style="background:#F59E0B"></i></span>
+                            </span>
+                        </button>
+                        <button class="theme-preset-btn theme-preset-rose btn" type="button" data-theme-preset="rose" onclick="applyThemePreset('rose')">
+                            <span>
+                                <strong>Rose Mode</strong>
+                                <span>Pastel green, pastel brown, and dirty white.</span>
+                                <span class="theme-preset-swatches"><i style="background:#E7F1DD"></i><i style="background:#D6BEA4"></i><i style="background:#F8F3EA"></i></span>
+                            </span>
+                        </button>
+                        <button class="theme-preset-btn theme-preset-ashby btn" type="button" data-theme-preset="ashby" onclick="applyThemePreset('ashby')">
+                            <span>
+                                <strong>Ashby Mode</strong>
+                                <span>Golden city palette with daily Gospel sidebar.</span>
+                                <span class="theme-preset-swatches"><i style="background:#FFFFFF"></i><i style="background:#F7E7B5"></i><i style="background:#C99700"></i></span>
+                            </span>
+                        </button>
+                    </div>
+                    <details class="theme-advanced mb-4">
+                        <summary>Advanced manual controls</summary>
+                        <div id="themeEditorForm" class="theme-editor-grid mt-3"></div>
+                    </details>
+                    <div class="theme-preview">
+                        <div class="stat-card mb-0">
+                            <div style="color: var(--text-muted); font-size: 0.9rem;">Preview KPI</div>
+                            <div style="font-size: 2rem; font-weight: 800; color: var(--brand-orange);">₱125,000</div>
+                        </div>
+                        <div class="card">
+                            <h3>Preview Card</h3>
+                            <p class="mb-0 text-muted">This preview uses the same variables applied across the system.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <div class="modal fade" id="createUserModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5">Create User</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="createUserForm" onsubmit="createUser(event)">
+                    <div class="modal-body">
+                        <label class="form-label" for="newUsername">Username</label>
+                        <input class="form-control mb-3" id="newUsername" required>
+                        <label class="form-label" for="newEmail">Email</label>
+                        <input class="form-control mb-3" id="newEmail" type="email">
+                        <label class="form-label" for="newPassword">Password</label>
+                        <input class="form-control mb-3" id="newPassword" type="password" required>
+                        <label class="form-label" for="newRole">Role</label>
+                        <select class="form-select" id="newRole" required></select>
+                        <small class="text-muted">Only one admin account is allowed.</small>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let gridPage = 1;
+        let gridPages = 1;
+        let gridColumns = [];
+        let searchTimer = null;
+        let themeFields = {};
+        let themeSettings = {};
+        let adminClients = [];
+        let selectedAdminClientId = null;
+        let clientMatchTimers = {};
+        const themePresets = {
+            dark: {
+                bg: '#0F1115',
+                bg_2: '#1A1D24',
+                orange: '#F97316',
+                orange_2: '#EA580C',
+                text: '#F8FAFC',
+                muted: '#94A3B8',
+                glass_opacity: 0.75,
+                glass_strong_opacity: 0.85,
+                glass_border_opacity: 0.90,
+                blur_px: 0,
+                saturate_percent: 100,
+                card_radius_px: 8,
+                control_radius_px: 6,
+                page_padding_px: 34,
+                card_padding_px: 24,
+                stat_padding_px: 20,
+                nav_padding_px: 10
+            },
+            light: {
+                bg: '#F8FAFC',
+                bg_2: '#F8FAFC',
+                orange: '#F97316',
+                orange_2: '#EA580C',
+                text: '#0F172A',
+                muted: '#64748B',
+                glass_opacity: 0.75,
+                glass_strong_opacity: 0.85,
+                glass_border_opacity: 0.90,
+                blur_px: 0,
+                saturate_percent: 100,
+                card_radius_px: 8,
+                control_radius_px: 6,
+                page_padding_px: 34,
+                card_padding_px: 24,
+                stat_padding_px: 20,
+                nav_padding_px: 10
+            },
+            contrast: {
+                bg: '#111827',
+                bg_2: '#1F2937',
+                orange: '#F59E0B',
+                orange_2: '#D97706',
+                text: '#F9FAFB',
+                muted: '#CBD5E1',
+                glass_opacity: 0.75,
+                glass_strong_opacity: 0.85,
+                glass_border_opacity: 0.90,
+                blur_px: 0,
+                saturate_percent: 100,
+                card_radius_px: 8,
+                control_radius_px: 6,
+                page_padding_px: 34,
+                card_padding_px: 24,
+                stat_padding_px: 20,
+                nav_padding_px: 10
+            },
+            rose: {
+                bg: '#F1F4F0',
+                bg_2: '#F1F4F0',
+                orange: '#4A7C59',
+                orange_2: '#3A6246',
+                text: '#2D372E',
+                muted: '#5F7061',
+                glass_opacity: 0.75,
+                glass_strong_opacity: 0.85,
+                glass_border_opacity: 0.90,
+                blur_px: 0,
+                saturate_percent: 100,
+                card_radius_px: 8,
+                control_radius_px: 6,
+                page_padding_px: 34,
+                card_padding_px: 24,
+                stat_padding_px: 20,
+                nav_padding_px: 10
+            },
+            ashby: {
+                bg: '#FBFAF8',
+                bg_2: '#FBFAF8',
+                orange: '#D4AF37',
+                orange_2: '#B5952F',
+                text: '#3A332A',
+                muted: '#8C8177',
+                glass_opacity: 0.75,
+                glass_strong_opacity: 0.85,
+                glass_border_opacity: 0.90,
+                blur_px: 0,
+                saturate_percent: 100,
+                card_radius_px: 8,
+                control_radius_px: 6,
+                page_padding_px: 34,
+                card_padding_px: 24,
+                stat_padding_px: 20,
+                nav_padding_px: 10
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', loadGrid);
+        setInterval(() => document.getElementById('datetime').textContent = new Date().toLocaleString(), 1000);
+
+        function resetGrid() {
+            gridPage = 1;
+            loadGrid();
+        }
+
+        function debouncedLoadGrid() {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(resetGrid, 350);
+        }
+
+        function gridUrl() {
+            const params = new URLSearchParams({
+                table: gridTable.value,
+                page: gridPage,
+                page_size: 25,
+                search: gridSearch.value,
+                status: gridStatus.value
+            });
+            return '/admin/data-grid?' + params.toString();
+        }
+
+        function loadGrid() {
+            fetch(gridUrl())
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) throw new Error(data.error || 'Failed to load grid');
+                    renderGrid(data.grid);
+                })
+                .catch(error => showToast(error.message, 'error'));
+        }
+
+        function renderGrid(grid) {
+            gridColumns = grid.columns;
+            gridPages = grid.pages || 1;
+            const userActions = grid.table === 'users' ? '<th>Action</th>' : '';
+            const head = '<thead><tr><th><input type="checkbox" onchange="toggleAllRows(this.checked)"></th>' + grid.columns.map(col => `<th onclick="sortGrid('${col}')">${label(col)}</th>`).join('') + userActions + '</tr></thead>';
+            const body = grid.rows.length
+                ? grid.rows.map(row => {
+                    const action = grid.table === 'users'
+                        ? `<td>${row.status === 'ACTIVE' ? `<button class="btn btn-outline-danger btn-sm" onclick="deactivateUser(${row.id})">Set Inactive</button>` : '<span class="text-muted">Inactive</span>'}</td>`
+                        : '';
+                    return '<tr><td><input class="row-check" type="checkbox" value="' + row.id + '"></td>' + grid.columns.map(col => `<td>${escapeHtml(row[col] ?? '-')}</td>`).join('') + action + '</tr>';
+                }).join('')
+                : `<tr><td colspan="${grid.columns.length + 2}" class="text-center text-muted">No records found</td></tr>`;
+            dataGridTable.innerHTML = head + '<tbody>' + body + '</tbody>';
+            gridMeta.textContent = `${grid.total} rows | Page ${grid.page} of ${grid.pages || 1}`;
+        }
+
+        function sortGrid(column) {
+            const params = new URLSearchParams(gridUrl().split('?')[1]);
+            params.set('sort', column);
+            params.set('direction', 'asc');
+            fetch('/admin/data-grid?' + params.toString())
+                .then(response => response.json())
+                .then(data => renderGrid(data.grid));
+        }
+
+        function changePage(delta) {
+            gridPage = Math.min(Math.max(gridPage + delta, 1), gridPages);
+            loadGrid();
+        }
+
+        function selectedIds() {
+            return Array.from(document.querySelectorAll('.row-check:checked')).map(input => parseInt(input.value));
+        }
+
+        function toggleAllRows(checked) {
+            document.querySelectorAll('.row-check').forEach(input => input.checked = checked);
+        }
+
+        function exportGrid() {
+            window.location.href = '/admin/export?' + new URLSearchParams({
+                table: gridTable.value,
+                search: gridSearch.value,
+                status: gridStatus.value
+            }).toString();
+        }
+
+        function bulkUpdateStatus() {
+            const ids = selectedIds();
+            if (!ids.length || !bulkStatus.value) return showToast('Select rows and a status first.', 'error');
+            fetch('/admin/bulk-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ table: gridTable.value, ids: ids, status: bulkStatus.value })
+            }).then(r => r.json()).then(handleMutation);
+        }
+
+        function bulkDelete() {
+            if (gridTable.value === 'users') return showToast('Users cannot be deleted. Set their status to INACTIVE.', 'error');
+            const ids = selectedIds();
+            if (!ids.length || !confirm('Delete selected records?')) return;
+            fetch('/admin/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ table: gridTable.value, ids: ids })
+            }).then(r => r.json()).then(handleMutation);
+        }
+
+        function handleMutation(data) {
+            if (!data.success) return showToast(data.error || 'Operation failed', 'error');
+            showToast('Operation completed.', 'success');
+            loadGrid();
+        }
+
+        function adminMoney(value) {
+            return new Intl.NumberFormat('en-PH', {
+                style: 'currency',
+                currency: 'PHP',
+                maximumFractionDigits: 2
+            }).format(Number(value || 0));
+        }
+
+        function loadAdminClientList() {
+            const list = document.getElementById('adminClientList');
+            if (list) list.innerHTML = '<div class="text-muted">Loading clients...</div>';
+            fetch('/admin/client-list')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) throw new Error(data.error || 'Unable to load client list');
+                    adminClients = data.clients || [];
+                    if (!selectedAdminClientId && adminClients.length) {
+                        selectedAdminClientId = adminClients[0].id;
+                    }
+                    if (selectedAdminClientId && !adminClients.some(client => client.id === selectedAdminClientId)) {
+                        selectedAdminClientId = adminClients.length ? adminClients[0].id : null;
+                    }
+                    renderAdminClientList();
+                    renderAdminClientDetail();
+                })
+                .catch(error => showToast(error.message, 'error'));
+        }
+
+        function filterAdminClientList() {
+            renderAdminClientList();
+        }
+
+        function clientSearchText(client) {
+            return [
+                client.client_name,
+                client.contact_info,
+                client.status,
+                client.balance_status,
+                ...(client.aliases || []),
+                ...(client.stores || []).flatMap(store => [store.store_name, store.store_branch])
+            ].join(' ').toLowerCase();
+        }
+
+        function filteredAdminClients() {
+            const query = (document.getElementById('adminClientSearch')?.value || '').trim().toLowerCase();
+            if (!query) return adminClients;
+            return adminClients.filter(client => clientSearchText(client).includes(query));
+        }
+
+        function renderAdminClientList() {
+            const list = document.getElementById('adminClientList');
+            const count = document.getElementById('adminClientCount');
+            if (!list) return;
+            const clients = filteredAdminClients();
+            if (count) count.textContent = `${clients.length} client${clients.length === 1 ? '' : 's'}`;
+            if (!clients.length) {
+                list.innerHTML = '<div class="text-muted">No matching clients found.</div>';
+                return;
+            }
+            list.innerHTML = clients.map(client => `
+                <button type="button" class="admin-client-button ${client.id === selectedAdminClientId ? 'active' : ''}" onclick="selectAdminClient(${client.id})">
+                    <strong>${escapeHtml(client.client_name)}</strong>
+                    <div class="client-mini-meta">
+                        <span>${client.sales_order_count || 0} SO</span>
+                        <span>${client.store_count || 0} stores</span>
+                        <span>${adminMoney(client.total_revenue)}</span>
+                        <span>${escapeHtml(client.balance_status || 'Settled')}</span>
+                    </div>
+                    ${(client.aliases || []).length ? `<div class="text-muted mt-1" style="font-size:0.78rem;">Aliases: ${client.aliases.map(escapeHtml).join(', ')}</div>` : ''}
+                </button>
+            `).join('');
+        }
+
+        function selectAdminClient(clientId) {
+            selectedAdminClientId = clientId;
+            renderAdminClientList();
+            renderAdminClientDetail();
+        }
+
+        function selectedAdminClient() {
+            return adminClients.find(client => client.id === selectedAdminClientId) || null;
+        }
+
+        function renderAdminClientDetail() {
+            const detail = document.getElementById('adminClientDetail');
+            if (!detail) return;
+            const client = selectedAdminClient();
+            if (!client) {
+                detail.innerHTML = '<h2>Sales Orders</h2><p class="text-muted">Select a client to edit related sales orders.</p>';
+                return;
+            }
+            const orders = client.sales_orders || [];
+            detail.innerHTML = `
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                    <div>
+                        <h2>${escapeHtml(client.client_name)}</h2>
+                        <div class="client-mini-meta">
+                            <span>Revenue ${adminMoney(client.total_revenue)}</span>
+                            <span>Paid ${adminMoney(client.total_paid)}</span>
+                            <span>Balance ${adminMoney(client.total_balance)}</span>
+                            <span>${escapeHtml(client.status || 'ACTIVE')}</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="loadAdminClientList()">Refresh</button>
+                </div>
+                ${(client.aliases || []).length ? `<p class="text-muted">Aliases: ${client.aliases.map(escapeHtml).join(', ')}</p>` : '<p class="text-muted">No learned aliases yet.</p>'}
+                <div class="mb-3">
+                    <strong>Stores and branches</strong>
+                    <div class="client-mini-meta">
+                        ${(client.stores || []).length ? client.stores.map(store => `<span>${escapeHtml(store.store_name || '-')} / ${escapeHtml(store.store_branch || '-')} (${store.sales_order_count})</span>`).join('') : '<span>No stores yet</span>'}
+                    </div>
+                </div>
+                <h3 class="fs-5">Related Sales Orders</h3>
+                ${orders.length ? orders.map(renderClientSalesOrderEditor).join('') : '<div class="text-muted">No related sales orders for this client.</div>'}
+            `;
+        }
+
+        function renderClientSalesOrderEditor(order) {
+            const displayCompany = order.original_entered_client_name || order.company_name || '';
+            return `
+                <div class="client-order-card" id="clientOrderCard${order.id}">
+                    <div class="d-flex flex-wrap justify-content-between gap-2">
+                        <div>
+                            <strong>${escapeHtml(order.so_number || `SO-${order.id}`)}</strong>
+                            <div class="order-mini-meta">
+                                <span>${escapeHtml(order.order_date || 'No date')}</span>
+                                <span>${adminMoney(order.total_amount)}</span>
+                                <span>${escapeHtml(order.status || 'PENDING')}</span>
+                            </div>
+                        </div>
+                        <span class="badge text-bg-secondary" id="orderSelectedClient${order.id}">${escapeHtml(order.company_name || '')}</span>
+                    </div>
+                    <div class="client-order-grid">
+                        <div>
+                            <label class="form-label" for="orderCompany${order.id}">Company</label>
+                            <input class="form-control" id="orderCompany${order.id}" value="${escapeHtml(displayCompany)}" oninput="queueClientMatch(${order.id})" onfocus="queueClientMatch(${order.id})">
+                            <input type="hidden" id="orderClientId${order.id}" value="${order.client_id || ''}">
+                            <div class="client-match-results" id="orderMatches${order.id}"></div>
+                        </div>
+                        <div>
+                            <label class="form-label" for="orderStore${order.id}">Store</label>
+                            <input class="form-control" id="orderStore${order.id}" value="${escapeHtml(order.store_name || '')}">
+                        </div>
+                        <div>
+                            <label class="form-label" for="orderBranch${order.id}">Branch</label>
+                            <input class="form-control" id="orderBranch${order.id}" value="${escapeHtml(order.store_branch || '')}">
+                        </div>
+                        <div class="d-grid gap-2">
+                            <label class="form-check-label" style="font-size:0.82rem;">
+                                <input class="form-check-input" type="checkbox" id="orderLearnAlias${order.id}" checked>
+                                Learn alias
+                            </label>
+                            <button class="btn btn-primary btn-sm" type="button" onclick="saveClientSalesOrder(${order.id})">Save</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function queueClientMatch(orderId) {
+            clearTimeout(clientMatchTimers[orderId]);
+            clientMatchTimers[orderId] = setTimeout(() => loadOrderClientMatches(orderId), 250);
+        }
+
+        function loadOrderClientMatches(orderId) {
+            const input = document.getElementById(`orderCompany${orderId}`);
+            const container = document.getElementById(`orderMatches${orderId}`);
+            const query = (input?.value || '').trim();
+            if (!container || query.length < 2) {
+                if (container) container.innerHTML = '';
+                return;
+            }
+            fetch('/admin/client-match?' + new URLSearchParams({ q: query }).toString())
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) throw new Error(data.error || 'Client match failed');
+                    const candidates = data.candidates || [];
+                    container.innerHTML = candidates.length ? candidates.map(candidate => `
+                        <button type="button" class="client-match-option" data-client-name="${escapeHtml(candidate.client_name)}" onclick="selectOrderClient(${orderId}, ${candidate.client_id}, this.dataset.clientName)">
+                            <strong>${escapeHtml(candidate.client_name)}</strong>
+                            <span class="text-muted"> ${Number(candidate.match_percent || 0).toFixed(2)}% ${candidate.source === 'alias' ? 'alias' : 'client'}</span>
+                        </button>
+                    `).join('') : '<div class="text-muted" style="font-size:0.82rem;">No Client List match found.</div>';
+                })
+                .catch(error => showToast(error.message, 'error'));
+        }
+
+        function selectOrderClient(orderId, clientId, clientName) {
+            const hidden = document.getElementById(`orderClientId${orderId}`);
+            const badge = document.getElementById(`orderSelectedClient${orderId}`);
+            const matches = document.getElementById(`orderMatches${orderId}`);
+            if (hidden) hidden.value = clientId;
+            if (badge) badge.textContent = clientName;
+            if (matches) matches.innerHTML = '';
+        }
+
+        function saveClientSalesOrder(orderId) {
+            const payload = {
+                client_id: parseInt(document.getElementById(`orderClientId${orderId}`)?.value || '0'),
+                company_name: document.getElementById(`orderCompany${orderId}`)?.value || '',
+                store_name: document.getElementById(`orderStore${orderId}`)?.value || '',
+                store_branch: document.getElementById(`orderBranch${orderId}`)?.value || '',
+                learn_alias: Boolean(document.getElementById(`orderLearnAlias${orderId}`)?.checked)
+            };
+            if (!payload.client_id) {
+                showToast('Choose a Client List match before saving.', 'error');
+                return;
+            }
+            fetch(`/admin/sales-orders/${orderId}/client-store-branch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) return showToast(data.error || 'Unable to save sales order', 'error');
+                    adminClients = data.clients || adminClients;
+                    selectedAdminClientId = data.sales_order?.client_id || selectedAdminClientId;
+                    renderAdminClientList();
+                    renderAdminClientDetail();
+                    showToast(data.message || 'Sales order updated.', 'success');
+                })
+                .catch(error => showToast(error.message, 'error'));
+        }
+
+        function loadHealth() {
+            fetch('/admin/db-health').then(r => r.json()).then(data => {
+                if (!data.success) throw new Error(data.error);
+                dbSize.textContent = data.health.database_size_mb + ' MB';
+                lastBackup.textContent = data.health.last_backup ? new Date(data.health.last_backup).toLocaleString() : 'No backup detected';
+            }).catch(error => showToast(error.message, 'error'));
+        }
+
+        function runMaintenance(command) {
+            fetch('/admin/db-maintenance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command })
+            }).then(r => r.json()).then(data => {
+                if (!data.success) return showToast(data.error, 'error');
+                showToast(data.message, 'success');
+                loadHealth();
+            });
+        }
+
+        function loadSchema() {
+            fetch('/admin/schema').then(r => r.json()).then(data => {
+                if (!data.success) throw new Error(data.error);
+                schemaBrowser.innerHTML = data.schema.tables.map(table => `
+                    <div class="mb-3">
+                        <h4>${escapeHtml(table.name)}</h4>
+                        <table class="table table-sm"><thead><tr><th>Column</th><th>Type</th><th>Nullable</th></tr></thead>
+                        <tbody>${table.columns.map(col => `<tr><td>${escapeHtml(col.name)}</td><td>${escapeHtml(col.type)}</td><td>${col.nullable}</td></tr>`).join('')}</tbody></table>
+                        <small class="text-muted">Indexes: ${table.indexes.map(idx => escapeHtml(idx.name)).join(', ') || 'None'}</small>
+                    </div>
+                `).join('');
+            }).catch(error => showToast(error.message, 'error'));
+        }
+
+        function runSql() {
+            fetch('/admin/sql-console', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sql: sqlText.value, dry_run: sqlDryRun.checked })
+            }).then(r => r.json()).then(data => {
+                if (!data.success) return showToast(data.error, 'error');
+                renderSqlResult(data.result);
+            });
+        }
+
+        function renderSqlResult(result) {
+            if (!result.rows.length) {
+                sqlResult.innerHTML = '<div class="alert alert-success">SQL completed. No rows returned.</div>';
+                return;
+            }
+            sqlResult.innerHTML = `<table class="table table-sm"><thead><tr>${result.columns.map(col => `<th>${escapeHtml(col)}</th>`).join('')}</tr></thead><tbody>${result.rows.map(row => `<tr>${result.columns.map(col => `<td>${escapeHtml(row[col] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+        }
+
+        function loadAuditLogs() {
+            const params = new URLSearchParams({
+                username: auditUserFilter?.value || '',
+                role: auditRoleFilter?.value || ''
+            });
+            fetch('/admin/audit-logs?' + params.toString()).then(r => r.json()).then(data => {
+                if (!data.success) throw new Error(data.error);
+                auditTable.innerHTML = '<thead><tr><th>User</th><th>Role</th><th>Action</th><th>Table</th><th>Record</th><th>Timestamp</th><th>Old</th><th>New</th></tr></thead><tbody>' +
+                    data.logs.map(log => `<tr><td>${escapeHtml(log.username)}</td><td>${escapeHtml(log.role_name || '-')}</td><td>${escapeHtml(log.action)}</td><td>${escapeHtml(log.table_name)}</td><td>${escapeHtml(log.record_id || '-')}</td><td>${new Date(log.created_at).toLocaleString()}</td><td class="audit-diff">${escapeHtml(log.old_value || '')}</td><td class="audit-diff">${escapeHtml(log.new_value || '')}</td></tr>`).join('') +
+                    '</tbody>';
+            }).catch(error => showToast(error.message, 'error'));
+        }
+
+        function loadCreateUserRoles() {
+            fetch('/get-roles').then(r => r.json()).then(data => {
+                if (!data.success) throw new Error(data.error);
+                newRole.innerHTML = data.roles.map(role => `<option value="${role.id}">${escapeHtml(role.role_name)}</option>`).join('');
+            }).catch(error => showToast(error.message, 'error'));
+        }
+
+        function createUser(event) {
+            event.preventDefault();
+            fetch('/create-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: newUsername.value,
+                    email: newEmail.value,
+                    password: newPassword.value,
+                    role_id: parseInt(newRole.value)
+                })
+            }).then(r => r.json()).then(data => {
+                if (!data.success) return showToast(data.error || 'Unable to create user', 'error');
+                showToast(data.message, 'success');
+                createUserForm.reset();
+                bootstrap.Modal.getInstance(createUserModal).hide();
+                gridTable.value = 'users';
+                resetGrid();
+            });
+        }
+
+        function deactivateUser(userId) {
+            if (!confirm('Set this user to inactive?')) return;
+            fetch('/delete-user/' + userId, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return showToast(data.error || 'Unable to deactivate user', 'error');
+                    showToast(data.message, 'success');
+                    loadGrid();
+                });
+        }
+
+        function loadNotifications() {
+            fetch('/admin/notifications').then(r => r.json()).then(data => {
+                if (!data.success) throw new Error(data.error);
+                notificationsTable.innerHTML = '<thead><tr><th>Username</th><th>Requested</th><th>Status</th><th>Resolved By</th><th>Action</th></tr></thead><tbody>' +
+                    (data.notifications.length ? data.notifications.map(item => `<tr><td>${escapeHtml(item.username)}</td><td>${new Date(item.requested_at).toLocaleString()}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.resolved_by || '-')}</td><td>${item.status === 'PENDING' ? `<button class="btn btn-primary btn-sm" onclick="resolvePasswordReset(${item.id})">Reset</button>` : '-'}</td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">No notifications</td></tr>') +
+                    '</tbody>';
+                updateNotificationBadges(data.pending_count);
+            }).catch(error => showToast(error.message, 'error'));
+        }
+
+        function requestAdminPasswordConfirmation() {
+            return new Promise(resolve => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'modal fade';
+                wrapper.tabIndex = -1;
+                wrapper.innerHTML = `
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h2 class="modal-title fs-5">Confirm Password Reset</h2>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <label class="form-label" for="adminResetPasswordConfirm">Admin password</label>
+                                <input class="form-control" id="adminResetPasswordConfirm" type="password" autocomplete="current-password">
+                                <small class="text-muted">Enter your own admin password to continue.</small>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" data-confirm-reset>Reset</button>
+                            </div>
+                        </div>
+                    </div>`;
+                document.body.appendChild(wrapper);
+                const modal = new bootstrap.Modal(wrapper);
+                const input = wrapper.querySelector('#adminResetPasswordConfirm');
+                let resolved = false;
+                wrapper.querySelector('[data-confirm-reset]').addEventListener('click', () => {
+                    resolved = true;
+                    const password = input.value;
+                    modal.hide();
+                    resolve(password);
+                });
+                wrapper.addEventListener('shown.bs.modal', () => input.focus());
+                wrapper.addEventListener('hidden.bs.modal', () => {
+                    wrapper.remove();
+                    if (!resolved) resolve('');
+                });
+                modal.show();
+            });
+        }
+
+        async function resolvePasswordReset(resetId) {
+            const adminPassword = await requestAdminPasswordConfirmation();
+            if (!adminPassword) return showToast('Password reset cancelled.', 'info');
+            fetch(`/admin/password-resets/${resetId}/resolve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ admin_password: adminPassword })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return showToast(data.error || 'Unable to reset password', 'error');
+                    showToast(data.message, 'success');
+                    loadNotifications();
+                });
+        }
+
+        function updateNotificationBadges(count) {
+            ['navNotificationCount', 'tabNotificationCount'].forEach(id => {
+                const badge = document.getElementById(id);
+                if (badge) {
+                    badge.textContent = count;
+                    badge.style.display = count ? 'inline-grid' : 'none';
+                }
+            });
+        }
+
+        function loadThemeEditor() {
+            fetch('/admin/theme')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) throw new Error(data.error || 'Unable to load theme');
+                    themeFields = data.fields || {};
+                    themeSettings = data.settings || {};
+                    renderThemeEditor();
+                    applyThemePreview(themeSettings);
+                    themeEditorStatus.textContent = 'Adjust values, preview, then save.';
+                })
+                .catch(error => {
+                    themeEditorStatus.textContent = error.message;
+                    showToast(error.message, 'error');
+                });
+        }
+
+        function renderThemeEditor() {
+            themeEditorForm.innerHTML = Object.entries(themeFields).map(([key, field]) => {
+                const value = themeSettings[key] ?? field.default;
+                if (field.type === 'color') {
+                    return `
+                        <label class="theme-field">
+                            <span>${escapeHtml(field.label)}</span>
+                            <input class="form-control form-control-color" type="color" id="theme_${key}" value="${escapeHtml(value)}" oninput="previewTheme()">
+                        </label>`;
+                }
+                return `
+                    <label class="theme-field">
+                        <span>${escapeHtml(field.label)}</span>
+                        <input class="form-control" type="number" id="theme_${key}" value="${escapeHtml(value)}" min="${field.min}" max="${field.max}" step="${field.step}" oninput="previewTheme()">
+                    </label>`;
+            }).join('');
+        }
+
+        function collectThemeSettings() {
+            const settings = {};
+            Object.keys(themeFields).forEach(key => {
+                const input = document.getElementById('theme_' + key);
+                if (!input) return;
+                settings[key] = themeFields[key].type === 'number' ? Number(input.value) : input.value;
+            });
+            return settings;
+        }
+
+        function hexToRgba(hex, opacity) {
+            const clean = String(hex || '#ffffff').replace('#', '');
+            const red = parseInt(clean.slice(0, 2), 16);
+            const green = parseInt(clean.slice(2, 4), 16);
+            const blue = parseInt(clean.slice(4, 6), 16);
+            return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
+        }
+
+        function hexToRgb(hex) {
+            const clean = String(hex || '#ffffff').replace('#', '');
+            return {
+                red: parseInt(clean.slice(0, 2), 16),
+                green: parseInt(clean.slice(2, 4), 16),
+                blue: parseInt(clean.slice(4, 6), 16)
+            };
+        }
+
+        function glassShadowFor(settings) {
+            if (isSolidDashboardMode(settings)) {
+                return isHighContrastDashboardMode(settings)
+                    ? '0 10px 26px rgba(2, 6, 23, 0.22)'
+                    : '0 4px 20px rgba(0, 0, 0, 0.40)';
+            }
+            const highlight = hexToRgb(settings.orange);
+            const accent = hexToRgb(settings.orange_2);
+            return [
+                `0 24px 70px rgba(${highlight.red}, ${highlight.green}, ${highlight.blue}, 0.18)`,
+                '0 12px 34px rgba(15, 23, 42, 0.16)',
+                'inset 1px 1px 0 rgba(255, 255, 255, 0.84)',
+                `inset -18px -18px 42px rgba(${accent.red}, ${accent.green}, ${accent.blue}, 0.13)`
+            ].join(', ');
+        }
+
+        function isDarkDashboardMode(settings) {
+            return String(settings.bg).toUpperCase() === '#0F1115';
+        }
+
+        function isHighContrastDashboardMode(settings) {
+            return (String(settings.bg).toUpperCase() === '#000000' && String(settings.orange).toUpperCase() === '#FF9800') ||
+                (String(settings.bg).toUpperCase() === '#111827' && String(settings.bg_2).toUpperCase() === '#1F2937' && String(settings.orange).toUpperCase() === '#F59E0B') ||
+                String(settings.bg).toUpperCase() === '#020B1F' ||
+                String(settings.bg_2).toUpperCase() === '#061A3A';
+        }
+
+        function isSolidDashboardMode(settings) {
+            return isDarkDashboardMode(settings) || isHighContrastDashboardMode(settings) || Number(settings.blur_px || 0) === 0;
+        }
+
+        function applyThemePreview(settings) {
+            const root = document.documentElement;
+            const bg = hexToRgb(settings.bg);
+            const isDark = ((0.2126 * bg.red + 0.7152 * bg.green + 0.0722 * bg.blue) / 255) < 0.35;
+            const isDarkDashboard = isDarkDashboardMode(settings);
+            const isContrastMode = isHighContrastDashboardMode(settings);
+            const isSolidMode = isSolidDashboardMode(settings);
+            const surfaceBase = isDarkDashboard ? '#1A1D24' : isContrastMode ? '#1F2937' : isDark ? '#0F172A' : '#ffffff';
+            const surfaceStrongBase = isDarkDashboard ? '#1A1D24' : isContrastMode ? '#1F2937' : isDark ? '#0F172A' : '#ffffff';
+            const glassBase = surfaceBase;
+            const glassStrongBase = surfaceStrongBase;
+            const borderBase = isDarkDashboard ? '#334155' : isContrastMode ? '#475569' : isDark ? '#94A3B8' : '#ffffff';
+            const surfaceOpacity = isSolidMode ? 1 : isDark ? 0.72 : 0.64;
+            const surfaceStrongOpacity = isSolidMode ? 1 : isDark ? 0.90 : 0.82;
+            document.body.style.background = isContrastMode
+                ? 'var(--bg)'
+                : isSolidMode
+                    ? 'linear-gradient(135deg, var(--bg), var(--bg-2))'
+                    : [
+                        `radial-gradient(circle at 8% 5%, ${hexToRgba(settings.orange, isDark ? 0.16 : 0.24)}, transparent 34%)`,
+                        `radial-gradient(circle at 88% 8%, ${hexToRgba(settings.orange_2, isDark ? 0.10 : 0.18)}, transparent 30%)`,
+                        `radial-gradient(circle at 80% 95%, ${hexToRgba(settings.bg_2, isDark ? 0.34 : 0.16)}, transparent 34%)`,
+                        'linear-gradient(135deg, var(--bg), var(--bg-2))'
+                    ].join(', ');
+            document.body.style.backgroundAttachment = 'fixed';
+            root.style.setProperty('--bg', settings.bg);
+            root.style.setProperty('--bg-2', settings.bg_2);
+            root.style.setProperty('--bg-base', 'var(--bg)');
+            root.style.setProperty('--bg-canvas', 'var(--bg-base)');
+            root.style.setProperty('--orange', settings.orange);
+            root.style.setProperty('--orange-2', settings.orange_2);
+            root.style.setProperty('--accent-main', 'var(--orange)');
+            root.style.setProperty('--accent-hover', 'var(--orange-2)');
+            root.style.setProperty('--accent-muted', hexToRgba(settings.orange, 0.10));
+            root.style.setProperty('--brand-orange', settings.orange);
+            root.style.setProperty('--text', hexToRgba(settings.text, 0.96));
+            root.style.setProperty('--text-main', 'var(--text)');
+            root.style.setProperty('--text-primary', 'var(--text-main)');
+            root.style.setProperty('--muted', hexToRgba(settings.muted, 0.78));
+            root.style.setProperty('--text-muted', 'var(--muted)');
+            root.style.setProperty('--text-secondary', 'var(--text-muted)');
+            root.style.setProperty('--surface', hexToRgba(surfaceBase, surfaceOpacity));
+            root.style.setProperty('--surface-strong', hexToRgba(surfaceStrongBase, surfaceStrongOpacity));
+            root.style.setProperty('--bg-surface', 'var(--surface-strong)');
+            root.style.setProperty('--card-bg', 'var(--surface-strong)');
+            root.style.setProperty('--glass', isSolidMode ? glassBase : hexToRgba(glassBase, settings.glass_opacity));
+            root.style.setProperty('--glass-strong', isSolidMode ? glassStrongBase : hexToRgba(glassStrongBase, settings.glass_strong_opacity));
+            root.style.setProperty('--glass-border', isSolidMode ? borderBase : hexToRgba(borderBase, settings.glass_border_opacity));
+            root.style.setProperty('--border-color', 'var(--glass-border)');
+            root.style.setProperty('--border-width', '1px');
+            root.style.setProperty('--glass-blur', isSolidMode ? 'none' : `blur(${settings.blur_px}px) saturate(${settings.saturate_percent}%)`);
+            root.style.setProperty('--glass-shadow', glassShadowFor(settings));
+            root.style.setProperty('--shadow', isContrastMode ? '0 16px 40px rgba(2, 6, 23, 0.28)' : isSolidMode ? '0 4px 20px rgba(0, 0, 0, 0.40)' : 'var(--glass-shadow)');
+            root.style.setProperty('--shadow-soft', isContrastMode ? '0 10px 26px rgba(2, 6, 23, 0.22)' : isSolidMode ? '0 4px 20px rgba(0, 0, 0, 0.40)' : '0 12px 38px rgba(15, 23, 42, 0.10)');
+            root.style.setProperty('--card-shadow', 'var(--shadow-soft)');
+            root.style.setProperty('--radius-xl', `${settings.card_radius_px}px`);
+            root.style.setProperty('--radius-lg', `${settings.control_radius_px}px`);
+            root.style.setProperty('--radius-md', `${Math.max(0, Number(settings.control_radius_px || 0) - 2)}px`);
+            syncThemeMode(settings);
+        }
+
+        function detectThemeMode(settings) {
+            const normalized = Object.fromEntries(Object.entries(settings || {}).map(([key, value]) => [key, String(value).toUpperCase()]));
+            return Object.entries(themePresets).find(([, preset]) => {
+                return normalized.bg === preset.bg.toUpperCase() &&
+                    normalized.bg_2 === preset.bg_2.toUpperCase() &&
+                    normalized.orange === preset.orange.toUpperCase();
+            })?.[0] || '';
+        }
+
+        function syncThemeMode(settings, explicitMode = '') {
+            const mode = explicitMode || detectThemeMode(settings);
+            document.documentElement.dataset.themeMode = mode;
+            document.body.dataset.themeMode = mode;
+            document.querySelectorAll('.theme-preset-btn').forEach(button => {
+                button.classList.toggle('is-selected', button.dataset.themePreset === mode);
+            });
+            if (mode) {
+                localStorage.setItem('syluxentThemeMode', mode);
+            } else {
+                localStorage.removeItem('syluxentThemeMode');
+            }
+            window.dispatchEvent(new CustomEvent('syluxent-theme-mode', { detail: { mode } }));
+        }
+
+        function previewTheme() {
+            const settings = collectThemeSettings();
+            applyThemePreview(settings);
+            themeEditorStatus.textContent = 'Preview active. Save to apply for everyone.';
+        }
+
+        function saveTheme() {
+            const settings = collectThemeSettings();
+            saveThemeSettings(settings, 'Theme updated successfully.');
+        }
+
+        function applyThemePreset(name) {
+            const preset = themePresets[name];
+            if (!preset) return;
+            themeSettings = { ...themeSettings, ...preset };
+            renderThemeEditor();
+            applyThemePreview(themeSettings);
+            syncThemeMode(themeSettings, name);
+            const label = name === 'contrast' ? 'High Contrast' : name.charAt(0).toUpperCase() + name.slice(1);
+            saveThemeSettings(themeSettings, `${label} preset applied.`);
+        }
+
+        function saveThemeSettings(settings, fallbackMessage) {
+            fetch('/admin/theme', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ settings })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) throw new Error(data.error || 'Unable to save theme');
+                    themeSettings = data.settings;
+                    renderThemeEditor();
+                    applyThemePreview(themeSettings);
+                    syncThemeMode(themeSettings, detectThemeMode(themeSettings));
+                    themeEditorStatus.textContent = fallbackMessage || data.message;
+                    showToast(fallbackMessage || data.message, 'success');
+                })
+                .catch(error => showToast(error.message, 'error'));
+        }
+
+        function resetTheme() {
+            if (!confirm('Reset theme to defaults?')) return;
+            fetch('/admin/theme/reset', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) throw new Error(data.error || 'Unable to reset theme');
+                    themeSettings = data.settings;
+                    renderThemeEditor();
+                    applyThemePreview(themeSettings);
+                    themeEditorStatus.textContent = data.message;
+                    showToast(data.message, 'success');
+                })
+                .catch(error => showToast(error.message, 'error'));
+        }
+
+        function label(value) {
+            return value.replaceAll('_', ' ').replace(/\b\w/g, char => char.toUpperCase());
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = 'alert alert-' + (type === 'error' ? 'danger' : 'success');
+            toast.textContent = message;
+            toastContainer.appendChild(toast);
+            setTimeout(() => toast.remove(), 3500);
+        }
+    </script>
+</body>
+
+</html>

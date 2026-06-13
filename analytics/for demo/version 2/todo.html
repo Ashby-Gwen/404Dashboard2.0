@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Side-by-Side Task Workspace</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        
+        h2, h3 {
+            color: #2c3e50;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        /* Flex container to place columns side-by-side */
+        .workspace {
+            display: flex;
+            gap: 25px;
+            align-items: flex-start;
+        }
+
+        /* Each side gets equal width and grows dynamically */
+        .column {
+            flex: 1;
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            min-height: 300px;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            width: 100%;
+            height: 250px; /* Made taller since it has more horizontal room */
+            padding: 12px;
+            font-size: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            box-sizing: border-box;
+            resize: vertical;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #edf2f7;
+        }
+
+        .task-item:last-child {
+            border-bottom: none;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 12px;
+            cursor: pointer;
+            accent-color: #2ecc71;
+        }
+
+        label {
+            font-size: 16px;
+            cursor: pointer;
+            user-select: none;
+            transition: color 0.2s, text-decoration 0.2s;
+        }
+
+        input[type="checkbox"]:checked + label {
+            color: #a0aec0;
+            text-decoration: line-through;
+        }
+
+        .empty-state {
+            color: #a0aec0;
+            font-style: italic;
+            display: block;
+            margin-top: 10px;
+        }
+
+        /* Responsive tweak: stack them vertically on smaller screens */
+        @media (max-width: 768px) {
+            .workspace {
+                flex-direction: column;
+            }
+            textarea {
+                height: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="workspace">
+        <!-- Left Side: Raw Input -->
+        <div class="column">
+            <h2>Task Raw Text</h2>
+            <textarea id="taskInput" placeholder="Type your tasks here (one per line)...">Create a sales order consolidator
+Create a way to create an invoice for each sales order
+Consolidate Purhcase Order data</textarea>
+        </div>
+
+        <!-- Right Side: Interactive Checklist -->
+        <div class="column">
+            <h3>Interactive Checklist</h3>
+            <div id="listOutput"></div>
+        </div>
+    </div>
+
+    <script>
+        const taskInput = document.getElementById('taskInput');
+        const listOutput = document.getElementById('listOutput');
+        
+        let checkedStates = {};
+
+        function renderTaskList() {
+            const rawText = taskInput.value;
+            
+            const taskLines = rawText
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+            
+            listOutput.innerHTML = '';
+            
+            if (taskLines.length === 0) {
+                listOutput.innerHTML = '<span class="empty-state">No tasks found. Type in the box on the left!</span>';
+                return;
+            }
+
+            const newCheckedStates = {};
+
+            taskLines.forEach((taskText, index) => {
+                const isChecked = checkedStates[taskText] || false;
+                newCheckedStates[taskText] = isChecked;
+
+                const taskRow = document.createElement('div');
+                taskRow.className = 'task-item';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = 'task-' + index;
+                checkbox.checked = isChecked;
+                
+                checkbox.addEventListener('change', (e) => {
+                    checkedStates[taskText] = e.target.checked;
+                });
+
+                const label = document.createElement('label');
+                label.htmlFor = 'task-' + index;
+                label.textContent = taskText;
+
+                taskRow.appendChild(checkbox);
+                taskRow.appendChild(label);
+                listOutput.appendChild(taskRow);
+            });
+
+            checkedStates = newCheckedStates;
+        }
+
+        taskInput.addEventListener('input', renderTaskList);
+        renderTaskList();
+    </script>
+
+</body>
+</html>

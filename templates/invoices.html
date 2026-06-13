@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syluxent - Invoices</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .invoice-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .view-toggle button {
+            padding: 0.6rem 1.2rem;
+            border: 2px solid var(--border-color);
+            background: white;
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+
+        .view-toggle button.active {
+            background: var(--brand-orange);
+            color: white;
+            border-color: var(--brand-orange);
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .filter-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            background: white;
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .filter-btn.active {
+            background: var(--brand-orange);
+            color: white;
+            border-color: var(--brand-orange);
+        }
+
+        .form-section {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--brand-orange);
+        }
+
+        .form-grid-2col {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-grid-3col {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 0.7rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            font-size: 1rem;
+            font-family: inherit;
+            background: white;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--brand-orange);
+            box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.1);
+        }
+
+        .readonly-field {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .readonly-field label {
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .readonly-field-value {
+            padding: 0.7rem;
+            background: #f9fafb;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            color: var(--text-primary);
+        }
+
+        .sales-order-viewer {
+            background: #f0f9ff;
+            border: 2px solid var(--brand-orange);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .sales-order-viewer h3 {
+            margin: 0 0 1rem 0;
+            color: var(--brand-orange);
+            font-size: 1rem;
+        }
+
+        .so-details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .so-detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .so-detail-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+        }
+
+        .so-detail-value {
+            font-size: 1rem;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .calculation-display {
+            background: #f0f9ff;
+            border-left: 4px solid var(--brand-orange);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .discrepancy-warning {
+            display: none;
+            margin-top: 1rem;
+            padding: 0.85rem 1rem;
+            border: 1px solid #f59e0b;
+            border-left: 4px solid #f59e0b;
+            border-radius: var(--radius-lg);
+            background: #fffbeb;
+            color: #92400e;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .calc-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            font-size: 1rem;
+        }
+
+        .calc-row label {
+            font-weight: 600;
+            color: black;
+        }
+
+        .calc-row value {
+            font-weight: 600;
+            color: gray;
+        }
+
+        .calc-row.total {
+            border-top: 2px solid var(--brand-orange);
+            padding-top: 0.75rem;
+            margin-top: 0.75rem;
+            font-size: 1.1rem;
+            color: var(--brand-orange);
+            font-weight: 700;
+        }
+
+        .calc-row value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .duplicate-section {
+            background: #f3f4f6;
+            padding: 1rem;
+            border-radius: var(--radius-lg);
+            margin: 1rem 0;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .duplicate-section input {
+            flex: 1;
+        }
+
+        .duplicate-section button {
+            padding: 0.6rem 1.2rem;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+
+        .duplicate-section button:hover {
+            background: var(--bg-canvas);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius-lg);
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 1rem;
+        }
+
+        .btn-primary {
+            background: var(--brand-orange);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-outline {
+            background: white;
+            border: 2px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .btn-outline:hover {
+            background: var(--bg-canvas);
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.hidden {
+            display: none;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .modal-message {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+        }
+
+        .countdown-timer {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: var(--brand-orange);
+            margin: 1.5rem 0;
+        }
+
+        .countdown-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .modal-actions button {
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius-lg);
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: 0.2s;
+        }
+
+        .modal-confirm {
+            background: var(--brand-orange);
+            color: white;
+        }
+
+        .modal-confirm:hover:not(:disabled) {
+            opacity: 0.9;
+        }
+
+        .modal-confirm:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .modal-cancel {
+            background: white;
+            border: 2px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .modal-cancel:hover {
+            background: var(--bg-canvas);
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+
+        .invoice-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        .invoice-table thead {
+            background: var(--bg-canvas);
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .invoice-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .invoice-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .invoice-table tbody tr:hover {
+            background: #f9fafb;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.35rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge-paid {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge-unpaid {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-admin {
+            background: #e0f2fe;
+            color: #075985;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .toast {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            padding: 1rem;
+            border-radius: var(--radius-lg);
+            color: white;
+            z-index: 9999;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.success {
+            background: #10b981;
+        }
+
+        .toast.error {
+            background: #ef4444;
+        }
+
+        .toast.info {
+            background: #3b82f6;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .invoice-view {
+            display: none;
+        }
+
+        .invoice-view.active {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="app-navbar">
+        <div class="nav-logo" onclick="window.location.href='{{ url_for('dashboard') }}';">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+            Syluxent
+        </div>
+        {% set nav_links = {
+        'staff': [
+        ('sales_order', 'Sales Order'),
+        ('invoices', 'Invoice'),
+        ('purchase_orders', 'Purchase Order')
+        ],
+        'manager': [
+        ('analytics', 'Analytics')
+        ],
+        'admin': [
+        ('sales_order', 'Sales Order'),
+        ('invoices', 'Invoice'),
+        ('purchase_orders', 'Purchase Order'),
+        ('analytics', 'Analytics'),
+        ('database_interface', 'Database Interface')
+        ]
+        } %}
+
+        <div class="nav-menu">
+            <a href="{{ url_for('dashboard') }}"
+                class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}">Home</a>
+
+            {% for endpoint, label in nav_links.get(session.role, []) %}
+            <a href="{{ url_for(endpoint) }}" class="nav-link {{ 'active' if request.endpoint == endpoint }}">
+                {{ label }}
+            </a>
+            {% endfor %}
+        </div>
+        <div class="nav-user">
+            <a class="profile-link" href="{{ url_for('profile') }}">
+                {% if current_user and current_user.profile_photo %}
+                <img class="profile-avatar" src="{{ url_for('static', filename=current_user.profile_photo) }}" alt="">
+                {% else %}
+                <span class="profile-avatar">{{ session.username[:1]|upper }}</span>
+                {% endif %}
+                {{ session.username }}
+            </a>
+            <span id="datetime"></span>
+            <a href="{{ url_for('logout') }}" class="btn btn-outline btn-sm">Logout</a>
+        </div>
+    </nav>
+
+    <main class="page-shell">
+        <div class="section-header">
+            <div class="page-title">
+                <h1>Invoice Management</h1>
+            </div>
+        </div>
+
+        {% if session.role == 'admin' %}
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <h2>Admin Upload, Cleaning, Outlier Identifier, Excel Mapping</h2>
+            <p style="color: var(--text-muted);">Upload CSV/Excel, preview cleaned invoice fields, review
+                Z-scoreoutliers, remove rows, then upload to database.</p>
+            <input type="file" id="adminUploadFiles" accept=".csv,.xlsx,.xls" multiple>
+            <button class="btn btn-primary btn-sm" onclick="previewAdminUpload('invoice')">Preview Upload</button>
+            <button class="btn btn-outline btn-sm" onclick="commitAdminUpload('invoice')">Upload Clean Rows</button>
+            <div id="adminUploadDocs" style="margin-top: 1rem; color: var(--text-muted);"></div>
+            <div id="adminUploadOutliers" style="margin-top: 1rem;"></div>
+            <div id="adminUploadPreview" class="table-wrap"></div>
+        </div>
+        {% endif %}
+
+        <div class="invoice-container">
+            <!-- View Toggle Buttons -->
+            <div class="view-toggle">
+                <button class="active" onclick="switchView('summary')">Summary Table</button>
+                <button onclick="switchView('create')">Create Invoice</button>
+            </div>
+
+            <!-- SUMMARY VIEW -->
+            <div id="summary-view" class="invoice-view active">
+                <div class="card">
+                    <h2 style="margin-bottom: 1rem;">Invoice Summary</h2>
+
+                    <!-- Filter Buttons -->
+                    <div class="filter-group">
+                        <button class="filter-btn active" onclick="filterInvoices('all')">All Invoices</button>
+                        <button class="filter-btn" onclick="filterInvoices('sales')">Sales Invoices</button>
+                        <button class="filter-btn" onclick="filterInvoices('service')">Service Invoices</button>
+                    </div>
+
+                    <!-- Invoices Table -->
+                    <div class="table-wrap">
+                        <table class="invoice-table">
+                            <thead>
+                                <tr>
+                                    <th>Invoice #</th>
+                                    <th>Type</th>
+                                    <th>Client</th>
+                                    <th>Date</th>
+                                    <th>Total Amount</th>
+                                    <th>Amount Paid</th>
+                                    <th>CR #</th>
+                                    <th>Balance</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoices-tbody">
+                                <tr>
+                                    <td colspan="10" class="no-data">Loading invoices...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CREATE INVOICE VIEW -->
+            <div id="create-view" class="invoice-view">
+                <!-- Sales Order Selection Section -->
+                <div class="form-section">
+                    <div class="section-title">Step 1: Select Sales Order</div>
+                    <div class="form-group">
+                        <label for="salesOrderSelect">Select from Unpaid/Pending Sales Orders</label>
+                        <select id="salesOrderSelect" onchange="onSalesOrderSelected()">
+                            <option value="">-- Select a Sales Order --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Sales Order Details Viewer -->
+                <div id="soDetailsViewer">
+                    <div class="sales-order-viewer">
+                        <h3>📋 Selected Sales Order Details</h3>
+                        <div id="noSalesOrderMessage" class="no-data">no sales order</div>
+                        <div class="so-details-grid">
+                            <div class="so-detail-item">
+                                <div class="so-detail-label">SO Number</div>
+                                <div class="so-detail-value" id="soNumber">-</div>
+                            </div>
+                            <div class="so-detail-item">
+                                <div class="so-detail-label">Order Date</div>
+                                <div class="so-detail-value" id="soOrderDate">-</div>
+                            </div>
+                            <div class="so-detail-item">
+                                <div class="so-detail-label">Client</div>
+                                <div class="so-detail-value" id="soClientName">-</div>
+                            </div>
+                            <div class="so-detail-item">
+                                <div class="so-detail-label">Total Amount</div>
+                                <div class="so-detail-value" id="soTotalAmount">-</div>
+                            </div>
+                            <div class="so-detail-item">
+                                <div class="so-detail-label">Status</div>
+                                <div class="so-detail-value"><span id="soStatus" class="badge badge-pending">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Invoice Type Section -->
+                <div class="form-section">
+                    <div class="section-title">Step 2: Invoice Type</div>
+                    <div class="form-grid-3col">
+                        <div class="form-group">
+                            <label for="invoiceType">Invoice Type</label>
+                            <select id="invoiceType" onchange="onInvoiceTypeChanged()">
+                                <option value="SALES">Sales Invoice</option>
+                                <option value="SERVICE">Service Invoice</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="invoiceNumber">Invoice Number</label>
+                            <input type="text" id="invoiceNumber">
+                        </div>
+                        <div class="form-group">
+                            <label for="invoiceDate">Invoice Date</label>
+                            <input type="date" id="invoiceDate" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary/Description Section -->
+                <div class="form-section">
+                    <div class="section-title">Step 3: Invoice Details</div>
+                    <div class="form-group">
+                        <label for="invoiceSummary">Summary/Description</label>
+                        <textarea id="invoiceSummary" placeholder="Enter invoice summary or description..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Payment Details Section -->
+                <div class="form-section">
+                    <div class="section-title">Step 4: Payment & Collection Details</div>
+                    <div class="form-grid-2col">
+                        <div class="form-group">
+                            <label for="paymentType">Payment Type</label>
+                            <select id="paymentType">
+                                <option value="">-- Select Payment Type --</option>
+                                <option value="DOWNPAYMENT">Downpayment</option>
+                                <option value="FULL">Full Payment</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="crNumber">Collection Receipt Number</label>
+                            <input type="text" id="crNumber" placeholder="CR-0001" onchange="updateCalculations()">
+                        </div>
+                        <div class="form-group">
+                            <label for="paymentAmount">CR Amount (₱)</label>
+                            <input type="number" id="paymentAmount" step="0.01" min="0" onchange="updateCalculations()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tax Logic Section -->
+                <div class="form-section">
+                    <div class="section-title"> Step 5: Tax Calculation (2307 Checker) </div>
+
+                    <div class="form-grid-2col">
+                        <div class="form-group">
+                            <label for="taxAmount">Withholding Tax (₱)</label>
+                            <input type="number" id="taxAmount" step="0.01" min="0" readonly
+                                style="background-color: #f5f5f5; cursor: not-allowed;">
+                        </div>
+                        <div style="display: flex; align-items: flex-end;">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="tax2307Checked" onchange="updateCalculations()">
+                                <label for="tax2307Checked">Form 2307 received</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        style="background: #f3f4f6; padding: 0.75rem; border-radius: var(--radius-lg); font-size: 0.9rem; color: var(--text-muted);">
+                        <strong>Reference:</strong> Suggested withholding tax rates are 1% or 2%. Keep Form 2307 updated
+                        after CR entry so withheld tax does not remain as an outstanding balance.
+                    </div>
+                </div>
+
+                <!-- Total Calculation Display -->
+                <div class="calculation-display">
+                    <div class="calc-row">
+                        <label>Current Balance:</label>
+                        <value id="displayCurrentBalance">₱0.00</value>
+                    </div>
+                    <div class="calc-row">
+                        <label>Sales Order Total:</label>
+                        <value id="displaySOTotal">₱0.00</value>
+                    </div>
+                    <div class="calc-row">
+                        <label>CR Amount:</label>
+                        <value id="displayPaymentAmount">₱0.00</value>
+                    </div>
+                    <div class="calc-row" id="taxRow">
+                        <label>Withholding Tax (if checked):</label>
+                        <value id="displayTaxAmount">₱0.00</value>
+                    </div>
+                    <div class="calc-row total">
+                        <label>Total Amount Paid (+ Withholding Tax):</label>
+                        <value id="displayTotalPaid">₱0.00</value>
+                    </div>
+                    <div class="calc-row total">
+                        <label>Remaining Balance:</label>
+                        <value id="displayRemainingBalance">₱0.00</value>
+                    </div>
+                    <div class="calc-row total">
+                        <label>Invoice Status:</label>
+                        <value id="displayInvoiceStatus">UNPAID</value>
+                    </div>
+                    <div class="discrepancy-warning" id="discrepancyWarning">
+                        CR Amount + Withholding Tax does not match the invoice total. You can still save and reconcile
+                        later.
+                    </div>
+                </div>
+
+                <!-- Entry Persistence (Duplication) -->
+                <div class="form-section">
+                    <div class="duplicate-section">
+                        <input type="checkbox" id="duplicateNextCheck">
+                        <label for="duplicateNextCheck" style="margin: 0; flex: 1; text-align: left;">Use these values
+                            for the next invoice</label>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="form-actions">
+                    <button class="btn btn-outline" onclick="resetInvoiceForm()">Clear</button>
+                    <button class="btn btn-primary" onclick="confirmInvoice()">Confirm Invoice</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmationModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-title">⚠️ Confirm Invoice Creation</div>
+            <div class="modal-message">
+                <p>Please review your invoice details before confirming.</p>
+                <p style="margin-top: 1rem; font-weight: 600;">Processing will commence in:</p>
+            </div>
+            <div class="countdown-timer" id="countdownDisplay">5</div>
+            <div class="countdown-label">You can cancel anytime during this countdown.</div>
+            <div class="modal-actions">
+                <button class="modal-confirm" id="confirmBtn" disabled>Confirm &
+                    Create</button>
+                <button class="modal-cancel" onclick="cancelConfirmation()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="paymentModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-title">Update Collection Details</div>
+
+            <div style="text-align: left; margin-bottom: 0.75rem; font-weight: bold;">
+                Invoice ID: <span style="font-weight: normal;" id="displayInvoiceId"></span>
+            </div>
+            <hr>
+            <br>
+            <div class="form-group" style="text-align: left; margin-bottom: 0.75rem;">
+                <label for="editPaymentType">Payment Type</label>
+                <select id="editPaymentType">
+                    <option value="">-- Select Payment Type --</option>
+                    <option value="DOWNPAYMENT">Downpayment</option>
+                    <option value="FULL">Full Payment</option>
+                </select>
+            </div>
+            <div class="form-group" style="text-align: left; margin-bottom: 0.75rem;">
+                <label for="editCrNumber">Collection Receipt Number</label>
+                <input type="text" id="editCrNumber" placeholder="CR-0001" oninput="updateEditWarning()">
+            </div>
+            <div class="form-group" style="text-align: left; margin-bottom: 0.75rem;">
+                <label for="editPaymentAmount">CR Amount (₱)</label>
+                <input type="number" id="editPaymentAmount" step="0.01" min="0" oninput="updateEditWarning()">
+            </div>
+            <div class="form-group" style="text-align: left; margin-bottom: 0.75rem;">
+                <label for="editTaxAmount">Withholding Tax (₱)</label>
+                <input type="number" id="editTaxAmount" step="0.01" min="0" oninput="updateEditWarning()">
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="editTax2307Checked" onchange="updateEditWarning()">
+                <label for="editTax2307Checked">Form 2307 received</label>
+            </div>
+            <div class="discrepancy-warning" id="editDiscrepancyWarning">
+                CR Amount + Withholding Tax does not match the invoice total. You can still save and reconcile later.
+            </div>
+            <div class="modal-actions" style="margin-top: 1.5rem;">
+                <button class="modal-confirm" onclick="submitPaymentUpdate()">Save</button>
+                <button class="modal-cancel" onclick="closePaymentModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentFilter = 'all';
+        let allInvoices = [];
+        let selectedSalesOrderId = null;
+        let selectedSalesOrder = null;
+        let countdownInterval = null;
+        let duplicatedFormData = null;
+        let invoiceBeingEdited = null;
+
+        // Update date/time
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById('datetime').textContent = now.toLocaleString();
+        }
+        setInterval(updateDateTime, 1000);
+        updateDateTime();
+
+        // Set today's date in invoice date field
+        document.addEventListener('DOMContentLoaded', function () {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('invoiceDate').value = today;
+
+            loadInvoices();
+            loadPendingSalesOrders();
+            generateInvoiceNumber();
+            displayNoSalesOrder();
+        });
+
+        // View Switching
+        function switchView(view) {
+            document.querySelectorAll('.invoice-view').forEach(v => {
+                v.classList.remove('active');
+                v.classList.remove('hidden');
+            });
+            document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+
+            if (view === 'summary') {
+                document.getElementById('summary-view').classList.add('active');
+                document.querySelector('.view-toggle button:nth-child(1)').classList.add('active');
+                loadInvoices();
+            } else if (view === 'create') {
+                document.getElementById('create-view').classList.add('active');
+                document.querySelector('.view-toggle button:nth-child(2)').classList.add('active');
+                // If duplicating previous entry, restore data
+                if (duplicatedFormData) {
+                    restoreDuplicatedData();
+                }
+            }
+        }
+
+        // Load all invoices
+        function loadInvoices() {
+            fetch('{{ url_for("get_invoices") }}')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        if (data.count === 0) {
+                            const tbody = document.getElementById('invoices-tbody');
+                            allInvoices = [];
+                            tbody.innerHTML = '<tr><td colspan="10" class="no-data">No invoices found</td></tr>';
+                            updateCalculations();
+                            showToast('No invoices found', 'info');
+                            return;
+                        }
+                        allInvoices = data.invoices;
+                        displayInvoices();
+                        updateCalculations();
+                    } else {
+                        showToast('Failed to load invoices', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Error loading invoices', 'error');
+                });
+        }
+
+        // Display invoices based on filter
+        function displayInvoices() {
+            const tbody = document.getElementById('invoices-tbody');
+
+            let filtered = allInvoices;
+            if (currentFilter === 'sales') {
+                filtered = allInvoices.filter(inv => inv.invoice_type === 'SALES');
+            } else if (currentFilter === 'service') {
+                filtered = allInvoices.filter(inv => inv.invoice_type === 'SERVICE');
+            }
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="no-data">No invoices found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(inv => `
+                <tr>
+                    <td><strong>${inv.invoice_number}</strong></td>
+                    <td>${formatInvoiceType(inv.invoice_type)}</td>
+                    <td>${inv.client_name}</td>
+                    <td>${formatDate(inv.invoice_date)}</td>
+                    <td>${formatCurrencyCell(inv.total_amount)}</td>
+                    <td>₱${formatCurrency(inv.amount_paid)}</td>
+                    <td>${inv.cr_number || '-'}</td>
+                    <td>${formatCurrencyCell(inv.balance)}</td>
+                    <td>${getStatusBadge(inv.status)}</td>
+                    <td><button class="btn btn-outline" style="padding: 0.4rem 0.75rem; font-size: 0.85rem;" onclick="openPaymentModal(${inv.id})">Edit</button></td>
+                </tr>
+            `).join('');
+        }
+
+        // Filter invoices
+        function filterInvoices(type) {
+            currentFilter = type;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            displayInvoices();
+        }
+
+        // Load pending sales orders
+        function loadPendingSalesOrders() {
+            fetch('{{ url_for("get_pending_sales_orders") }}')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const select = document.getElementById('salesOrderSelect');
+                        select.innerHTML = '<option value="">-- Select a Sales Order --</option>';
+                        data.sales_orders.forEach(so => {
+                            const option = document.createElement('option');
+                            option.value = so.id;
+                            option.textContent = `${so.so_number} - ${so.client_name} (₱${formatCurrency(so.total_amount)})`;
+                            select.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // On sales order selected
+        function onSalesOrderSelected() {
+            const soId = document.getElementById('salesOrderSelect').value;
+
+            if (!soId) {
+                selectedSalesOrderId = null;
+                selectedSalesOrder = null;
+                displayNoSalesOrder();
+                updateCalculations();
+                return;
+            }
+
+            selectedSalesOrderId = parseInt(soId);
+
+            fetch(`/get-sales-order-details/${soId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        selectedSalesOrder = data.sales_order;
+                        displaySalesOrderDetails();
+                        document.getElementById('soDetailsViewer').classList.remove('hidden');
+                        updateCalculations();
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Display sales order details
+        function displaySalesOrderDetails() {
+            if (!selectedSalesOrder) return;
+
+            document.getElementById('soDetailsViewer').classList.remove('hidden');
+            document.getElementById('noSalesOrderMessage').style.display = 'none';
+            document.querySelector('#soDetailsViewer .so-details-grid').style.display = 'grid';
+            document.getElementById('soNumber').textContent = selectedSalesOrder.so_number;
+            document.getElementById('soOrderDate').textContent = formatDate(selectedSalesOrder.order_date);
+            document.getElementById('soClientName').textContent = selectedSalesOrder.client_name;
+            document.getElementById('soTotalAmount').textContent = `₱${formatCurrency(selectedSalesOrder.total_amount)}`;
+
+            const statusBadge = document.getElementById('soStatus');
+            statusBadge.textContent = selectedSalesOrder.status;
+            statusBadge.className = 'badge badge-' + (selectedSalesOrder.status === 'PENDING' ? 'pending' : 'unpaid');
+        }
+
+        function displayNoSalesOrder() {
+            document.getElementById('soDetailsViewer').classList.remove('hidden');
+            document.getElementById('noSalesOrderMessage').style.display = 'block';
+            document.querySelector('#soDetailsViewer .so-details-grid').style.display = 'none';
+            document.getElementById('soNumber').textContent = '-';
+            document.getElementById('soOrderDate').textContent = '-';
+            document.getElementById('soClientName').textContent = '-';
+            document.getElementById('soTotalAmount').textContent = '-';
+            const statusBadge = document.getElementById('soStatus');
+            statusBadge.textContent = '-';
+            statusBadge.className = 'badge badge-pending';
+            document.getElementById('displayCurrentBalance').textContent = '₱0.00';
+            document.getElementById('displaySOTotal').textContent = '₱0.00';
+            document.getElementById('displayPaymentAmount').textContent = '₱0.00';
+            document.getElementById('displayTaxAmount').textContent = '₱0.00';
+            document.getElementById('displayTotalPaid').textContent = '₱0.00';
+            document.getElementById('displayRemainingBalance').textContent = '₱0.00';
+            document.getElementById('displayInvoiceStatus').textContent = 'UNPAID';
+            document.getElementById('discrepancyWarning').style.display = 'none';
+        }
+
+        // On invoice type changed
+        function onInvoiceTypeChanged() {
+            generateInvoiceNumber();
+        }
+
+        // Generate invoice number
+        function generateInvoiceNumber() {
+            const type = document.getElementById('invoiceType').value;
+            fetch(`{{ url_for("generate_invoice_number") }}?type=${type}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('invoiceNumber').value = data.invoice_number;
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Update calculations
+        function updateCalculations() {
+            if (!selectedSalesOrder) return;
+
+            const soTotal = parseFloat(selectedSalesOrder.total_amount) || 0;
+            const invoicesForSO = allInvoices.filter(inv =>
+                parseInt(inv.sales_order_id) === selectedSalesOrderId ||
+                inv.so_number === selectedSalesOrder.so_number
+            );
+            const totalPaidForSO = invoicesForSO.reduce((sum, inv) => {
+                return sum + (parseFloat(inv.amount_paid) || 0);
+            }, 0);
+            const currentBalance = Math.max(soTotal - totalPaidForSO, 0);
+            const crNumber = document.getElementById('crNumber').value.trim();
+            const paymentAmount = parseFloat(document.getElementById('paymentAmount').value) || 0;
+
+            // --- 1. NEW AUTO-TAX LOGIC ---
+            const isTaxChecked = document.getElementById('tax2307Checked').checked;
+            let taxAmount = 0;
+
+            if (selectedSalesOrder) {
+                // Automatically calculate 1% of the payment amount
+                taxAmount = (soTotal / 1.12) * 0.01;
+
+                // Push the calculated number into your read-only input field
+                document.getElementById('taxAmount').value = taxAmount.toFixed(2);
+            } else {
+                // Clear the field out if they uncheck it
+                document.getElementById('taxAmount').value = '0.00';
+            }
+            // -------------------------------
+
+            // Display Current Balance
+            document.getElementById('displayCurrentBalance').textContent = `₱${formatCurrency(currentBalance)}`;
+
+            // Display SO Total
+            document.getElementById('displaySOTotal').textContent = `₱${formatCurrency(soTotal)}`;
+            document.getElementById('displayPaymentAmount').textContent = `₱${formatCurrency(paymentAmount)}`;
+
+            // Display Tax Amount (always show but note about checkbox)
+            if (isTaxChecked) {
+                document.getElementById('displayTaxAmount').textContent = `₱${formatCurrency(taxAmount)}`;
+                document.getElementById('taxRow').style.display = 'flex';
+                document.getElementById('taxRow').style.opacity = '1';
+            } else {
+                document.getElementById('displayTaxAmount').textContent = `₱${formatCurrency(0)}`;
+                document.getElementById('taxRow').style.opacity = '0.5';
+            }
+
+            // Calculate total paid. CR presence controls paid/unpaid status.
+            const totalPaid = crNumber ? paymentAmount + (isTaxChecked ? taxAmount : 0) : 0;
+            document.getElementById('displayTotalPaid').textContent = `₱${formatCurrency(totalPaid)}`;
+
+            // Calculate remaining balance
+            const remainingBalance = Math.max(currentBalance - totalPaid, 0);
+            document.getElementById('displayRemainingBalance').textContent = `₱${formatCurrency(remainingBalance)}`;
+            document.getElementById('displayInvoiceStatus').textContent = crNumber ? 'PAID' : 'UNPAID';
+
+            const discrepancyWarning = document.getElementById('discrepancyWarning');
+            const expectedTotal = parseFloat(selectedSalesOrder.total_amount) || 0;
+            const comparisonTotal = paymentAmount + (isTaxChecked ? taxAmount : 0);
+            const hasDiscrepancy = crNumber && Math.abs(comparisonTotal - expectedTotal) > 0.01;
+            discrepancyWarning.style.display = hasDiscrepancy ? 'block' : 'none';
+        }
+
+        // Confirm invoice (show modal)
+        function confirmInvoice() {
+            if (!selectedSalesOrderId) {
+                showToast('Please select a sales order', 'error');
+                return;
+            }
+
+            // Save form data for potential duplication
+            if (document.getElementById('duplicateNextCheck').checked) {
+                duplicatedFormData = {
+                    invoiceType: document.getElementById('invoiceType').value,
+                    paymentType: document.getElementById('paymentType').value,
+                    crNumber: document.getElementById('crNumber').value,
+                    paymentAmount: document.getElementById('paymentAmount').value,
+                    taxAmount: document.getElementById('taxAmount').value,
+                    tax2307Checked: document.getElementById('tax2307Checked').checked,
+                    invoiceSummary: document.getElementById('invoiceSummary').value
+                };
+            } else {
+                duplicatedFormData = null;
+            }
+
+            // Show confirmation modal with 5-second countdown
+            document.getElementById('confirmationModal').classList.remove('hidden');
+            let countdown = 5;
+            document.getElementById('countdownDisplay').textContent = countdown;
+            document.getElementById('confirmBtn').disabled = true;
+
+            if (countdownInterval) clearInterval(countdownInterval);
+
+            countdownInterval = setInterval(() => {
+                countdown--;
+                document.getElementById('countdownDisplay').textContent = countdown;
+
+                if (countdown <= 0) {
+                    clearInterval(countdownInterval);
+                    document.getElementById('confirmBtn').disabled = false;
+
+                    submitInvoice();
+                }
+            }, 1000);
+
+        }
+
+        // Submit invoice
+        function submitInvoice() {
+            if (!selectedSalesOrderId) return;
+
+            const paymentAmount = parseFloat(document.getElementById('paymentAmount').value) || 0;
+            const taxAmount = parseFloat(document.getElementById('taxAmount').value) || 0;
+            const isTaxChecked = document.getElementById('tax2307Checked').checked;
+
+            const invoiceData = {
+                sales_order_id: selectedSalesOrderId,
+                invoice_number: document.getElementById('invoiceNumber').value,
+                invoice_type: document.getElementById('invoiceType').value,
+                invoice_date: document.getElementById('invoiceDate').value,
+                summary: document.getElementById('invoiceSummary').value,
+                payment_type: document.getElementById('paymentType').value,
+                cr_number: document.getElementById('crNumber').value,
+                payment_amount: paymentAmount,
+                tax_amount_paid: taxAmount,
+                is_2307_checked: isTaxChecked,
+                total_amount: selectedSalesOrder.total_amount,
+            };
+
+            fetch('{{ url_for("create_invoice") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(invoiceData)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Invoice created successfully!', 'success');
+                        if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
+                        cancelConfirmation();
+                        setTimeout(() => {
+                            switchView('summary');
+                        }, 1000);
+                    } else {
+                        showToast(data.error || 'Failed to create invoice', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Error creating invoice', 'error');
+                });
+        }
+
+        // Cancel confirmation
+        function cancelConfirmation() {
+            if (countdownInterval) clearInterval(countdownInterval);
+            document.getElementById('confirmationModal').classList.add('hidden');
+            document.getElementById('confirmBtn').disabled = true;
+        }
+
+        // Reset form
+        function resetInvoiceForm() {
+            document.getElementById('salesOrderSelect').value = '';
+            displayNoSalesOrder();
+            document.getElementById('invoiceSummary').value = '';
+            document.getElementById('paymentType').value = '';
+            document.getElementById('crNumber').value = '';
+            document.getElementById('paymentAmount').value = '';
+            document.getElementById('taxAmount').value = '';
+            document.getElementById('tax2307Checked').checked = false;
+            document.getElementById('duplicateNextCheck').checked = false;
+
+            selectedSalesOrderId = null;
+            selectedSalesOrder = null;
+
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('invoiceDate').value = today;
+
+            document.getElementById('invoiceType').value = 'SALES';
+            generateInvoiceNumber();
+            updateCalculations();
+        }
+
+        // Restore duplicated data
+        function restoreDuplicatedData() {
+            if (!duplicatedFormData) return;
+
+            document.getElementById('invoiceType').value = duplicatedFormData.invoiceType;
+            document.getElementById('paymentType').value = duplicatedFormData.paymentType;
+            document.getElementById('crNumber').value = duplicatedFormData.crNumber || '';
+            document.getElementById('paymentAmount').value = duplicatedFormData.paymentAmount || '';
+            document.getElementById('taxAmount').value = duplicatedFormData.taxAmount;
+            document.getElementById('tax2307Checked').checked = duplicatedFormData.tax2307Checked;
+            document.getElementById('invoiceSummary').value = duplicatedFormData.invoiceSummary;
+
+            generateInvoiceNumber();
+        }
+
+        function openPaymentModal(invoiceId) {
+            invoiceBeingEdited = allInvoices.find(inv => inv.id === invoiceId);
+            if (!invoiceBeingEdited) return;
+
+            document.getElementById('displayInvoiceId').textContent = invoiceBeingEdited.invoice_number;
+            document.getElementById('editPaymentType').value = invoiceBeingEdited.payment_type || '';
+            document.getElementById('editCrNumber').value = invoiceBeingEdited.cr_number || '';
+            document.getElementById('editPaymentAmount').value = invoiceBeingEdited.payment_amount || '';
+            document.getElementById('editTaxAmount').value = invoiceBeingEdited.tax_amount_paid || '';
+            document.getElementById('editTax2307Checked').checked = Boolean(invoiceBeingEdited.is_2307_checked);
+            document.getElementById('paymentModal').classList.remove('hidden');
+            updateEditWarning();
+        }
+
+        function closePaymentModal() {
+            invoiceBeingEdited = null;
+            document.getElementById('paymentModal').classList.add('hidden');
+        }
+
+        function updateEditWarning() {
+            if (!invoiceBeingEdited) return;
+            const crNumber = document.getElementById('editCrNumber').value.trim();
+            const paymentAmount = parseFloat(document.getElementById('editPaymentAmount').value) || 0;
+            const taxAmount = parseFloat(document.getElementById('editTaxAmount').value) || 0;
+            const isTaxChecked = document.getElementById('editTax2307Checked').checked;
+            const comparisonTotal = paymentAmount + (isTaxChecked ? taxAmount : 0);
+            const expectedTotal = parseFloat(invoiceBeingEdited.total_amount) || 0;
+            const hasKnownTotal = invoiceBeingEdited.total_amount !== null && invoiceBeingEdited.total_amount !== undefined && invoiceBeingEdited.total_amount !== '';
+            const hasDiscrepancy = hasKnownTotal && crNumber && Math.abs(comparisonTotal - expectedTotal) > 0.01;
+            document.getElementById('editDiscrepancyWarning').style.display = hasDiscrepancy ? 'block' : 'none';
+        }
+
+        function submitPaymentUpdate() {
+            if (!invoiceBeingEdited) return;
+
+            const paymentData = {
+                payment_type: document.getElementById('editPaymentType').value,
+                cr_number: document.getElementById('editCrNumber').value,
+                payment_amount: parseFloat(document.getElementById('editPaymentAmount').value) || 0,
+                tax_amount_paid: parseFloat(document.getElementById('editTaxAmount').value) || 0,
+                is_2307_checked: document.getElementById('editTax2307Checked').checked
+            };
+
+            fetch(`/update-invoice-payment/${invoiceBeingEdited.id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(paymentData)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Collection details updated successfully!', 'success');
+                        closePaymentModal();
+                        loadInvoices();
+                        loadPendingSalesOrders();
+                    } else {
+                        showToast(data.error || 'Failed to update invoice', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Error updating invoice', 'error');
+                });
+        }
+
+        // Utility functions
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            return new Date(dateString).toLocaleDateString();
+        }
+
+        function formatCurrency(amount) {
+            return parseFloat(amount || 0).toFixed(2);
+        }
+
+        function formatCurrencyCell(amount) {
+            return amount === null || amount === undefined || amount === '' ? '-' : `₱${formatCurrency(amount)}`;
+        }
+
+        function formatInvoiceType(type) {
+            if (type === 'SALES') return 'Sales';
+            if (type === 'SERVICE') return 'Service';
+            return type || '-';
+        }
+
+        function getStatusBadge(status) {
+            const classes = status === 'PAID' ? 'badge-paid' : status === 'PENDING' ? 'badge-pending' : status === 'Admin Upload' ? 'badge-admin' : 'badge-unpaid';
+            return `<span class="badge ${classes}">${status}</span>`;
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        let adminCleanRows = [];
+        async function previewAdminUpload(interfaceName) {
+            const input = document.getElementById('adminUploadFiles');
+            if (!input || input.files.length === 0) return showToast('Select CSV or Excel files first.', 'error');
+            const formData = new FormData();
+            Array.from(input.files).forEach(file => formData.append('files', file));
+            const response = await fetch(`/admin/upload-preview/${interfaceName}`, { method: 'POST', body: formData });
+            const data = await response.json();
+            if (!data.success) return showToast(data.error || 'Preview failed', 'error');
+            if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
+            adminCleanRows = data.rows;
+            document.getElementById('adminUploadDocs').innerHTML = data.documentation.map(step => `<div>${step}</div>`).join('');
+            document.getElementById('adminUploadOutliers').innerHTML = data.outliers.length
+                ? `<strong>Outliers:</strong> ${data.outliers.map(o => `Row ${o.index + 1} ${o.field}=${o.value} z=${o.z_score} <button class="btn btn-outline btn-sm" onclick="removeAdminRow(${o.index})">Remove</button>`).join('<br>')}`
+                : '<strong>No Z-score outliers detected.</strong>';
+            renderAdminPreview();
+        }
+        function removeAdminRow(index) { adminCleanRows.splice(index, 1); renderAdminPreview(); }
+        function renderAdminPreview() {
+            const container = document.getElementById('adminUploadPreview');
+            if (!container || adminCleanRows.length === 0) return container ? container.innerHTML = '<p class="no-data">No cleaned rows ready.</p>' : null;
+            const columns = Object.keys(adminCleanRows[0]).filter(key => !key.startsWith('_'));
+            container.innerHTML = `<table class="invoice-table"><thead><tr>${columns.map(col => `<th>${col}</th>`).join('')}<th></th></tr></thead><tbody>${adminCleanRows.slice(0, 50).map((row, idx) => `<tr>${columns.map(col => `<td>${row[col] ?? ''}</td>`).join('')}<td><button class="btn btn-outline btn-sm" onclick="removeAdminRow(${idx})">Remove</button></td></tr>`).join('')}</tbody></table>`;
+        }
+        async function commitAdminUpload(interfaceName) {
+            if (adminCleanRows.length === 0) return showToast('No cleaned rows to upload.', 'error');
+            const response = await fetch(`/admin/upload-commit/${interfaceName}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: adminCleanRows }) });
+            const data = await response.json();
+            if (!data.success) return showToast(data.error || 'Upload failed', 'error');
+            showToast(data.message || 'Rows uploaded.', 'success');
+            if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
+            adminCleanRows = [];
+            renderAdminPreview();
+            loadInvoices();
+        }
+    </script>
+</body>
+
+</html>

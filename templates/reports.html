@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syluxent - Reports</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
+    <style>
+        .reports-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+        .report-toolbar { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
+        .report-filter { display: flex; gap: .75rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1rem; padding: 1rem; background: white; border: 1px solid var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow); }
+        .filter-field { display: grid; gap: .35rem; min-width: 150px; }
+        .filter-field label { color: var(--text-muted); font-size: .78rem; font-weight: 700; text-transform: uppercase; }
+        .filter-field select { min-height: 42px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: white; padding: .55rem .75rem; color: var(--text-main); font: inherit; }
+        .report-tab { border: 1px solid var(--border-color); background: white; padding: .7rem 1rem; border-radius: var(--radius-md); cursor: pointer; font-weight: 600; }
+        .report-tab.active { background: var(--brand-orange, #FF6B00); border-color: var(--brand-orange, #FF6B00); color: white; }
+        .report-card { background: white; border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow); }
+        .report-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+        .summary-item { padding: 1rem; border-radius: var(--radius-md); background: #FAFAFA; border: 1px solid #E5E7EB; }
+        .summary-item h3 { margin: 0 0 .35rem; font-size: .9rem; color: var(--text-muted); }
+        .summary-item p { margin: 0; font-size: 1.35rem; font-weight: 700; color: var(--text-main); }
+        .table-scroll { overflow-x: auto; }
+        .table-scroll:has(tbody tr:nth-child(7)) { max-height: 430px; overflow: auto; position: relative; }
+        .report-table { width: 100%; border-collapse: collapse; background: white; font-size: .92rem; }
+        .report-table th, .report-table td { border: 1px solid #E5E7EB; padding: .7rem .8rem; text-align: left; vertical-align: top; }
+        .report-table th { background: #F8FAFC; font-weight: 700; white-space: nowrap; position: sticky; top: 0; z-index: 5; }
+        .report-table .month-heading td { background: #F1F5F9; border-color: #CBD5E1; font-weight: 700; }
+        .report-table .month-total td { background: #FAFAFA; border-top: 2px solid #64748B; font-weight: 700; }
+        .report-table .grand-total td { background: #FFF7ED; border-top: 2px solid #C2410C; font-weight: 800; }
+        .report-table .numeric { text-align: right; white-space: nowrap; }
+        .profit-positive { color: #166534; }
+        .profit-negative { color: #B91C1C; }
+        .page-notice { font-size: .95rem; color: var(--text-muted); margin: .25rem 0 0; }
+        .report-preview-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1.5rem; background: rgba(15, 23, 42, .55); }
+        .report-preview-modal[hidden] { display: none; }
+        .preview-shell { width: min(1180px, 100%); height: min(92vh, 900px); display: flex; flex-direction: column; overflow: hidden; background: white; border-radius: var(--radius-lg); box-shadow: 0 24px 60px rgba(15, 23, 42, .28); }
+        .preview-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; border-bottom: 1px solid #E5E7EB; }
+        .preview-toolbar h2, .preview-toolbar p { margin: 0; }
+        .preview-toolbar p { margin-top: .2rem; color: var(--text-muted); font-size: .88rem; }
+        .preview-actions { display: flex; gap: .75rem; flex-wrap: wrap; }
+        .preview-viewport { flex: 1; overflow: auto; padding: 1.5rem; background: #E2E8F0; }
+        .report-paper { width: 279mm; min-height: 216mm; margin: 0 auto; padding: 19.05mm; box-sizing: border-box; background: white; color: #1F2937; font: 10.5pt Arial, Helvetica, sans-serif; box-shadow: 0 10px 30px rgba(15, 23, 42, .15); }
+        .report-paper.portrait { width: 216mm; min-height: 279mm; }
+        .print-heading { margin-bottom: 18pt; text-align: center; }
+        .print-heading h1 { margin: 0 0 5pt; font-size: 17pt; }
+        .print-heading h2 { margin: 0 0 5pt; font-size: 13pt; }
+        .print-heading p { margin: 2pt 0; font-size: 9.5pt; }
+        .print-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .print-table th, .print-table td { padding: 7pt 8pt; text-align: left; vertical-align: top; }
+        .print-table thead { display: table-header-group; }
+        .print-table thead th { border-top: .75pt solid #1E293B; border-bottom: .75pt solid #1E293B; font-weight: 700; }
+        .print-table tr { break-inside: avoid; page-break-inside: avoid; }
+        .print-table .month-heading td { padding-top: 12pt; padding-bottom: 5pt; border-bottom: .75pt solid #64748B; font-weight: 700; }
+        .print-table .month-heading { break-after: avoid; page-break-after: avoid; }
+        .print-table .month-total td { border-top: .75pt solid #334155; font-weight: 700; }
+        .print-table .month-total { break-before: avoid; page-break-before: avoid; }
+        .print-table .grand-total td { border-top: 1.5pt double #1E293B; border-bottom: 1.5pt double #1E293B; font-weight: 800; }
+        .print-table .numeric { text-align: right; white-space: nowrap; }
+        @page { size: letter landscape; margin: 0; }
+        @media print {
+            body > *:not(#reportPreviewModal) { display: none !important; }
+            #reportPreviewModal { position: static; display: block !important; padding: 0; background: white; }
+            .preview-shell { width: auto; height: auto; overflow: visible; border-radius: 0; box-shadow: none; }
+            .preview-toolbar { display: none !important; }
+            .preview-viewport { display: block; overflow: visible; padding: 0; background: white; }
+            .report-paper { width: 279mm; min-height: 216mm; margin: 0; box-shadow: none; }
+            .report-paper.portrait { width: 216mm; min-height: 279mm; }
+            .profit-positive, .profit-negative { color: inherit; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="app-navbar">
+        <div class="nav-logo" onclick="window.location.href='{{ url_for('dashboard') }}'">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5-10 5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+            Syluxent
+        </div>
+        {% set nav_links = {
+        'staff': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('purchase_orders', 'Purchase Order')],
+        'manager': [('analytics', 'Analytics'), ('reports', 'Reports')],
+        'admin': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('purchase_orders', 'Purchase Order'), ('analytics', 'Analytics'), ('reports', 'Reports'), ('database_interface', 'Database Interface')]
+        } %}
+        <div class="nav-menu">
+            <a href="{{ url_for('dashboard') }}" class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}">Home</a>
+            {% for endpoint, label in nav_links.get(session.role, []) %}
+            <a href="{{ url_for(endpoint) }}" class="nav-link {{ 'active' if request.endpoint == endpoint }}">{{ label }}</a>
+            {% endfor %}
+        </div>
+        <div class="nav-user">
+            <a class="profile-link" href="{{ url_for('profile') }}">
+                {% if current_user and current_user.profile_photo %}
+                <img class="profile-avatar" src="{{ url_for('static', filename=current_user.profile_photo) }}" alt="">
+                {% else %}
+                <span class="profile-avatar">{{ session.username[:1]|upper }}</span>
+                {% endif %}
+                {{ session.username }}
+            </a>
+            <span id="datetime"></span>
+            <a href="{{ url_for('logout') }}" class="btn btn-outline btn-sm">Logout</a>
+        </div>
+    </nav>
+
+    <main class="page-shell">
+        <div class="reports-header">
+            <div>
+                <h1>Reports</h1>
+                <p class="page-notice">Sales itemized, actual paid revenue, expense, and historical transaction reports.</p>
+            </div>
+            <div class="report-toolbar">
+                <button id="exportCsvBtn" class="btn btn-outline" onclick="exportCsv()" style="display:none;">Export CSV</button>
+                <button class="btn btn-primary" onclick="exportReportPdf()">Preview PDF</button>
+            </div>
+        </div>
+
+        <div class="report-toolbar">
+            <button class="report-tab active" data-report="sales" onclick="switchReport('sales')">Sales Report Itemized</button>
+            <button class="report-tab" data-report="revenue" onclick="switchReport('revenue')">Revenue Report</button>
+            <button class="report-tab" data-report="expenses" onclick="switchReport('expenses')">Expense Report</button>
+            <button class="report-tab" data-report="historical" onclick="switchReport('historical')">Historical Transactions</button>
+        </div>
+
+        <div class="report-filter" aria-label="Report date filter">
+            <div class="filter-field">
+                <label for="reportYear">Year</label>
+                <select id="reportYear" onchange="onReportFilterChange()">
+                    {% for year in available_years %}
+                    <option value="{{ year }}">{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-field">
+                <label for="reportPeriod">Date Range</label>
+                <select id="reportPeriod" onchange="onReportPeriodChange()">
+                    <option value="year">Full Year</option>
+                    <option value="quarter">Quarter</option>
+                    <option value="month">Month</option>
+                </select>
+            </div>
+            <div class="filter-field" id="reportQuarterField" hidden>
+                <label for="reportQuarter">Quarter</label>
+                <select id="reportQuarter" onchange="onReportFilterChange()">
+                    <option value="1">Q1 (Jan-Mar)</option>
+                    <option value="2">Q2 (Apr-Jun)</option>
+                    <option value="3">Q3 (Jul-Sep)</option>
+                    <option value="4">Q4 (Oct-Dec)</option>
+                </select>
+            </div>
+            <div class="filter-field" id="reportMonthField" hidden>
+                <label for="reportMonth">Month</label>
+                <select id="reportMonth" onchange="onReportFilterChange()">
+                    <option value="1">January</option>
+                    <option value="2">February</option>
+                    <option value="3">March</option>
+                    <option value="4">April</option>
+                    <option value="5">May</option>
+                    <option value="6">June</option>
+                    <option value="7">July</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="reportContent" class="report-card">
+            <div class="report-summary" id="summaryCards"></div>
+            <div class="table-scroll">
+                <table class="report-table" id="reportTable"></table>
+            </div>
+        </div>
+    </main>
+
+    <div id="reportPreviewModal" class="report-preview-modal" hidden>
+        <div class="preview-shell">
+            <div class="preview-toolbar">
+                <div>
+                    <h2>Report Preview</h2>
+                    <p>Review the date-grouped report, then print or save it as PDF.</p>
+                </div>
+                <div class="preview-actions">
+                    <button class="btn btn-outline" onclick="closeReportPreview()">Back</button>
+                    <button class="btn btn-primary" onclick="printReport()">Print / Save PDF</button>
+                </div>
+            </div>
+            <div class="preview-viewport">
+                <section id="printReportPaper" class="report-paper"></section>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const reports = {
+            sales: {
+                title: 'Sales Report Itemized',
+                endpoint: '{{ url_for('get_sales_order_reports') }}',
+                dateField: 'date',
+                columns: [
+                    { key: 'date', label: 'Date', type: 'date' },
+                    { key: 'particular', label: 'Particular' },
+                    { key: 'quantity', label: 'Quantity', type: 'number' },
+                    { key: 'total', label: 'Total', type: 'currency' }
+                ],
+                amountField: 'total',
+                monthlyTotalLabel: 'Sales Total'
+            },
+            revenue: {
+                title: 'Revenue Report',
+                endpoint: '{{ url_for('get_revenue_reports') }}',
+                dateField: 'invoice_date',
+                columns: [
+                    { key: 'invoice_date', label: 'Date', type: 'date' },
+                    { key: 'client_name', label: 'Client Name' },
+                    { key: 'amount_paid', label: 'Amount Paid', type: 'currency' }
+                ],
+                amountField: 'amount_paid',
+                monthlyTotalLabel: 'Revenue Total'
+            },
+            expenses: {
+                title: 'Expense Report',
+                endpoint: '{{ url_for('get_expense_reports') }}',
+                dateField: 'date',
+                columns: [
+                    { key: 'date', label: 'Date', type: 'date' },
+                    { key: 'supplier_payee', label: 'Supplier / Payee' },
+                    { key: 'cash_amount', label: 'Cash Amount', type: 'currency' }
+                ],
+                amountField: 'cash_amount',
+                monthlyTotalLabel: 'Expense Total'
+            },
+            historical: {
+                title: 'Profit and Loss Report',
+                endpoint: '{{ url_for('get_historical_transaction_reports') }}',
+                csv: '{{ url_for('export_historical_transactions_csv') }}',
+                dateField: 'transaction_date',
+                pnl: true
+            }
+        };
+        let activeReport = 'sales';
+        let activeRows = [];
+        let activeFilterLabel = '';
+        const initialReportYears = {{ available_years|tojson }};
+
+        async function cachedReportsJson(endpoint) {
+            const loader = async () => {
+                const response = await fetch(endpoint);
+                return response.json();
+            };
+            if (!window.SyluxentUI) return loader();
+            const cached = SyluxentUI.getCachedData('reports', endpoint);
+            if (cached) return cached;
+            const data = await loader();
+            return data && data.success === false
+                ? data
+                : SyluxentUI.cacheData('reports', endpoint, data);
+        }
+
+        function money(value) {
+            return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value || 0));
+        }
+
+        function number(value) {
+            return new Intl.NumberFormat('en-PH', { maximumFractionDigits: 2 }).format(Number(value || 0));
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+        }
+
+        function parseReportDate(value) {
+            const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (!match) return null;
+            const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+            return Number.isNaN(date.getTime()) ? null : date;
+        }
+
+        function formatDate(value) {
+            const date = parseReportDate(value);
+            return date
+                ? date.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: '2-digit' })
+                : 'Undated';
+        }
+
+        function monthKey(value) {
+            const match = String(value || '').match(/^(\d{4})-(\d{2})/);
+            return match ? `${match[1]}-${match[2]}` : 'undated';
+        }
+
+        function monthLabel(key) {
+            if (key === 'undated') return 'Undated';
+            const [year, month] = key.split('-').map(Number);
+            return new Date(year, month - 1, 1).toLocaleDateString('en-PH', { year: 'numeric', month: 'long' });
+        }
+
+        function compareReportDates(leftValue, rightValue) {
+            const leftDate = parseReportDate(leftValue);
+            const rightDate = parseReportDate(rightValue);
+            if (!leftDate && !rightDate) return 0;
+            if (!leftDate) return 1;
+            if (!rightDate) return -1;
+            return leftDate - rightDate;
+        }
+
+        function groupRowsByReportDate(config, rows) {
+            const groups = new Map();
+            rows.forEach(row => {
+                const key = monthKey(row[config.dateField]);
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(row);
+            });
+
+            return Array.from(groups.entries())
+                .sort(([left], [right]) => {
+                    if (left === 'undated') return 1;
+                    if (right === 'undated') return -1;
+                    return left.localeCompare(right);
+                })
+                .map(([key, groupRows]) => ({
+                    key,
+                    label: monthLabel(key),
+                    rows: groupRows.sort((left, right) =>
+                        compareReportDates(left[config.dateField], right[config.dateField])
+                    )
+                }));
+        }
+
+        async function switchReport(reportKey) {
+            activeReport = reportKey;
+            document.querySelectorAll('.report-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.report === reportKey));
+            document.getElementById('exportCsvBtn').style.display = reports[reportKey].csv ? 'inline-flex' : 'none';
+            await loadReport();
+        }
+
+        function currentFilterParams() {
+            const params = new URLSearchParams({
+                year: document.getElementById('reportYear').value,
+                period: document.getElementById('reportPeriod').value,
+                quarter: document.getElementById('reportQuarter').value,
+                month: document.getElementById('reportMonth').value
+            });
+            return params;
+        }
+
+        function filteredEndpoint(url) {
+            return `${url}?${currentFilterParams().toString()}`;
+        }
+
+        function onReportPeriodChange() {
+            const period = document.getElementById('reportPeriod').value;
+            document.getElementById('reportQuarterField').hidden = period !== 'quarter';
+            document.getElementById('reportMonthField').hidden = period !== 'month';
+            onReportFilterChange();
+        }
+
+        async function onReportFilterChange() {
+            await loadReport();
+        }
+
+        function syncFilterFromPayload(payload) {
+            if (!payload.filter) return;
+            activeFilterLabel = payload.filter.label || '';
+            if (payload.filter.selected_year) document.getElementById('reportYear').value = payload.filter.selected_year;
+            if (payload.filter.period) document.getElementById('reportPeriod').value = payload.filter.period;
+            if (payload.filter.quarter) document.getElementById('reportQuarter').value = payload.filter.quarter;
+            if (payload.filter.month) document.getElementById('reportMonth').value = payload.filter.month;
+            const period = document.getElementById('reportPeriod').value;
+            document.getElementById('reportQuarterField').hidden = period !== 'quarter';
+            document.getElementById('reportMonthField').hidden = period !== 'month';
+        }
+
+        async function loadReport() {
+            const config = reports[activeReport];
+            reportTable.innerHTML = `<tbody><tr><td>Loading ${config.title}...</td></tr></tbody>`;
+            summaryCards.innerHTML = '';
+            const payload = await cachedReportsJson(filteredEndpoint(config.endpoint));
+            if (!payload.success) {
+                reportTable.innerHTML = '<tbody><tr><td>Error loading report data.</td></tr></tbody>';
+                return;
+            }
+            syncFilterFromPayload(payload);
+            activeRows = payload.rows || [];
+            renderSummary(payload);
+            renderTable(config, activeRows);
+        }
+
+        function renderSummary(payload) {
+            const cards = [];
+            if (activeReport === 'sales') {
+                cards.push(['Sales Total', money(payload.total_revenue)], ['Item Rows', activeRows.length], ['Date Filter', activeFilterLabel || 'All']);
+            } else if (activeReport === 'revenue') {
+                cards.push(['Actual Paid Revenue', money(payload.total_paid_revenue)], ['Paid Invoice Rows', activeRows.length], ['Date Filter', activeFilterLabel || 'All']);
+            } else if (activeReport === 'expenses') {
+                cards.push(['Total Expenses', money(payload.total_expenses)], ['Expense Rows', activeRows.length], ['Date Filter', activeFilterLabel || 'All']);
+            } else {
+                const netProfit = Number(payload.total_inflow || 0) - Number(payload.total_outflow || 0);
+                cards.push(['Total Inflow', money(payload.total_inflow)], ['Total Outflow', money(payload.total_outflow)], ['Net Profit', money(netProfit)], ['Date Filter', activeFilterLabel || 'All']);
+            }
+            summaryCards.innerHTML = cards.map(card => `<div class="summary-item"><h3>${card[0]}</h3><p>${card[1]}</p></div>`).join('');
+        }
+
+        function renderTable(config, rows) {
+            if (config.pnl) {
+                renderPnlTable(config, rows);
+                return;
+            }
+
+            const groups = groupRowsByReportDate(config, rows);
+            const head = `<thead><tr>${config.columns.map(column => `<th class="${column.type === 'currency' || column.type === 'number' ? 'numeric' : ''}">${column.label}</th>`).join('')}</tr></thead>`;
+            const body = groups.length
+                ? groups.map(group => renderDetailMonth(config, group)).join('') + renderGrandTotal(config, rows)
+                : `<tr><td colspan="${config.columns.length}">No records found.</td></tr>`;
+            reportTable.innerHTML = head + `<tbody>${body}</tbody>`;
+        }
+
+        function renderDetailMonth(config, group) {
+            const rows = group.rows.map(row => `<tr>${config.columns.map(column => renderCell(column, row[column.key])).join('')}</tr>`).join('');
+            const total = group.rows.reduce((sum, row) => sum + Number(row[config.amountField] || 0), 0);
+            return `
+                <tr class="month-heading"><td colspan="${config.columns.length}">${group.label}</td></tr>
+                ${rows}
+                <tr class="month-total">
+                    <td colspan="${config.columns.length - 1}">${group.label} ${config.monthlyTotalLabel}</td>
+                    <td class="numeric">${money(total)}</td>
+                </tr>`;
+        }
+
+        function renderGrandTotal(config, rows) {
+            const total = rows.reduce((sum, row) => sum + Number(row[config.amountField] || 0), 0);
+            return `<tr class="grand-total"><td colspan="${config.columns.length - 1}">Grand Total</td><td class="numeric">${money(total)}</td></tr>`;
+        }
+
+        function renderCell(column, value) {
+            if (column.type === 'currency') return `<td class="numeric">${money(value)}</td>`;
+            if (column.type === 'number') return `<td class="numeric">${number(value)}</td>`;
+            if (column.type === 'date') return `<td>${formatDate(value)}</td>`;
+            return `<td>${escapeHtml(value || '')}</td>`;
+        }
+
+        function pnlRows(config, rows) {
+            return groupRowsByReportDate(config, rows).map(group => {
+                const inflow = group.rows
+                    .filter(row => row.flow_direction === 'INFLOW')
+                    .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+                const outflow = group.rows
+                    .filter(row => row.flow_direction === 'OUTFLOW')
+                    .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+                return { month: group.label, inflow, outflow, netProfit: inflow - outflow };
+            });
+        }
+
+        function renderPnlTable(config, rows) {
+            const monthlyRows = pnlRows(config, rows);
+            const totals = monthlyRows.reduce((result, row) => ({
+                inflow: result.inflow + row.inflow,
+                outflow: result.outflow + row.outflow,
+                netProfit: result.netProfit + row.netProfit
+            }), { inflow: 0, outflow: 0, netProfit: 0 });
+            const body = monthlyRows.length
+                ? monthlyRows.map(row => `
+                    <tr>
+                        <td>${row.month}</td>
+                        <td class="numeric">${money(row.inflow)}</td>
+                        <td class="numeric">${money(row.outflow)}</td>
+                        <td class="numeric ${profitClass(row.netProfit)}">${money(row.netProfit)}</td>
+                    </tr>`).join('') + `
+                    <tr class="grand-total">
+                        <td>Grand Total</td>
+                        <td class="numeric">${money(totals.inflow)}</td>
+                        <td class="numeric">${money(totals.outflow)}</td>
+                        <td class="numeric ${profitClass(totals.netProfit)}">${money(totals.netProfit)}</td>
+                    </tr>`
+                : '<tr><td colspan="4">No records found.</td></tr>';
+            reportTable.innerHTML = `
+                <thead><tr><th>Month</th><th class="numeric">Total Inflow</th><th class="numeric">Total Outflow</th><th class="numeric">Net Profit</th></tr></thead>
+                <tbody>${body}</tbody>`;
+        }
+
+        function profitClass(value) {
+            return Number(value) < 0 ? 'profit-negative' : 'profit-positive';
+        }
+
+        function exportCsv() {
+            const config = reports[activeReport];
+            auditExport('CSV');
+            if (config.csv) window.location.href = filteredEndpoint(config.csv);
+        }
+
+        function reportPeriod(config, rows) {
+            if (activeFilterLabel) return activeFilterLabel;
+            const dates = rows.map(row => parseReportDate(row[config.dateField])).filter(Boolean).sort((left, right) => left - right);
+            if (!dates.length) return 'No dated records';
+            const options = { year: 'numeric', month: 'short', day: '2-digit' };
+            return `${dates[0].toLocaleDateString('en-PH', options)} to ${dates[dates.length - 1].toLocaleDateString('en-PH', options)}`;
+        }
+
+        function exportReportPdf() {
+            const config = reports[activeReport];
+            const paper = document.getElementById('printReportPaper');
+            const isPortrait = activeReport === 'revenue' || activeReport === 'expenses';
+            paper.classList.toggle('portrait', isPortrait);
+            let pageStyle = document.getElementById('dynamicPrintPageStyle');
+            if (!pageStyle) {
+                pageStyle = document.createElement('style');
+                pageStyle.id = 'dynamicPrintPageStyle';
+                document.head.appendChild(pageStyle);
+            }
+            pageStyle.textContent = `@page { size: letter ${isPortrait ? 'portrait' : 'landscape'}; margin: 0; }`;
+            paper.innerHTML = `
+                <header class="print-heading">
+                    <h1>Syluxent</h1>
+                    <h2>${config.title}</h2>
+                    <p>Reporting Period: ${reportPeriod(config, activeRows)}</p>
+                    <p>Generated: ${new Date().toLocaleString('en-PH')}</p>
+                </header>
+                <table class="print-table">${document.getElementById('reportTable').innerHTML}</table>`;
+            document.getElementById('reportPreviewModal').hidden = false;
+        }
+
+        function closeReportPreview() {
+            document.getElementById('reportPreviewModal').hidden = true;
+        }
+
+        function printReport() {
+            auditExport('PDF');
+            window.print();
+        }
+
+        function auditExport(exportType) {
+            fetch('{{ url_for('audit_report_export') }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ report: activeReport, export_type: exportType })
+            }).catch(() => {});
+        }
+
+        document.getElementById('reportPreviewModal').addEventListener('click', event => {
+            if (event.target.id === 'reportPreviewModal') closeReportPreview();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeReportPreview();
+        });
+        setInterval(() => document.getElementById('datetime').textContent = new Date().toLocaleString(), 1000);
+        window.addEventListener('DOMContentLoaded', () => {
+            if (initialReportYears.length) document.getElementById('reportYear').value = initialReportYears[0];
+            onReportPeriodChange();
+        });
+    </script>
+</body>
+</html>

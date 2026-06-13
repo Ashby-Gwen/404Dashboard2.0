@@ -1,0 +1,19 @@
+{
+  "bg": "#FBFAF8",
+  "bg_2": "#FBFAF8",
+  "orange": "#D4AF37",
+  "orange_2": "#B5952F",
+  "text": "#3A332A",
+  "muted": "#8C8177",
+  "glass_opacity": 0.75,
+  "glass_strong_opacity": 0.85,
+  "glass_border_opacity": 0.9,
+  "blur_px": 0,
+  "saturate_percent": 100,
+  "card_radius_px": 8,
+  "control_radius_px": 6,
+  "page_padding_px": 34,
+  "card_padding_px": 24,
+  "stat_padding_px": 20,
+  "nav_padding_px": 10
+}

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syluxent - Profile</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
+    <style>
+        .profile-card { max-width: 720px; margin: 2rem auto; background: white; border: 1px solid var(--border-color); border-radius: var(--radius-xl); padding: 2rem; box-shadow: var(--shadow); }
+        .profile-heading { display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem; }
+        .profile-avatar-large { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; display: grid; place-items: center; background: var(--brand-orange); color: white; font-size: 2rem; font-weight: 900; }
+        .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .profile-field { margin-bottom: 1rem; }
+        .profile-field.full { grid-column: 1 / -1; }
+        .profile-field label { display: block; font-weight: 700; margin-bottom: 0.4rem; }
+        .profile-field input { width: 100%; padding: 0.7rem; border: 1px solid var(--border-color); border-radius: var(--radius-lg); }
+        .flash-message { padding: 0.75rem; border-radius: var(--radius-lg); margin-bottom: 0.75rem; }
+        .flash-message.success { background: #DCFCE7; color: #166534; }
+        .flash-message.error { background: #FEE2E2; color: #991B1B; }
+        @media (max-width: 640px) { .profile-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <nav class="app-navbar">
+        <div class="nav-logo" onclick="window.location.href='{{ url_for('dashboard') }}'">Syluxent</div>
+        <div class="nav-user">
+            <a href="{{ url_for('dashboard') }}" class="btn-outline">Back to Dashboard</a>
+            <a href="{{ url_for('logout') }}" class="btn-outline">Logout</a>
+        </div>
+    </nav>
+    <main class="page-shell">
+        <div class="profile-card">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endwith %}
+            <div class="profile-heading">
+                {% if user.profile_photo %}
+                    <img class="profile-avatar-large" src="{{ url_for('static', filename=user.profile_photo) }}" alt="Profile photo">
+                {% else %}
+                    <div class="profile-avatar-large">{{ user.username[:1]|upper }}</div>
+                {% endif %}
+                <div>
+                    <h1>User Profile</h1>
+                    <p>{{ user.role.role_name|title }} account</p>
+                </div>
+            </div>
+            <form method="post" enctype="multipart/form-data">
+                <div class="profile-grid">
+                    <div class="profile-field">
+                        <label for="username">Username</label>
+                        <input id="username" name="username" value="{{ user.username }}" required>
+                    </div>
+                    <div class="profile-field">
+                        <label for="email">Email</label>
+                        <input id="email" name="email" type="email" value="{{ user.email or '' }}">
+                    </div>
+                    <div class="profile-field full">
+                        <label for="profile_photo">Profile Photo</label>
+                        <input id="profile_photo" name="profile_photo" type="file" accept=".png,.jpg,.jpeg,.webp">
+                    </div>
+                    <div class="profile-field">
+                        <label for="current_password">Current Password</label>
+                        <input id="current_password" name="current_password" type="password" autocomplete="current-password">
+                    </div>
+                    <div class="profile-field">
+                        <label for="new_password">New Password</label>
+                        <input id="new_password" name="new_password" type="password" autocomplete="new-password">
+                    </div>
+                    <div class="profile-field full">
+                        <label for="confirm_password">Confirm New Password</label>
+                        <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password">
+                    </div>
+                </div>
+                <button class="btn btn-primary" type="submit">Save Profile</button>
+            </form>
+        </div>
+    </main>
+</body>
+</html>

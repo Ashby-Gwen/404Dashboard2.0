@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusOS - Dark & High Contrast Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* === THEME VARIABLES === */
+        :root, [data-theme="dark"] {
+            --bg-base: #0f1115;
+            --bg-surface: #1a1d24;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-main: #f97316; /* Tailwind Orange 500 */
+            --accent-hover: #ea580c;
+            --accent-muted: rgba(249, 115, 22, 0.1);
+            --border-color: #334155;
+            --border-width: 1px;
+            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            --radius: 0.75rem;
+        }
+
+        [data-theme="high-contrast"] {
+            --bg-base: #000000;
+            --bg-surface: #000000;
+            --text-primary: #ffffff;
+            --text-secondary: #ffffff;
+            --accent-main: #ff9800; /* Brighter Orange for Max Contrast */
+            --accent-hover: #ffb74d;
+            --accent-muted: transparent;
+            --border-color: #ff9800; /* Highlighted Orange Borders */
+            --border-width: 2px;
+            --card-shadow: none;
+            --radius: 0px; /* Sharp, utilitarian edges */
+        }
+
+        [data-theme="light"] {
+            --bg-base: #f8fafc;
+            --bg-surface: #ffffff;
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --accent-main: #f97316; /* Retained core orange accent */
+            --accent-hover: #ea580c;
+            --accent-muted: rgba(249, 115, 22, 0.1);
+            --border-color: #e2e8f0;
+            --border-width: 1px;
+            --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            --radius: 0.75rem;
+        }
+
+        [data-theme="rose"] {
+            --bg-base: #f1f4f0; /* Natural light sage base */
+            --bg-surface: #ffffff;
+            --text-primary: #2d372e; /* Deep green-gray */
+            --text-secondary: #5f7061; /* Muted natural green */
+            --accent-main: #4a7c59; /* Natural forest green */
+            --accent-hover: #3a6246;
+            --accent-muted: rgba(74, 124, 89, 0.1);
+            --border-color: #d8e0d9;
+            --border-width: 1px;
+            --card-shadow: 0 4px 12px rgba(74, 124, 89, 0.05);
+            --radius: 0.75rem;
+        }
+
+        [data-theme="ashby"] {
+            --bg-base: #fbfaf8; /* Warm off-white */
+            --bg-surface: #ffffff;
+            --text-primary: #3a332a; /* Deep warm charcoal */
+            --text-secondary: #8c8177; /* Muted warm taupe */
+            --accent-main: #d4af37; /* Elegant Gold */
+            --accent-hover: #b5952f;
+            --accent-muted: rgba(212, 175, 55, 0.1);
+            --border-color: #eee9e0;
+            --border-width: 1px;
+            --card-shadow: 0 8px 24px rgba(212, 175, 55, 0.08);
+            --radius: 0.5rem; /* Slightly sharper radius for elegance */
+        }
+
+        /* === CORE STYLES === */
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+        }
+
+        /* Universal Focus for Accessibility */
+        *:focus-visible {
+            outline: 3px solid var(--accent-main);
+            outline-offset: 2px;
+        }
+
+        /* Theme Transition */
+        .theme-transition {
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, border-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.3s ease;
+        }
+
+        /* === SURFACES & LAYOUT === */
+        .surface-sidebar {
+            background-color: var(--bg-surface);
+            border-right: var(--border-width) solid var(--border-color);
+        }
+        
+        .surface-header {
+            background-color: var(--bg-surface);
+            border-bottom: var(--border-width) solid var(--border-color);
+        }
+
+        .surface-card {
+            background-color: var(--bg-surface);
+            border: var(--border-width) solid var(--border-color);
+            border-radius: var(--radius);
+            box-shadow: var(--card-shadow);
+        }
+
+        /* === TYPOGRAPHY === */
+        .text-accent { color: var(--accent-main); }
+        .text-secondary { color: var(--text-secondary); }
+
+        /* === NAVIGATION === */
+        .nav-item {
+            color: var(--text-secondary);
+            border-left: 3px solid transparent;
+            border-radius: 0 var(--radius) var(--radius) 0;
+            margin-right: 1rem;
+        }
+        .nav-item:hover {
+            color: var(--accent-main);
+            background-color: var(--accent-muted);
+        }
+        .nav-item.active {
+            color: var(--accent-main);
+            background-color: var(--accent-muted);
+            border-left-color: var(--accent-main);
+        }
+        
+        /* High Contrast Nav Override */
+        [data-theme="high-contrast"] .nav-item {
+            border: 2px solid transparent;
+            margin-right: 0;
+        }
+        [data-theme="high-contrast"] .nav-item:hover,
+        [data-theme="high-contrast"] .nav-item.active {
+            border: var(--border-width) solid var(--accent-main);
+            background-color: #000;
+        }
+
+        /* === BUTTONS & INPUTS === */
+        .btn {
+            border-radius: calc(var(--radius) / 2);
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-outline {
+            border: var(--border-width) solid var(--accent-main);
+            color: var(--accent-main);
+            background-color: transparent;
+        }
+        .btn-outline:hover {
+            background-color: var(--accent-main);
+            color: #000;
+        }
+        .btn-solid {
+            background-color: var(--accent-main);
+            color: #000;
+            border: var(--border-width) solid var(--accent-main);
+        }
+        .btn-solid:hover {
+            background-color: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        .input-theme {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            border: var(--border-width) solid var(--border-color);
+            border-radius: calc(var(--radius) / 2);
+        }
+        .input-theme:focus {
+            outline: none;
+            border-color: var(--accent-main);
+        }
+        .input-theme::placeholder {
+            color: var(--text-secondary);
+        }
+
+        /* === DATA DISPLAY === */
+        .table-border {
+            border-bottom: var(--border-width) solid var(--border-color);
+        }
+        .table-row-hover:hover {
+            background-color: var(--accent-muted);
+        }
+        [data-theme="high-contrast"] .table-row-hover:hover {
+            background-color: transparent;
+            box-shadow: inset 0 0 0 2px var(--accent-main);
+        }
+
+        .badge {
+            border-radius: calc(var(--radius) / 2);
+            border: var(--border-width) solid var(--border-color);
+            color: var(--text-primary);
+        }
+        [data-theme="high-contrast"] .badge {
+            border-color: var(--text-primary);
+        }
+
+        .chart-bar {
+            background-color: var(--accent-main);
+            border-top-left-radius: var(--radius);
+            border-top-right-radius: var(--radius);
+            opacity: 0.8;
+            transition: height 0.5s ease;
+        }
+        .chart-bar:hover { opacity: 1; }
+        
+        [data-theme="high-contrast"] .chart-bar {
+            border: var(--border-width) solid var(--border-color);
+            border-bottom: none;
+            opacity: 1;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-base); }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: var(--radius);
+        }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent-main); }
+
+        /* Theme Buttons Container */
+        .theme-btn-container {
+            background-color: var(--bg-base);
+            border: var(--border-width) solid var(--border-color);
+        }
+    </style>
+</head>
+<body class="theme-transition antialiased font-sans h-screen overflow-hidden flex w-full">
+
+    <!-- Mobile Sidebar Backdrop -->
+    <div id="mobile-backdrop" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="surface-sidebar w-64 flex-shrink-0 flex flex-col theme-transition fixed md:relative h-full z-50 transform -translate-x-full md:translate-x-0 transition-transform duration-300">
+        <div class="h-16 flex items-center justify-between px-6 surface-border-b theme-transition border-b" style="border-bottom-width: var(--border-width); border-bottom-color: var(--border-color);">
+            <div class="flex items-center">
+                <i data-lucide="hexagon" class="text-accent w-8 h-8 mr-2 fill-current" style="fill-opacity: 0.2"></i>
+                <span class="text-xl font-bold tracking-wider uppercase">Nexus<span class="text-accent">OS</span></span>
+            </div>
+            <button id="close-sidebar" class="md:hidden text-secondary hover:text-accent theme-transition">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+        </div>
+        
+        <nav class="flex-1 overflow-y-auto py-6 flex flex-col gap-2">
+            <p class="px-6 text-xs font-bold text-secondary uppercase tracking-widest mb-2">Main Menu</p>
+            <a href="#" class="nav-item active flex items-center px-6 py-3 font-medium theme-transition transition-colors">
+                <i data-lucide="layout-dashboard" class="w-5 h-5 mr-3"></i> Overview
+            </a>
+            <a href="#" class="nav-item flex items-center px-6 py-3 font-medium theme-transition transition-colors">
+                <i data-lucide="bar-chart-2" class="w-5 h-5 mr-3"></i> Analytics
+            </a>
+            <a href="#" class="nav-item flex items-center px-6 py-3 font-medium theme-transition transition-colors">
+                <i data-lucide="users" class="w-5 h-5 mr-3"></i> Audience
+            </a>
+            <a href="#" class="nav-item flex items-center px-6 py-3 font-medium theme-transition transition-colors">
+                <i data-lucide="shopping-cart" class="w-5 h-5 mr-3"></i> Transactions
+            </a>
+            
+            <p class="px-6 text-xs font-bold text-secondary uppercase tracking-widest mt-6 mb-2">System</p>
+            <a href="#" class="nav-item flex items-center px-6 py-3 font-medium theme-transition transition-colors">
+                <i data-lucide="settings" class="w-5 h-5 mr-3"></i> Settings
+            </a>
+            <a href="#" class="nav-item flex items-center px-6 py-3 font-medium theme-transition transition-colors">
+                <i data-lucide="shield-alert" class="w-5 h-5 mr-3"></i> Security
+            </a>
+        </nav>
+        
+        <div class="p-6 border-t theme-transition" style="border-top-width: var(--border-width); border-top-color: var(--border-color);">
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-full bg-accent/20 border border-accent flex items-center justify-center text-accent font-bold" style="border-color: var(--accent-main); border-radius: var(--radius)">
+                    AD
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-bold">Admin User</p>
+                    <p class="text-xs text-secondary">admin@nexus.os</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col min-w-0 h-full relative">
+        
+        <!-- HEADER -->
+        <header class="h-16 flex items-center justify-between px-6 surface-header theme-transition z-10">
+            <div class="flex items-center">
+                <button id="menu-btn" class="md:hidden mr-4 text-secondary hover:text-accent theme-transition">
+                    <i data-lucide="menu" class="w-6 h-6"></i>
+                </button>
+                <div class="relative hidden sm:block">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-secondary"></i>
+                    <input type="text" placeholder="Search parameters..." class="input-theme pl-10 pr-4 py-2 w-72 text-sm theme-transition transition-colors">
+                </div>
+            </div>
+
+            <!-- Theme Toggles -->
+            <div class="flex items-center gap-3">
+                <div class="hidden lg:flex items-center gap-1 mr-2 theme-btn-container p-1 theme-transition" style="border-radius: var(--radius)">
+                    <button id="btn-light" class="btn btn-outline px-2 py-1.5 text-xs flex items-center gap-1 theme-transition" title="Light Mode">
+                        <i data-lucide="sun" class="w-4 h-4"></i> <span class="hidden xl:inline">Light</span>
+                    </button>
+                    <button id="btn-dark" class="btn btn-solid px-2 py-1.5 text-xs flex items-center gap-1 theme-transition" title="Dark Mode">
+                        <i data-lucide="moon" class="w-4 h-4"></i> <span class="hidden xl:inline">Dark</span>
+                    </button>
+                    <button id="btn-hc" class="btn btn-outline px-2 py-1.5 text-xs flex items-center gap-1 theme-transition" title="High Contrast">
+                        <i data-lucide="contrast" class="w-4 h-4"></i> <span class="hidden xl:inline">Contrast</span>
+                    </button>
+                    <button id="btn-rose" class="btn btn-outline px-2 py-1.5 text-xs flex items-center gap-1 theme-transition" title="Rose (Natural)">
+                        <i data-lucide="leaf" class="w-4 h-4"></i> <span class="hidden xl:inline">Rose</span>
+                    </button>
+                    <button id="btn-ashby" class="btn btn-outline px-2 py-1.5 text-xs flex items-center gap-1 theme-transition" title="Ashby (Gold/White)">
+                        <i data-lucide="award" class="w-4 h-4"></i> <span class="hidden xl:inline">Ashby</span>
+                    </button>
+                </div>
+                <button class="relative p-2 text-secondary hover:text-accent theme-transition">
+                    <i data-lucide="bell" class="w-5 h-5"></i>
+                    <span class="absolute top-1 right-1 w-2.5 h-2.5 bg-accent rounded-full border border-base" style="background-color: var(--accent-main);"></span>
+                </button>
+            </div>
+        </header>
+
+        <!-- DASHBOARD SCROLLABLE AREA -->
+        <div class="flex-1 overflow-y-auto p-4 md:p-8">
+            <div class="max-w-7xl mx-auto">
+                
+                <div class="flex justify-between items-end mb-8">
+                    <div>
+                        <h1 class="text-2xl md:text-3xl font-bold">System Overview</h1>
+                        <p class="text-secondary text-sm mt-1">Live metrics and performance data.</p>
+                    </div>
+                    <button class="btn btn-solid px-4 py-2 text-sm hidden sm:flex items-center gap-2 theme-transition">
+                        <i data-lucide="download" class="w-4 h-4"></i> Export Report
+                    </button>
+                </div>
+
+                <!-- STATS GRID -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="surface-card p-6 theme-transition flex flex-col justify-between">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-secondary text-sm font-semibold mb-1">Total Active Users</p>
+                                <h3 class="text-3xl font-bold tracking-tight">124,592</h3>
+                            </div>
+                            <i data-lucide="users" class="text-accent w-6 h-6"></i>
+                        </div>
+                        <div class="mt-4 flex items-center text-sm">
+                            <i data-lucide="trending-up" class="text-accent w-4 h-4 mr-1"></i>
+                            <span class="text-accent font-bold">+12.5%</span>
+                            <span class="text-secondary ml-2">vs last month</span>
+                        </div>
+                    </div>
+
+                    <div class="surface-card p-6 theme-transition flex flex-col justify-between">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-secondary text-sm font-semibold mb-1">Monthly Revenue</p>
+                                <h3 class="text-3xl font-bold tracking-tight">$84,230</h3>
+                            </div>
+                            <i data-lucide="dollar-sign" class="text-accent w-6 h-6"></i>
+                        </div>
+                        <div class="mt-4 flex items-center text-sm">
+                            <i data-lucide="trending-up" class="text-accent w-4 h-4 mr-1"></i>
+                            <span class="text-accent font-bold">+8.2%</span>
+                            <span class="text-secondary ml-2">vs last month</span>
+                        </div>
+                    </div>
+
+                    <div class="surface-card p-6 theme-transition flex flex-col justify-between">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-secondary text-sm font-semibold mb-1">System Uptime</p>
+                                <h3 class="text-3xl font-bold tracking-tight">99.98%</h3>
+                            </div>
+                            <i data-lucide="activity" class="text-accent w-6 h-6"></i>
+                        </div>
+                        <div class="mt-4 flex items-center text-sm">
+                            <i data-lucide="check-circle" class="text-accent w-4 h-4 mr-1"></i>
+                            <span class="text-accent font-bold">Optimal</span>
+                            <span class="text-secondary ml-2">all nodes online</span>
+                        </div>
+                    </div>
+
+                    <div class="surface-card p-6 theme-transition flex flex-col justify-between">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-secondary text-sm font-semibold mb-1">Open Issues</p>
+                                <h3 class="text-3xl font-bold tracking-tight">14</h3>
+                            </div>
+                            <i data-lucide="alert-circle" class="text-accent w-6 h-6"></i>
+                        </div>
+                        <div class="mt-4 flex items-center text-sm">
+                            <i data-lucide="trending-down" class="text-accent w-4 h-4 mr-1"></i>
+                            <span class="text-accent font-bold">-3</span>
+                            <span class="text-secondary ml-2">resolved today</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MAIN CHARTS AND WIDGETS -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                    
+                    <!-- Chart Mockup -->
+                    <div class="surface-card p-6 theme-transition col-span-1 lg:col-span-2 flex flex-col">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="font-bold text-lg">Bandwidth Usage</h3>
+                            <button class="text-secondary hover:text-accent transition-colors">
+                                <i data-lucide="more-horizontal" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="flex-1 flex items-end justify-between gap-1 sm:gap-3 border-b table-border pb-2 relative h-48 sm:h-64">
+                            <!-- Helper Lines -->
+                            <div class="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20" style="border-top: var(--border-width) dashed var(--border-color); border-bottom: var(--border-width) dashed var(--border-color);">
+                                <div style="border-bottom: var(--border-width) dashed var(--border-color); flex-1"></div>
+                                <div style="border-bottom: var(--border-width) dashed var(--border-color); flex-1"></div>
+                            </div>
+                            <!-- Bars -->
+                            <div class="w-full h-full flex flex-col justify-end relative group z-10"><div class="chart-bar w-full" style="height: 35%"></div></div>
+                            <div class="w-full h-full flex flex-col justify-end relative group z-10"><div class="chart-bar w-full" style="height: 50%"></div></div>
+                            <div class="w-full h-full flex flex-col justify-end relative group z-10"><div class="chart-bar w-full" style="height: 40%"></div></div>
+                            <div class="w-full h-full flex flex-col justify-end relative group z-10"><div class="chart-bar w-full" style="height: 70%"></div></div>
+                            <div class="w-full h-full flex flex-col justify-end relative group z-10"><div class="chart-bar w-full" style="height: 60%"></div></div>
+                            <div class="w-full h-full flex flex-col justify-end relative group z-10"><div class="chart-bar w-full" style="height: 90%"></div></div>
+                            <div class="w-full h-full flex flex-col justify-end relative group z-10"><div class="chart-bar w-full" style="height: 80%"></div></div>
+                            <div class="w-full h-full flex flex-col justify-end relative group z-10"><div class="chart-bar w-full" style="height: 100%"></div></div>
+                            <div class="w-full h-full flex flex-col justify-end relative group z-10"><div class="chart-bar w-full" style="height: 65%"></div></div>
+                            <div class="w-full h-full flex flex-col justify-end relative group z-10"><div class="chart-bar w-full" style="height: 85%"></div></div>
+                            <div class="w-full h-full flex flex-col justify-end relative group z-10"><div class="chart-bar w-full" style="height: 55%"></div></div>
+                            <div class="w-full h-full flex flex-col justify-end relative group z-10"><div class="chart-bar w-full" style="height: 75%"></div></div>
+                        </div>
+                        <div class="flex justify-between text-secondary text-xs mt-3 font-medium">
+                            <span>12am</span><span>2am</span><span>4am</span><span>6am</span><span>8am</span><span>10am</span>
+                            <span class="hidden sm:inline">12pm</span><span class="hidden sm:inline">2pm</span><span class="hidden sm:inline">4pm</span><span class="hidden sm:inline">6pm</span><span class="hidden sm:inline">8pm</span><span class="hidden sm:inline">10pm</span>
+                        </div>
+                    </div>
+
+                    <!-- Recent Alerts -->
+                    <div class="surface-card theme-transition col-span-1 flex flex-col">
+                        <div class="p-6 border-b table-border flex justify-between items-center">
+                            <h3 class="font-bold text-lg">System Logs</h3>
+                            <span class="badge px-2 py-1 text-xs font-bold bg-accent/10 text-accent border-accent">Live</span>
+                        </div>
+                        <div class="p-6 flex-1 flex flex-col gap-4">
+                            <div class="flex gap-4 items-start">
+                                <div class="mt-1"><i data-lucide="cpu" class="w-5 h-5 text-accent"></i></div>
+                                <div>
+                                    <p class="text-sm font-bold">Node Expansion Completed</p>
+                                    <p class="text-xs text-secondary mt-1">EU-West cluster scaled up.</p>
+                                    <p class="text-xs text-secondary mt-1 font-mono">10 mins ago</p>
+                                </div>
+                            </div>
+                            <div class="flex gap-4 items-start">
+                                <div class="mt-1"><i data-lucide="alert-triangle" class="w-5 h-5 text-accent"></i></div>
+                                <div>
+                                    <p class="text-sm font-bold">High Memory Usage</p>
+                                    <p class="text-xs text-secondary mt-1">Database instance DB-04 is at 94%.</p>
+                                    <p class="text-xs text-secondary mt-1 font-mono">45 mins ago</p>
+                                </div>
+                            </div>
+                            <div class="flex gap-4 items-start">
+                                <div class="mt-1"><i data-lucide="user-plus" class="w-5 h-5 text-accent"></i></div>
+                                <div>
+                                    <p class="text-sm font-bold">Admin Access Granted</p>
+                                    <p class="text-xs text-secondary mt-1">New API token generated by J. Doe.</p>
+                                    <p class="text-xs text-secondary mt-1 font-mono">2 hrs ago</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4 border-t table-border text-center">
+                            <button class="text-accent text-sm font-bold hover:underline theme-transition">View All Logs &rarr;</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TABLE SECTION -->
+                <div class="surface-card theme-transition overflow-hidden">
+                    <div class="p-6 border-b table-border flex justify-between items-center">
+                        <h3 class="font-bold text-lg">Recent Transactions</h3>
+                        <button class="btn btn-outline px-3 py-1.5 text-xs theme-transition">Filter Logs</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse whitespace-nowrap">
+                            <thead>
+                                <tr class="text-secondary text-sm border-b table-border bg-black/10">
+                                    <th class="py-4 px-6 font-semibold">Transaction ID</th>
+                                    <th class="py-4 px-6 font-semibold">Timestamp</th>
+                                    <th class="py-4 px-6 font-semibold">Node</th>
+                                    <th class="py-4 px-6 font-semibold">Amount</th>
+                                    <th class="py-4 px-6 font-semibold">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-sm">
+                                <tr class="border-b table-border table-row-hover theme-transition">
+                                    <td class="py-4 px-6 font-mono text-accent">#TRX-98271</td>
+                                    <td class="py-4 px-6 text-secondary">Oct 24, 14:32:01</td>
+                                    <td class="py-4 px-6">US-East-1</td>
+                                    <td class="py-4 px-6 font-semibold">$1,249.00</td>
+                                    <td class="py-4 px-6"><span class="badge px-3 py-1 text-xs">Completed</span></td>
+                                </tr>
+                                <tr class="border-b table-border table-row-hover theme-transition">
+                                    <td class="py-4 px-6 font-mono text-accent">#TRX-98272</td>
+                                    <td class="py-4 px-6 text-secondary">Oct 24, 14:28:44</td>
+                                    <td class="py-4 px-6">EU-West-2</td>
+                                    <td class="py-4 px-6 font-semibold">$890.50</td>
+                                    <td class="py-4 px-6"><span class="badge px-3 py-1 text-xs border-accent text-accent">Processing</span></td>
+                                </tr>
+                                <tr class="border-b table-border table-row-hover theme-transition">
+                                    <td class="py-4 px-6 font-mono text-accent">#TRX-98273</td>
+                                    <td class="py-4 px-6 text-secondary">Oct 24, 13:15:10</td>
+                                    <td class="py-4 px-6">AP-South-1</td>
+                                    <td class="py-4 px-6 font-semibold">$3,450.00</td>
+                                    <td class="py-4 px-6"><span class="badge px-3 py-1 text-xs">Completed</span></td>
+                                </tr>
+                                <tr class="table-row-hover theme-transition">
+                                    <td class="py-4 px-6 font-mono text-accent">#TRX-98274</td>
+                                    <td class="py-4 px-6 text-secondary">Oct 24, 11:04:59</td>
+                                    <td class="py-4 px-6">US-East-1</td>
+                                    <td class="py-4 px-6 font-semibold">$120.00</td>
+                                    <td class="py-4 px-6"><span class="badge px-3 py-1 text-xs" style="color: #ef4444; border-color: #ef4444;">Failed</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    // Initialize Icons
+    lucide.createIcons();
+
+    // Theme Management Logic
+    const htmlEl = document.documentElement;
+    
+    const themeButtons = {
+        'light': document.getElementById('btn-light'),
+        'dark': document.getElementById('btn-dark'),
+        'high-contrast': document.getElementById('btn-hc'),
+        'rose': document.getElementById('btn-rose'),
+        'ashby': document.getElementById('btn-ashby')
+    };
+
+    function setTheme(theme) {
+        htmlEl.setAttribute('data-theme', theme);
+        
+        // Toggle Button Active States visually
+        const solidClass = 'btn btn-solid px-2 py-1.5 text-xs flex items-center gap-1 theme-transition';
+        const outlineClass = 'btn btn-outline px-2 py-1.5 text-xs flex items-center gap-1 theme-transition';
+
+        for (const [key, btn] of Object.entries(themeButtons)) {
+            if (key === theme) {
+                btn.className = solidClass;
+            } else {
+                btn.className = outlineClass;
+            }
+        }
+    }
+
+    // Attach Event Listeners
+    for (const [key, btn] of Object.entries(themeButtons)) {
+        btn.addEventListener('click', () => setTheme(key));
+    }
+
+    // Mobile Sidebar Logic
+    const sidebar = document.getElementById('sidebar');
+    const menuBtn = document.getElementById('menu-btn');
+    const closeBtn = document.getElementById('close-sidebar');
+    const backdrop = document.getElementById('mobile-backdrop');
+
+    function toggleSidebar() {
+        sidebar.classList.toggle('-translate-x-full');
+        backdrop.classList.toggle('hidden');
+    }
+
+    menuBtn.addEventListener('click', toggleSidebar);
+    closeBtn.addEventListener('click', toggleSidebar);
+    backdrop.addEventListener('click', toggleSidebar);
+
+    // Initial Setup
+    setTheme('dark');
+</script>
+</body>
+</html>

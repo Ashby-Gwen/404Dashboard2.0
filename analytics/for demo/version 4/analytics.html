@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Financial Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            primary: '#FF4500', // OrangeRed
+                            base: '#F8FAFC',    // Canvas off-white
+                            card: '#FFFFFF',    // Surface white
+                            text: '#0F172A',    // Slate-navy text
+                            muted: '#64748B',   // Slate-gray text
+                            yellow: '#FFFACD',  // Light warm yellow
+                            border: '#E2E8F0',  // Light borders
+                            hover: '#F1F5F9'    // Hover states
+                        },
+                        status: {
+                            unpaid: { bg: '#FEE2E2', text: '#991B1B' },
+                            downpayment: { bg: '#DBEAFE', text: '#1E40AF' },
+                            paid: { bg: '#DCFCE7', text: '#166534' }
+                        },
+                        client: {
+                            core: { bg: '#DCFCE7', text: '#166534' }, // Green
+                            whale: { bg: '#FEE2E2', text: '#991B1B' }, // Red
+                            explorer: { bg: '#E0E7FF', text: '#3730A3' }, // Indigo
+                            niche: { bg: '#F3F4F6', text: '#4B5563' } // Gray
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Scrollbar for sleek UI */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #FF4500;
+        }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease-in-out; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal { display: none; }
+        .modal.active { display: flex; animation: fadeIn 0.2s ease-in-out; }
+        
+        /* Utility for hiding columns */
+        .hide-col { display: none !important; }
+    </style>
+</head>
+<body class="bg-brand-base text-brand-text font-sans antialiased h-screen overflow-hidden flex">
+
+    <!-- Sidebar Navigation -->
+    <aside class="w-64 bg-brand-card border-r border-brand-border flex flex-col justify-between h-full z-10 relative shadow-sm">
+        <div>
+            <div class="h-16 flex items-center px-6 border-b border-brand-border">
+                <i class="ph-fill ph-chart-line-up text-brand-primary text-2xl mr-2"></i>
+                <h1 class="text-xl font-bold tracking-tight">FinDash<span class="text-brand-primary">.</span></h1>
+            </div>
+            <nav class="p-4 space-y-1" id="nav-menu">
+                <button onclick="switchTab('dashboard')" data-tab="dashboard" class="nav-btn w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg bg-brand-primary/10 text-brand-primary transition-colors">
+                    <i class="ph ph-squares-four text-lg mr-3"></i> Dashboard
+                </button>
+                <button onclick="switchTab('clients')" data-tab="clients" class="nav-btn w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg text-brand-muted hover:bg-brand-hover hover:text-brand-text transition-colors">
+                    <i class="ph ph-users text-lg mr-3"></i> Clients Analysis
+                </button>
+                <button onclick="switchTab('expenses')" data-tab="expenses" class="nav-btn w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg text-brand-muted hover:bg-brand-hover hover:text-brand-text transition-colors">
+                    <i class="ph ph-receipt text-lg mr-3"></i> Expenses
+                </button>
+                <button onclick="switchTab('sales')" data-tab="sales" class="nav-btn w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg text-brand-muted hover:bg-brand-hover hover:text-brand-text transition-colors">
+                    <i class="ph ph-trend-up text-lg mr-3"></i> Sales
+                </button>
+            </nav>
+        </div>
+        <div class="p-4 border-t border-brand-border">
+            <div class="flex items-center px-4 py-2">
+                <div class="w-8 h-8 rounded-full bg-brand-yellow text-brand-text flex items-center justify-center font-bold mr-3 shadow-sm">AD</div>
+                <div>
+                    <p class="text-sm font-semibold">Admin User</p>
+                    <p class="text-xs text-brand-muted">admin@findash.com</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 h-full overflow-y-auto relative">
+        <!-- Header -->
+        <header class="h-16 bg-brand-card border-b border-brand-border flex items-center justify-between px-8 sticky top-0 z-10 shadow-sm">
+            <h2 class="text-xl font-semibold" id="page-title">Dashboard</h2>
+            <div class="flex items-center space-x-4">
+                <button class="p-2 text-brand-muted hover:text-brand-primary transition-colors"><i class="ph ph-bell text-xl"></i></button>
+                <button class="p-2 text-brand-muted hover:text-brand-primary transition-colors"><i class="ph ph-gear text-xl"></i></button>
+            </div>
+        </header>
+
+        <div class="p-8">
+            <!-- ===================== DASHBOARD TAB ===================== -->
+            <div id="tab-dashboard" class="tab-content active">
+                <!-- KPIs -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div onclick="openKpiModal('revenue')" class="bg-brand-card p-6 rounded-xl border border-brand-border shadow-sm hover:border-brand-primary cursor-pointer transition-all hover:shadow-md group">
+                        <p class="text-sm text-brand-muted font-medium mb-1 group-hover:text-brand-text">Gross Revenue</p>
+                        <h3 class="text-3xl font-bold text-brand-text" id="kpi-revenue">₱0.00</h3>
+                        <p class="text-xs text-status-paid-text mt-2 flex items-center"><i class="ph-bold ph-arrow-up-right mr-1"></i> View all paid invoices</p>
+                    </div>
+                    <div onclick="openKpiModal('ar')" class="bg-brand-card p-6 rounded-xl border border-brand-border shadow-sm hover:border-brand-primary cursor-pointer transition-all hover:shadow-md group">
+                        <p class="text-sm text-brand-muted font-medium mb-1 group-hover:text-brand-text">Accounts Receivable</p>
+                        <h3 class="text-3xl font-bold text-brand-text" id="kpi-ar">₱0.00</h3>
+                        <p class="text-xs text-status-unpaid-text mt-2 flex items-center"><i class="ph-bold ph-warning mr-1"></i> View unpaid invoices</p>
+                    </div>
+                    <div onclick="openKpiModal('sales')" class="bg-brand-card p-6 rounded-xl border border-brand-border shadow-sm hover:border-brand-primary cursor-pointer transition-all hover:shadow-md group">
+                        <p class="text-sm text-brand-muted font-medium mb-1 group-hover:text-brand-text">Total Number of Sales</p>
+                        <h3 class="text-3xl font-bold text-brand-text" id="kpi-sales-count">0</h3>
+                        <p class="text-xs text-brand-muted mt-2 flex items-center"><i class="ph-bold ph-list-numbers mr-1"></i> View sales orders</p>
+                    </div>
+                </div>
+
+                <!-- Filters & Chart -->
+                <div class="bg-brand-card border border-brand-border rounded-xl shadow-sm p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-lg font-semibold">Sales Trend</h3>
+                        <select id="dashboard-filter" onchange="updateDashboardChart()" class="bg-brand-base border border-brand-border text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary p-2">
+                            <option value="week">This Week</option>
+                            <option value="month" selected>This Month</option>
+                            <option value="quarter">This Quarter</option>
+                        </select>
+                    </div>
+                    <div class="h-80 w-full">
+                        <canvas id="dashboardChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===================== CLIENTS ANALYSIS TAB ===================== -->
+            <div id="tab-clients" class="tab-content">
+                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+                    <!-- Client Table Configuration & Data -->
+                    <div class="xl:col-span-2 bg-brand-card border border-brand-border rounded-xl shadow-sm p-6 flex flex-col h-[600px]">
+                        <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+                            <h3 class="text-lg font-semibold">Client Portfolio</h3>
+                            <div class="flex flex-wrap items-center gap-3">
+                                <input type="text" id="client-search" placeholder="Search company..." class="border border-brand-border rounded-lg p-2 text-sm focus:outline-none focus:border-brand-primary">
+                                <select id="client-status-filter" class="border border-brand-border rounded-lg p-2 text-sm focus:outline-none focus:border-brand-primary">
+                                    <option value="all">All Statuses</option>
+                                    <option value="Core Partners">Core Partners</option>
+                                    <option value="At-Risk Whales">At-Risk Whales</option>
+                                    <option value="Active Explorers">Active Explorers</option>
+                                    <option value="Casual Niche">Casual Niche</option>
+                                </select>
+                                <label class="flex items-center space-x-2 text-sm text-brand-muted cursor-pointer">
+                                    <input type="checkbox" id="toggle-financials" checked onchange="toggleClientFinancialColumns()" class="rounded text-brand-primary focus:ring-brand-primary">
+                                    <span>Show Financials</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-y-auto flex-1 border border-brand-border rounded-lg">
+                            <table class="w-full text-left border-collapse whitespace-nowrap">
+                                <thead class="bg-brand-base sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th class="p-3 text-xs font-semibold text-brand-muted uppercase cursor-pointer hover:text-brand-text" onclick="sortClients('company')">Company Name <i class="ph ph-caret-up-down"></i></th>
+                                        <th class="p-3 text-xs font-semibold text-brand-muted uppercase cursor-pointer hover:text-brand-text financial-col" onclick="sortClients('revenue')">Revenue <i class="ph ph-caret-up-down"></i></th>
+                                        <th class="p-3 text-xs font-semibold text-brand-muted uppercase cursor-pointer hover:text-brand-text financial-col" onclick="sortClients('balance')">Balance <i class="ph ph-caret-up-down"></i></th>
+                                        <th class="p-3 text-xs font-semibold text-brand-muted uppercase cursor-pointer hover:text-brand-text" onclick="sortClients('score')">Score <i class="ph ph-caret-up-down"></i></th>
+                                        <th class="p-3 text-xs font-semibold text-brand-muted uppercase cursor-pointer hover:text-brand-text" onclick="sortClients('status')">Status <i class="ph ph-caret-up-down"></i></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="clients-tbody" class="divide-y divide-brand-border text-sm">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Client Charts -->
+                    <div class="xl:col-span-1 space-y-6">
+                        <div class="bg-brand-card border border-brand-border rounded-xl shadow-sm p-6">
+                            <h3 class="text-sm font-semibold mb-4 text-center">Client Status Distribution</h3>
+                            <div class="h-48 w-full relative flex justify-center">
+                                <canvas id="clientPieChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-brand-card border border-brand-border rounded-xl shadow-sm p-6">
+                            <h3 class="text-sm font-semibold mb-4 text-center">Top 5 Client Scores</h3>
+                            <div class="h-48 w-full">
+                                <canvas id="clientBarChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===================== EXPENSES TAB ===================== -->
+            <div id="tab-expenses" class="tab-content">
+                <div class="flex justify-between items-end mb-6">
+                    <!-- Sub Tabs -->
+                    <div class="flex bg-brand-border rounded-lg p-1 w-max">
+                        <button onclick="switchExpenseTab('fixed')" id="btn-exp-fixed" class="px-4 py-2 text-sm font-medium rounded-md bg-brand-card shadow text-brand-text transition-all">Fixed Expenses</button>
+                        <button onclick="switchExpenseTab('variable')" id="btn-exp-variable" class="px-4 py-2 text-sm font-medium rounded-md text-brand-muted hover:text-brand-text transition-all">Variable Expenses</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-1 bg-brand-card border border-brand-border rounded-xl shadow-sm p-6">
+                        <h3 class="text-base font-semibold mb-6 text-center" id="expense-chart-title">Fixed Expenses Distribution</h3>
+                        <div class="h-64 w-full flex justify-center">
+                            <canvas id="expensesPieChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="lg:col-span-2 bg-brand-card border border-brand-border rounded-xl shadow-sm p-6 flex flex-col h-[400px]">
+                        <h3 class="text-lg font-semibold mb-4" id="expense-table-title">Fixed Expenses List</h3>
+                        <div class="overflow-y-auto flex-1 border border-brand-border rounded-lg">
+                            <table class="w-full text-left border-collapse whitespace-nowrap">
+                                <thead class="bg-brand-base sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Date</th>
+                                        <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Supplier/Payee</th>
+                                        <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Debit Account</th>
+                                        <th class="p-3 text-xs font-semibold text-brand-muted uppercase text-right">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="expenses-tbody" class="divide-y divide-brand-border text-sm">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===================== SALES TAB ===================== -->
+            <div id="tab-sales" class="tab-content">
+                
+                <!-- Sales Top KPIs -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div class="bg-brand-card border border-brand-border rounded-xl shadow-sm p-5">
+                        <p class="text-xs text-brand-muted font-medium mb-3 uppercase tracking-wider">Top 3 Clients</p>
+                        <ul id="sales-top-clients" class="text-sm font-semibold space-y-2"></ul>
+                    </div>
+                    <div class="bg-brand-card border border-brand-border rounded-xl shadow-sm p-5">
+                        <p class="text-xs text-brand-muted font-medium mb-3 uppercase tracking-wider">Top 3 Items/Services</p>
+                        <ul id="sales-top-items" class="text-sm font-semibold space-y-2"></ul>
+                    </div>
+                    <div class="bg-brand-card border border-brand-border rounded-xl shadow-sm p-5 flex flex-col justify-center items-center">
+                        <p class="text-xs text-brand-muted font-medium mb-1 uppercase tracking-wider">Total Sales Volume</p>
+                        <h3 class="text-4xl font-bold text-brand-primary" id="sales-total-volume">0</h3>
+                    </div>
+                </div>
+
+                <!-- Sales Analysis Controls -->
+                <div class="flex justify-between items-center bg-brand-base border border-brand-border p-4 rounded-xl mb-6 shadow-inner">
+                    <h3 class="font-semibold text-brand-text">Descriptive Analysis & Forecasting</h3>
+                    <div class="flex items-center space-x-3">
+                        <span class="text-sm text-brand-muted" id="sales-date-display">Date range</span>
+                        <select id="sales-time-filter" onchange="renderSalesData()" class="border border-brand-border rounded-lg p-2 text-sm bg-brand-card focus:outline-none focus:border-brand-primary">
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly" selected>Monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Charts & Table -->
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+                    <!-- History Chart -->
+                    <div class="bg-brand-card border border-brand-border rounded-xl shadow-sm p-6">
+                        <h3 class="text-base font-semibold mb-4">Sales Order History</h3>
+                        <div class="h-64 w-full">
+                            <canvas id="salesHistoryChart"></canvas>
+                        </div>
+                    </div>
+                    <!-- Forecast Chart -->
+                    <div class="bg-brand-card border border-brand-border rounded-xl shadow-sm p-6">
+                        <h3 class="text-base font-semibold mb-4">Sales Forecast (Historical vs Future)</h3>
+                        <div class="h-64 w-full">
+                            <canvas id="salesForecastChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sales Table -->
+                <div class="bg-brand-card border border-brand-border rounded-xl shadow-sm p-6 mb-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-base font-semibold">Sales Order Records</h3>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm text-brand-muted">Show rows:</span>
+                            <select id="sales-table-limit" onchange="renderSalesTable()" class="border border-brand-border rounded p-1 text-sm bg-brand-base">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto border border-brand-border rounded-lg">
+                        <table class="w-full text-left border-collapse whitespace-nowrap">
+                            <thead class="bg-brand-base">
+                                <tr>
+                                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Order ID</th>
+                                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Date</th>
+                                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Client</th>
+                                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Item/Service</th>
+                                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase text-right">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sales-tbody" class="divide-y divide-brand-border text-sm">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <hr class="border-brand-border my-8">
+
+                <!-- Comparative Analysis Section -->
+                <div class="bg-brand-card border border-brand-border rounded-xl shadow-sm p-6 mb-8 border-l-4 border-l-brand-primary">
+                    <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-brand-text">Comparative Analysis</h3>
+                            <p class="text-sm text-brand-muted" id="comparative-subtitle">Comparing Current vs Previous Performance</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <select id="comp-year-1" class="border border-brand-border rounded-lg p-2 text-sm bg-brand-base" onchange="renderComparativeAnalysis()">
+                                <option value="2023">2023</option>
+                                <option value="2024">2024</option>
+                                <option value="2025">2025</option>
+                                <option value="2026" selected>2026</option>
+                            </select>
+                            <span class="py-2 text-brand-muted">vs</span>
+                            <select id="comp-year-2" class="border border-brand-border rounded-lg p-2 text-sm bg-brand-base" onchange="renderComparativeAnalysis()">
+                                <option value="2023">2023</option>
+                                <option value="2024">2024</option>
+                                <option value="2025" selected>2025</option>
+                                <option value="2026">2026</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 h-72">
+                            <canvas id="comparativeChart"></canvas>
+                        </div>
+                        <div class="lg:col-span-1 flex flex-col justify-center items-center p-6 bg-brand-base rounded-xl border border-brand-border">
+                            <p class="text-sm text-brand-muted font-medium mb-2 text-center uppercase tracking-wider">Overall Increase</p>
+                            <h4 class="text-5xl font-extrabold text-status-paid-text" id="comp-increase-pct">+0%</h4>
+                            <p class="text-xs text-brand-muted mt-4 text-center">Based on selected timeframe (Monthly/Quarterly logic applied depending on filters).</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Overlay -->
+    <div id="kpi-modal" class="modal fixed inset-0 bg-brand-text/50 backdrop-blur-sm z-50 items-center justify-center p-4">
+        <div class="bg-brand-card w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
+            <div class="p-6 border-b border-brand-border flex justify-between items-center sticky top-0 bg-brand-card rounded-t-2xl z-10">
+                <div>
+                    <h2 class="text-xl font-bold text-brand-text" id="modal-title">Details</h2>
+                    <p class="text-sm text-brand-muted" id="modal-subtitle">Data visualization</p>
+                </div>
+                <button onclick="closeModal()" class="text-brand-muted hover:text-brand-primary transition-colors p-2 bg-brand-base rounded-full hover:bg-brand-primary/10">
+                    <i class="ph ph-x text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 flex-1 overflow-hidden flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <p class="text-sm text-brand-muted">Sorting: Amount (Ascending)</p>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-sm text-brand-muted">Rows:</span>
+                        <select id="modal-row-limit" onchange="renderModalTable()" class="border border-brand-border rounded p-1 text-sm bg-brand-base focus:ring-brand-primary">
+                            <option value="5" selected>5</option>
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">All</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="overflow-y-auto border border-brand-border rounded-lg flex-1">
+                    <table class="w-full text-left border-collapse whitespace-nowrap">
+                        <thead class="bg-brand-base sticky top-0 shadow-sm" id="modal-thead">
+                            <!-- Dynamic Headers -->
+                        </thead>
+                        <tbody id="modal-tbody" class="divide-y divide-brand-border text-sm">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        /* =========================================================================
+           DATA GENERATION (50 Items Each)
+           ========================================================================= */
+        
+        const formatPHP = (num) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(num);
+        const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+        
+        // Helper arrays for random data
+        const companyNames = ["Acme Corp", "Globex", "Initech", "Umbrella Corp", "Stark Ind", "Wayne Ent", "Soylent", "Massive Dynamic", "Hooli", "Pied Piper"];
+        const itemNames = ["Cloud Hosting", "Consulting", "Software License", "Hardware Install", "Maintenance Plan", "Security Audit"];
+        const payeeNames = ["AWS", "Google Cloud", "Meralco", "PLDT", "Office Spaces Inc", "Upwork", "Legal Services LLC", "Marketing Agency X"];
+        const accountNames = ["Cash", "BPI Checking", "BDO Main", "Credit Card"];
+
+        // 1. Clients (50)
+        let clientsData = Array.from({ length: 50 }, (_, i) => {
+            const revenue = randomInt(10000, 5000000);
+            const score = randomInt(10, 100);
+            let balance = randomInt(0, revenue * 0.4); 
+            if (Math.random() > 0.5) balance = 0; // 50% chance 0 balance
+            
+            // Rule based status based on prompt
+            let status = "";
+            if (score > 80 && balance === 0) status = "Core Partners";
+            else if (revenue > 1000000 && balance > 0 && score < 70) status = "At-Risk Whales";
+            else if (revenue < 500000 && score > 50) status = "Active Explorers";
+            else status = "Casual Niche";
+
+            return {
+                id: `CLI-${1000+i}`,
+                name: `${companyNames[i % companyNames.length]} - Div ${i}`,
+                revenue: revenue,
+                balance: balance,
+                score: score,
+                status: status
+            };
+        });
+
+        // 2. Invoices (50 Paid, Unpaid, Downpayment for dashboard)
+        let invoicesData = Array.from({ length: 50 }, (_, i) => {
+            const amount = randomInt(5000, 200000);
+            const statuses = ["Paid", "Unpaid", "Downpayment"];
+            const status = statuses[randomInt(0, 2)];
+            return {
+                invoiceId: `INV-2026-${100+i}`,
+                client: clientsData[i % clientsData.length].name,
+                amount: amount,
+                status: status,
+                date: `2026-05-${String(randomInt(1, 25)).padStart(2, '0')}`
+            };
+        });
+
+        // 3. Sales Orders (50)
+        let salesOrderData = Array.from({ length: 50 }, (_, i) => {
+            return {
+                orderId: `SO-${5000+i}`,
+                date: `2026-${String(randomInt(1,5)).padStart(2,'0')}-${String(randomInt(1, 28)).padStart(2, '0')}`,
+                client: clientsData[randomInt(0, 49)].name,
+                item: itemNames[randomInt(0, itemNames.length - 1)],
+                amount: randomInt(1000, 500000)
+            };
+        });
+
+        // 4. Fixed Expenses (50)
+        let fixedExpenses = Array.from({ length: 50 }, (_, i) => ({
+            id: `FEXP-${i}`,
+            date: `2026-${String(randomInt(1,5)).padStart(2,'0')}-01`,
+            payee: payeeNames[randomInt(0, 3)], // Keep to fixed utility/rent
+            account: accountNames[randomInt(0, accountNames.length-1)],
+            amount: randomInt(15000, 100000)
+        }));
+
+        // 5. Variable Expenses (50)
+        let variableExpenses = Array.from({ length: 50 }, (_, i) => ({
+            id: `VEXP-${i}`,
+            date: `2026-${String(randomInt(1,5)).padStart(2,'0')}-${String(randomInt(1, 28)).padStart(2, '0')}`,
+            payee: payeeNames[randomInt(4, payeeNames.length-1)], // Contractors, agencies
+            account: accountNames[randomInt(0, accountNames.length-1)],
+            amount: randomInt(1000, 50000)
+        }));
+
+
+        /* =========================================================================
+           GLOBAL STATE & CHARTS
+           ========================================================================= */
+        let currentModalContext = null;
+        let clientsSortCol = 'revenue';
+        let clientsSortAsc = false;
+        let expenseTabState = 'fixed';
+        
+        let charts = {
+            dashboard: null,
+            clientPie: null,
+            clientBar: null,
+            expensePie: null,
+            salesHistory: null,
+            salesForecast: null,
+            comparative: null
+        };
+
+        const THEME = {
+            primary: '#FF4500',
+            primaryLight: 'rgba(255, 69, 0, 0.2)',
+            text: '#0F172A',
+            muted: '#64748B',
+            bg: '#F8FAFC',
+            border: '#E2E8F0',
+            grid: 'rgba(226, 232, 240, 0.5)'
+        };
+
+        // Initialize App
+        document.addEventListener('DOMContentLoaded', () => {
+            Chart.defaults.color = THEME.muted;
+            Chart.defaults.font.family = "'Inter', sans-serif";
+            
+            initDashboard();
+            initClients();
+            initExpenses();
+            initSales();
+            
+            // Setup Client Listeners
+            document.getElementById('client-search').addEventListener('input', renderClientsTable);
+            document.getElementById('client-status-filter').addEventListener('change', renderClientsTable);
+        });
+
+        /* =========================================================================
+           TAB NAVIGATION
+           ========================================================================= */
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+            
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-brand-primary/10', 'text-brand-primary');
+                btn.classList.add('text-brand-muted', 'hover:bg-brand-hover', 'hover:text-brand-text');
+            });
+            const activeBtn = document.querySelector(`[data-tab="${tabId}"]`);
+            activeBtn.classList.remove('text-brand-muted', 'hover:bg-brand-hover', 'hover:text-brand-text');
+            activeBtn.classList.add('bg-brand-primary/10', 'text-brand-primary');
+
+            const titles = {
+                'dashboard': 'Dashboard Overview',
+                'clients': 'Clients Analysis',
+                'expenses': 'Expenses Tracking',
+                'sales': 'Sales & Forecasting'
+            };
+            document.getElementById('page-title').innerText = titles[tabId];
+
+            // Re-render charts to fix sizing issues in hidden divs
+            if(tabId === 'dashboard') updateDashboardChart();
+            if(tabId === 'clients') renderClientCharts();
+            if(tabId === 'expenses') renderExpensesChart();
+            if(tabId === 'sales') renderSalesCharts();
+        }
+
+        /* =========================================================================
+           1. DASHBOARD MODULE
+           ========================================================================= */
+        function initDashboard() {
+            // Calc KPIs
+            const totalRevenue = invoicesData.filter(i => i.status === 'Paid').reduce((sum, i) => sum + i.amount, 0);
+            const totalAR = invoicesData.filter(i => i.status === 'Unpaid').reduce((sum, i) => sum + i.amount, 0);
+            
+            document.getElementById('kpi-revenue').innerText = formatPHP(totalRevenue);
+            document.getElementById('kpi-ar').innerText = formatPHP(totalAR);
+            document.getElementById('kpi-sales-count').innerText = salesOrderData.length;
+
+            updateDashboardChart();
+        }
+
+        function updateDashboardChart() {
+            const ctx = document.getElementById('dashboardChart').getContext('2d');
+            const filter = document.getElementById('dashboard-filter').value;
+            
+            // Mock dynamic data based on filter
+            let labels = [];
+            let data = [];
+            if(filter === 'week') {
+                labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                data = Array.from({length: 7}, () => randomInt(5000, 50000));
+            } else if (filter === 'month') {
+                labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+                data = Array.from({length: 4}, () => randomInt(50000, 200000));
+            } else {
+                labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+                data = Array.from({length: 6}, () => randomInt(200000, 1000000));
+            }
+
+            if(charts.dashboard) charts.dashboard.destroy();
+            
+            charts.dashboard = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Gross Revenue',
+                        data: data,
+                        borderColor: THEME.primary,
+                        backgroundColor: THEME.primaryLight,
+                        borderWidth: 2,
+                        pointBackgroundColor: THEME.primary,
+                        pointRadius: 4,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { 
+                            beginAtZero: true, 
+                            grid: { color: THEME.grid }, 
+                            border: { display: false },
+                            ticks: { callback: (val) => '₱' + (val/1000) + 'k' }
+                        },
+                        x: { grid: { display: false }, border: { display: false } }
+                    }
+                }
+            });
+        }
+
+        /* Dashboard Modals */
+        function openKpiModal(type) {
+            currentModalContext = type;
+            const modal = document.getElementById('kpi-modal');
+            const title = document.getElementById('modal-title');
+            const subtitle = document.getElementById('modal-subtitle');
+            const thead = document.getElementById('modal-thead');
+            
+            if (type === 'revenue') {
+                title.innerText = "Gross Revenue Details";
+                subtitle.innerText = "Paid invoices per client";
+                thead.innerHTML = `<tr>
+                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Invoice ID</th>
+                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Client</th>
+                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Date</th>
+                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase text-right">Amount (PHP)</th>
+                </tr>`;
+            } else if (type === 'ar') {
+                title.innerText = "Accounts Receivable";
+                subtitle.innerText = "Unpaid invoices per client";
+                 thead.innerHTML = `<tr>
+                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Invoice ID</th>
+                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Client</th>
+                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Date</th>
+                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase text-right">Amount (PHP)</th>
+                </tr>`;
+            } else if (type === 'sales') {
+                title.innerText = "Total Sales Orders";
+                subtitle.innerText = "Sales order data per client";
+                thead.innerHTML = `<tr>
+                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Order ID</th>
+                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Client</th>
+                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase">Item/Service</th>
+                    <th class="p-3 text-xs font-semibold text-brand-muted uppercase text-right">Total Amount (PHP)</th>
+                </tr>`;
+            }
+
+            document.getElementById('modal-row-limit').value = "5"; // default requested
+            renderModalTable();
+            modal.classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('kpi-modal').classList.remove('active');
+        }
+
+        function renderModalTable() {
+            const tbody = document.getElementById('modal-tbody');
+            const limitStr = document.getElementById('modal-row-limit').value;
+            const limit = limitStr === '50' ? 50 : parseInt(limitStr);
+            
+            let data = [];
+            
+            if (currentModalContext === 'revenue') {
+                // ASC sort per prompt requirement
+                data = invoicesData.filter(i => i.status === 'Paid').sort((a,b) => a.amount - b.amount);
+            } else if (currentModalContext === 'ar') {
+                data = invoicesData.filter(i => i.status === 'Unpaid').sort((a,b) => a.amount - b.amount);
+            } else if (currentModalContext === 'sales') {
+                data = [...salesOrderData].sort((a,b) => a.amount - b.amount);
+            }
+
+            data = data.slice(0, limit);
+            tbody.innerHTML = '';
+
+            data.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-brand-hover transition-colors";
+                
+                if (currentModalContext === 'sales') {
+                    tr.innerHTML = `
+                        <td class="p-3 text-brand-text font-medium">${item.orderId}</td>
+                        <td class="p-3">${item.client}</td>
+                        <td class="p-3">${item.item}</td>
+                        <td class="p-3 text-right font-semibold text-brand-text">${formatPHP(item.amount)}</td>
+                    `;
+                } else {
+                    tr.innerHTML = `
+                        <td class="p-3 text-brand-text font-medium">${item.invoiceId}</td>
+                        <td class="p-3">${item.client}</td>
+                        <td class="p-3">${item.date}</td>
+                        <td class="p-3 text-right font-semibold text-brand-text">${formatPHP(item.amount)}</td>
+                    `;
+                }
+                tbody.appendChild(tr);
+            });
+        }
+
+        /* =========================================================================
+           2. CLIENTS ANALYSIS MODULE
+           ========================================================================= */
+        function initClients() {
+            renderClientsTable();
+            renderClientCharts();
+        }
+
+        function sortClients(col) {
+            if (clientsSortCol === col) {
+                clientsSortAsc = !clientsSortAsc;
+            } else {
+                clientsSortCol = col;
+                clientsSortAsc = true;
+            }
+            renderClientsTable();
+        }
+
+        function toggleClientFinancialColumns() {
+            const showFinancials = document.getElementById('toggle-financials').checked;
+            const cols = document.querySelectorAll('.financial-col');
+            cols.forEach(col => {
+                if(showFinancials) col.classList.remove('hide-col');
+                else col.classList.add('hide-col');
+            });
+        }
+
+        function renderClientsTable() {
+            const search = document.getElementById('client-search').value.toLowerCase();
+            const statusFilter = document.getElementById('client-status-filter').value;
+            const tbody = document.getElementById('clients-tbody');
+            const showFinancials = document.getElementById('toggle-financials').checked;
+
+            let filtered = clientsData.filter(c => {
+                const matchSearch = c.name.toLowerCase().includes(search);
+                const matchStatus = statusFilter === 'all' || c.status === statusFilter;
+                return matchSearch && matchStatus;
+            });
+
+            filtered.sort((a, b) => {
+                let valA = a[clientsSortCol];
+                let valB = b[clientsSortCol];
+                
+                if(typeof valA === 'string') valA = valA.toLowerCase();
+                if(typeof valB === 'string') valB = valB.toLowerCase();
+
+                if (valA < valB) return clientsSortAsc ? -1 : 1;
+                if (valA > valB) return clientsSortAsc ? 1 : -1;
+                return 0;
+            });
+
+            tbody.innerHTML = '';
+            filtered.forEach(c => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-brand-hover transition-colors";
+                
+                let badgeClass = "";
+                if(c.status === 'Core Partners') badgeClass = "bg-status-paid-bg text-status-paid-text border-status-paid-text/20";
+                else if(c.status === 'At-Risk Whales') badgeClass = "bg-status-unpaid-bg text-status-unpaid-text border-status-unpaid-text/20";
+                else if(c.status === 'Active Explorers') badgeClass = "bg-status-downpayment-bg text-status-downpayment-text border-status-downpayment-text/20";
+                else badgeClass = "bg-brand-border text-brand-muted border-brand-muted/20";
+
+                tr.innerHTML = `
+                    <td class="p-3 font-medium text-brand-text">${c.name}</td>
+                    <td class="p-3 financial-col ${showFinancials ? '' : 'hide-col'}">${formatPHP(c.revenue)}</td>
+                    <td class="p-3 financial-col ${showFinancials ? '' : 'hide-col'}">${formatPHP(c.balance)}</td>
+                    <td class="p-3">
+                        <div class="flex items-center">
+                            <span class="mr-2 font-semibold ${c.score >= 80 ? 'text-status-paid-text' : c.score < 50 ? 'text-status-unpaid-text' : 'text-brand-text'}">${c.score}</span>
+                            <div class="w-16 h-2 bg-brand-border rounded-full overflow-hidden">
+                                <div class="h-full ${c.score >= 80 ? 'bg-status-paid-text' : c.score < 50 ? 'bg-status-unpaid-text' : 'bg-brand-primary'}" style="width: ${c.score}%"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="p-3">
+                        <span class="px-2 py-1 text-xs font-semibold rounded-md border ${badgeClass}">${c.status}</span>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderClientCharts() {
+            // Pie Chart Data
+            const counts = {"Core Partners": 0, "At-Risk Whales": 0, "Active Explorers": 0, "Casual Niche": 0};
+            clientsData.forEach(c => counts[c.status]++);
+
+            if(charts.clientPie) charts.clientPie.destroy();
+            charts.clientPie = new Chart(document.getElementById('clientPieChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(counts),
+                    datasets: [{
+                        data: Object.values(counts),
+                        backgroundColor: ['#166534', '#991B1B', '#3730A3', '#64748B'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, font: {size: 10} } }
+                    },
+                    cutout: '70%'
+                }
+            });
+
+            // Bar chart - Top 5 scores
+            const top5 = [...clientsData].sort((a,b) => b.score - a.score).slice(0, 5);
+            if(charts.clientBar) charts.clientBar.destroy();
+            charts.clientBar = new Chart(document.getElementById('clientBarChart'), {
+                type: 'bar',
+                data: {
+                    labels: top5.map(c => c.name.substring(0, 10) + '..'),
+                    datasets: [{
+                        label: 'Score',
+                        data: top5.map(c => c.score),
+                        backgroundColor: THEME.primary,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, max: 100, border:{display:false}, grid:{color:THEME.grid} },
+                        x: { border:{display:false}, grid:{display:false}, ticks: {font:{size:10}} }
+                    }
+                }
+            });
+        }
+
+        /* =========================================================================
+           3. EXPENSES MODULE
+           ========================================================================= */
+        function initExpenses() {
+            renderExpensesData();
+        }
+
+        function switchExpenseTab(tab) {
+            expenseTabState = tab;
+            
+            const btnFixed = document.getElementById('btn-exp-fixed');
+            const btnVar = document.getElementById('btn-exp-variable');
+            
+            if(tab === 'fixed') {
+                btnFixed.className = "px-4 py-2 text-sm font-medium rounded-md bg-brand-card shadow text-brand-text transition-all";
+                btnVar.className = "px-4 py-2 text-sm font-medium rounded-md text-brand-muted hover:text-brand-text transition-all";
+                document.getElementById('expense-table-title').innerText = "Fixed Expenses List";
+                document.getElementById('expense-chart-title').innerText = "Fixed Expenses Distribution";
+            } else {
+                btnVar.className = "px-4 py-2 text-sm font-medium rounded-md bg-brand-card shadow text-brand-text transition-all";
+                btnFixed.className = "px-4 py-2 text-sm font-medium rounded-md text-brand-muted hover:text-brand-text transition-all";
+                document.getElementById('expense-table-title').innerText = "Variable Expenses List";
+                document.getElementById('expense-chart-title').innerText = "Variable Expenses Distribution";
+            }
+            renderExpensesData();
+        }
+
+        function renderExpensesData() {
+            const data = expenseTabState === 'fixed' ? [...fixedExpenses] : [...variableExpenses];
+            // Sort by amount descending
+            data.sort((a, b) => b.amount - a.amount);
+            
+            const tbody = document.getElementById('expenses-tbody');
+            tbody.innerHTML = '';
+            
+            let payeeTotals = {};
+
+            data.forEach(item => {
+                // Table row
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-brand-hover transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3">${item.date}</td>
+                    <td class="p-3 font-medium text-brand-text">${item.payee}</td>
+                    <td class="p-3 text-xs"><span class="px-2 py-1 bg-brand-border rounded">${item.account}</span></td>
+                    <td class="p-3 text-right font-semibold">${formatPHP(item.amount)}</td>
+                `;
+                tbody.appendChild(tr);
+
+                // Aggregation for chart
+                payeeTotals[item.payee] = (payeeTotals[item.payee] || 0) + item.amount;
+            });
+
+            renderExpensesChart(payeeTotals);
+        }
+
+        function renderExpensesChart(payeeTotals) {
+            if(!payeeTotals) return; // safeguard if called by resize
+
+            const labels = Object.keys(payeeTotals);
+            const data = Object.values(payeeTotals);
+            const bgColors = ['#FF4500', '#0F172A', '#64748B', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899'];
+
+            if(charts.expensePie) charts.expensePie.destroy();
+            charts.expensePie = new Chart(document.getElementById('expensesPieChart'), {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: bgColors.slice(0, labels.length),
+                        borderWidth: 1,
+                        borderColor: '#FFFFFF'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { boxWidth: 12, font: {size: 11} } }
+                    }
+                }
+            });
+        }
+
+        /* =========================================================================
+           4. SALES MODULE
+           ========================================================================= */
+        function initSales() {
+            // KPI Calculations
+            const sortedByAmount = [...salesOrderData].sort((a,b) => b.amount - a.amount);
+            
+            // Top 3 clients
+            const clientTotals = {};
+            salesOrderData.forEach(s => clientTotals[s.client] = (clientTotals[s.client]||0) + s.amount);
+            const topClients = Object.entries(clientTotals).sort((a,b)=>b[1]-a[1]).slice(0,3);
+            const ulClients = document.getElementById('sales-top-clients');
+            ulClients.innerHTML = topClients.map(c => `<li class="flex justify-between border-b border-brand-border pb-1 last:border-0"><span class="text-brand-text truncate w-32" title="${c[0]}">${c[0]}</span> <span class="text-brand-primary">${formatPHP(c[1])}</span></li>`).join('');
+
+            // Top 3 items
+            const itemTotals = {};
+            salesOrderData.forEach(s => itemTotals[s.item] = (itemTotals[s.item]||0) + 1);
+            const topItems = Object.entries(itemTotals).sort((a,b)=>b[1]-a[1]).slice(0,3);
+            const ulItems = document.getElementById('sales-top-items');
+            ulItems.innerHTML = topItems.map(i => `<li class="flex justify-between border-b border-brand-border pb-1 last:border-0"><span class="text-brand-text">${i[0]}</span> <span class="bg-brand-border px-2 rounded text-xs leading-5">${i[1]} orders</span></li>`).join('');
+
+            document.getElementById('sales-total-volume').innerText = salesOrderData.length;
+
+            renderSalesData();
+            renderComparativeAnalysis();
+        }
+
+        function renderSalesData() {
+            const filter = document.getElementById('sales-time-filter').value;
+            const dateDisplay = document.getElementById('sales-date-display');
+            
+            if(filter === 'weekly') dateDisplay.innerText = "May 18 - May 25, 2026";
+            else if (filter === 'monthly') dateDisplay.innerText = "May 2026";
+            else dateDisplay.innerText = "Q2 2026 (Apr-Jun)";
+
+            renderSalesTable();
+            renderSalesCharts(filter);
+        }
+
+        function renderSalesTable() {
+            const limit = parseInt(document.getElementById('sales-table-limit').value);
+            const tbody = document.getElementById('sales-tbody');
+            
+            // Just use mock data, ordered by date desc normally
+            const data = [...salesOrderData].slice(0, limit);
+            
+            tbody.innerHTML = '';
+            data.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-brand-hover transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3 font-medium text-brand-text">${item.orderId}</td>
+                    <td class="p-3">${item.date}</td>
+                    <td class="p-3">${item.client}</td>
+                    <td class="p-3 text-xs"><span class="px-2 py-1 bg-brand-border rounded">${item.item}</span></td>
+                    <td class="p-3 text-right font-semibold text-brand-primary">${formatPHP(item.amount)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderSalesCharts(filter = 'monthly') {
+            // History Chart - Default per week of current month
+            let histLabels = [];
+            let histData = [];
+            
+            if(filter === 'weekly') {
+                histLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+                histData = [12000, 19000, 15000, 22000, 28000];
+            } else if (filter === 'monthly') {
+                histLabels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+                histData = [45000, 52000, 38000, 61000];
+            } else {
+                histLabels = ['Apr', 'May', 'Jun'];
+                histData = [180000, 196000, 210000];
+            }
+
+            if(charts.salesHistory) charts.salesHistory.destroy();
+            charts.salesHistory = new Chart(document.getElementById('salesHistoryChart'), {
+                type: 'bar',
+                data: {
+                    labels: histLabels,
+                    datasets: [{
+                        label: 'Sales Revenue',
+                        data: histData,
+                        backgroundColor: THEME.primary,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, border:{display:false}, grid:{color:THEME.grid} },
+                        x: { border:{display:false}, grid:{display:false} }
+                    }
+                }
+            });
+
+            // Forecast Chart - Historical + Dotted Future
+            if(charts.salesForecast) charts.salesForecast.destroy();
+            charts.salesForecast = new Chart(document.getElementById('salesForecastChart'), {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May (Now)', 'Jun (Est)', 'Jul (Est)'],
+                    datasets: [
+                        {
+                            label: 'Actual Sales',
+                            data: [150, 160, 140, 180, 196, null, null],
+                            borderColor: THEME.text,
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Forecast',
+                            data: [null, null, null, null, 196, 215, 230],
+                            borderColor: THEME.primary,
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: {boxWidth:12} } },
+                    scales: {
+                        y: { border:{display:false}, grid:{color:THEME.grid} },
+                        x: { border:{display:false}, grid:{display:false} }
+                    }
+                }
+            });
+        }
+
+        function renderComparativeAnalysis() {
+            const y1 = document.getElementById('comp-year-1').value;
+            const y2 = document.getElementById('comp-year-2').value;
+            
+            // Mock data generator for visualization
+            const dataY1 = Array.from({length: 12}, () => randomInt(100000, 300000));
+            const dataY2 = Array.from({length: 12}, () => randomInt(80000, 250000));
+
+            const sum1 = dataY1.reduce((a,b)=>a+b,0);
+            const sum2 = dataY2.reduce((a,b)=>a+b,0);
+            const pct = (((sum1 - sum2) / sum2) * 100).toFixed(1);
+            
+            const pctEl = document.getElementById('comp-increase-pct');
+            if(pct >= 0) {
+                pctEl.innerText = `+${pct}%`;
+                pctEl.className = "text-5xl font-extrabold text-status-paid-text";
+            } else {
+                pctEl.innerText = `${pct}%`;
+                pctEl.className = "text-5xl font-extrabold text-status-unpaid-text";
+            }
+
+            if(charts.comparative) charts.comparative.destroy();
+            charts.comparative = new Chart(document.getElementById('comparativeChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                    datasets: [
+                        {
+                            label: `Year ${y1}`,
+                            data: dataY1,
+                            backgroundColor: THEME.primary,
+                            borderRadius: 4
+                        },
+                        {
+                            label: `Year ${y2}`,
+                            data: dataY2,
+                            backgroundColor: THEME.border,
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: {
+                        y: { beginAtZero: true, border:{display:false}, grid:{color:THEME.grid} },
+                        x: { border:{display:false}, grid:{display:false} }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

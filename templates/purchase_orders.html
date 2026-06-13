@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syluxent - Purchase Orders</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
+    <style>
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .debit-section {
+            background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-xl);
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .debit-item {
+            display: grid;
+            grid-template-columns: 2fr 1fr auto;
+            gap: 0.5rem;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            padding: 1rem;
+            background: white;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-color);
+        }
+
+        .debit-select {
+            font-weight: 600;
+        }
+
+        .btn-remove-debit {
+            background: #EF4444;
+            color: white;
+            border: none;
+            padding: 0.5rem;
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            font-size: 1.2rem;
+            line-height: 1;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-remove-debit:hover {
+            background: #DC2626;
+        }
+
+        .calculation-section {
+            background: var(--brand-yellow);
+            border: 2px solid var(--brand-orange);
+            border-radius: var(--radius-xl);
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .calc-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .calc-row.total {
+            font-size: 1.4rem;
+            color: var(--brand-orange);
+            border-top: 2px solid var(--brand-orange);
+            padding-top: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .required-field {
+            border-left: 4px solid var(--brand-orange);
+            padding-left: 0.5rem;
+        }
+
+        .table-wrap {
+            margin-top: 2rem;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: var(--radius-lg);
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #FEF3C7;
+            color: #92400E;
+        }
+
+        .status-completed {
+            background: #D1FAE5;
+            color: #065F46;
+        }
+    </style>
+</head>
+<body>
+    <nav class="app-navbar">
+        <div class="nav-logo" onclick="window.location.href='{{ url_for('dashboard') }}';">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            Syluxent
+        </div>
+        {% set nav_links = {
+    'staff': [
+        ('sales_order', 'Sales Order'),
+        ('invoices', 'Invoice'),
+        ('purchase_orders', 'Purchase Order')
+    ],
+    'manager': [
+        ('analytics', 'Analytics')
+    ],
+    'admin': [
+        ('sales_order', 'Sales Order'),
+        ('invoices', 'Invoice'),
+        ('purchase_orders', 'Purchase Order'),
+        ('analytics', 'Analytics'),
+        ('database_interface', 'Database Interface')
+    ]
+} %}
+
+<div class="nav-menu">
+    <a href="{{ url_for('dashboard') }}" class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}">Home</a>
+    
+    {% for endpoint, label in nav_links.get(session.role, []) %}
+    <a href="{{ url_for(endpoint) }}" 
+       class="nav-link {{ 'active' if request.endpoint == endpoint }}">
+       {{ label }}
+    </a>
+    {% endfor %}
+</div>
+        <div class="nav-user">
+            <a class="profile-link" href="{{ url_for('profile') }}">
+                {% if current_user and current_user.profile_photo %}
+                <img class="profile-avatar" src="{{ url_for('static', filename=current_user.profile_photo) }}" alt="">
+                {% else %}
+                <span class="profile-avatar">{{ session.username[:1]|upper }}</span>
+                {% endif %}
+                {{ session.username }}
+            </a>
+            <span id="datetime"></span>
+            <a href="{{ url_for('logout') }}" class="btn btn-outline btn-sm">Logout</a>
+        </div>
+    </nav>
+
+    <div id="toastContainer" style="position: fixed; top: 1rem; right: 1rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;"></div>
+
+    <main class="page-shell">
+        <div class="section-header">
+            <div class="page-title">
+                <h1>Purchase Orders</h1>
+            </div>
+        </div>
+
+        {% if session.role == 'admin' %}
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <h2>Admin Upload, Cleaning, Outlier Identifier, Excel Mapping</h2>
+            <p style="color: var(--text-muted);">Upload CSV/Excel, preview cleaned purchase order fields, review Z-score outliers, remove rows, then upload to database.</p>
+            <input type="file" id="adminUploadFiles" accept=".csv,.xlsx,.xls" multiple>
+            <button class="btn btn-primary btn-sm" onclick="previewAdminUpload('purchase_order')">Preview Upload</button>
+            <button class="btn btn-outline btn-sm" onclick="commitAdminUpload('purchase_order')">Upload Clean Rows</button>
+            <div id="adminUploadDocs" style="margin-top: 1rem; color: var(--text-muted);"></div>
+            <div id="adminUploadOutliers" style="margin-top: 1rem;"></div>
+            <div id="adminUploadPreview" class="table-wrap"></div>
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <h2>Create Purchase Order</h2>
+            
+            <form id="purchaseOrderForm">
+                <div class="form-grid">
+                    <div class="form-group required-field">
+                        <label>Check/Cash Voucher Number *</label>
+                        <input type="text" id="checkVoucherNumber" required>
+                    </div>
+                    
+                    <div class="form-group required-field">
+                        <label>Check Number *</label>
+                        <input type="text" id="checkNumber" required>
+                    </div>
+                    
+                    <div class="form-group required-field">
+                        <label>Check Date *</label>
+                        <input type="date" id="checkDate" required>
+                    </div>
+                    
+                    <div class="form-group required-field">
+                        <label>Date *</label>
+                        <input type="date" id="poDate" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>OR Date</label>
+                        <input type="date" id="orDate">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>AR/CR/OR Number</label>
+                        <input type="text" id="arCrOrNumber">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>PO Number</label>
+                        <input type="text" id="poNumber">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>LF No.</label>
+                        <input type="text" id="lfNo">
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group required-field">
+                        <label>Particulars *</label>
+                        <textarea id="particulars" rows="3" required></textarea>
+                    </div>
+                    
+                    <div class="form-group required-field">
+                        <label>Supplier/Payee *</label>
+                        <input type="text" id="supplierPayee" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>TIN Number</label>
+                        <input type="text" id="tinNumber">
+                    </div>
+                    
+                    <div class="form-group required-field">
+                        <label>Cash Amount *</label>
+                        <input type="number" id="cashAmount" min="0" step="0.01" required>
+                    </div>
+                </div>
+
+                <div class="debit-section">
+                    <h3>Debit Accounts (at least one required)</h3>
+                    <div id="debitsList">
+                        <div class="debit-item">
+                            <select class="debit-select" required>
+                                <option value="">Select Debit Type</option>
+                                <option value="Input VAT">Input VAT</option>
+                                <option value="Cost of Goods Sold">Cost of Goods Sold</option>
+                                <option value="Software">Software</option>
+                                <option value="Rent Expense">Rent Expense</option>
+                                <option value="Cash Advance">Cash Advance</option>
+                                <option value="Government Contribution/Loan">Government Contribution/Loan</option>
+                                <option value="PLDT">PLDT</option>
+                                <option value="Globe/Smart, Sun">Globe/Smart, Sun</option>
+                                <option value="Petty Cash">Petty Cash</option>
+                                <option value="Commission">Commission</option>
+                                <option value="BDO Amortization">BDO Amortization</option>
+                                <option value="Dividends Payable">Dividends Payable</option>
+                                <option value="Meralco">Meralco</option>
+                                <option value="Support Allowance">Support Allowance</option>
+                                <option value="Fund Transfer">Fund Transfer</option>
+                                <option value="Various Expenses">Various Expenses</option>
+                            </select>
+                            <input type="number" placeholder="Amount" class="debit-amount" min="0" step="0.01" required>
+                            <button type="button" class="btn-remove-debit" onclick="removeDebit(this)">×</button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-outline" onclick="addDebit()">Add Debit Account</button>
+                </div>
+
+                <div class="calculation-section">
+                    <div class="calc-row">
+                        <span>Total Debit Accounts:</span>
+                        <span id="totalDebits">₱0.00</span>
+                    </div>
+                    <div class="calc-row">
+                        <span>Cash Amount:</span>
+                        <span id="cashDisplay">₱0.00</span>
+                    </div>
+                    <div class="calc-row total">
+                        <span>Net Balance (Checking):</span>
+                        <span id="netBalance">₱0.00</span>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 2rem;">
+                    <button type="submit" class="btn btn-primary">Create Purchase Order</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Purchase Orders History -->
+        <div class="card" style="margin-top: 2rem;">
+            <h2>Purchase Orders History</h2>
+            <div class="table-wrap">
+                <table id="purchase-orders-table">
+                    <thead>
+                        <tr>
+                            <th>Voucher #</th>
+                            <th>Check #</th>
+                            <th>Supplier/Payee</th>
+                            <th>Date</th>
+                            <th>Particulars</th>
+                            <th>Cash Amount</th>
+                            <th>Net Balance</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchase-orders-tbody">
+                        <tr><td colspan="9" class="no-data">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let purchaseOrders = [];
+
+        // Update date/time
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById('datetime').textContent = now.toLocaleString();
+        }
+        setInterval(updateDateTime, 1000);
+        updateDateTime();
+
+        // Load purchase orders on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPurchaseOrders();
+            
+            // Set today's date
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('checkDate').value = today;
+            document.getElementById('poDate').value = today;
+        });
+
+        function loadPurchaseOrders() {
+            fetch('{{ url_for("get_purchase_orders") }}')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        purchaseOrders = data.purchase_orders;
+                        displayPurchaseOrders();
+                    } else {
+                        showToast('Failed to load purchase orders', 'error');
+                    }
+                })
+                .catch(error => {
+                    showToast('Error loading purchase orders', 'error');
+                });
+        }
+
+        function displayPurchaseOrders() {
+            const tbody = document.getElementById('purchase-orders-tbody');
+            
+            if (purchaseOrders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="no-data">No purchase orders found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = purchaseOrders.map(po => {
+                return '<tr>' +
+                    '<td data-label="Voucher #">' + po.check_voucher_number + '</td>' +
+                    '<td data-label="Check #">' + po.check_number + '</td>' +
+                    '<td data-label="Supplier/Payee">' + po.supplier_payee + '</td>' +
+                    '<td data-label="Date">' + formatDate(po.date) + '</td>' +
+                    '<td data-label="Particulars">' + po.particulars + '</td>' +
+                    '<td data-label="Cash Amount">' + formatCurrency(po.cash_amount) + '</td>' +
+                    '<td data-label="Net Balance">' + formatCurrency(po.net_balance) + '</td>' +
+                    '<td data-label="Status">' + statusBadge(po.status || 'PENDING') + '</td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        // Debit management
+        function addDebit() {
+            const debitsList = document.getElementById('debitsList');
+            const debitItem = document.createElement('div');
+            debitItem.className = 'debit-item';
+            debitItem.innerHTML = `
+                <select class="debit-select" required>
+                    <option value="">Select Debit Type</option>
+                    <option value="Input VAT">Input VAT</option>
+                    <option value="Cost of Goods Sold">Cost of Goods Sold</option>
+                    <option value="Software">Software</option>
+                    <option value="Rent Expense">Rent Expense</option>
+                    <option value="Cash Advance">Cash Advance</option>
+                    <option value="Government Contribution/Loan">Government Contribution/Loan</option>
+                    <option value="PLDT">PLDT</option>
+                    <option value="Globe/Smart, Sun">Globe/Smart, Sun</option>
+                    <option value="Petty Cash">Petty Cash</option>
+                    <option value="Commission">Commission</option>
+                    <option value="BDO Amortization">BDO Amortization</option>
+                    <option value="Dividends Payable">Dividends Payable</option>
+                    <option value="Meralco">Meralco</option>
+                    <option value="Support Allowance">Support Allowance</option>
+                    <option value="Fund Transfer">Fund Transfer</option>
+                    <option value="Various Expenses">Various Expenses</option>
+                </select>
+                <input type="number" placeholder="Amount" class="debit-amount" min="0" step="0.01" required>
+                <button type="button" class="btn-remove-debit" onclick="removeDebit(this)">×</button>
+            `;
+            debitsList.appendChild(debitItem);
+            attachDebitListeners(debitItem);
+        }
+
+        function removeDebit(button) {
+            button.parentElement.remove();
+            calculateTotals();
+        }
+
+        function attachDebitListeners(container) {
+            const inputs = container.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                input.addEventListener('input', calculateTotals);
+                input.addEventListener('change', calculateTotals);
+            });
+        }
+
+        // Calculations
+        document.getElementById('cashAmount').addEventListener('input', calculateTotals);
+
+        function calculateTotals() {
+            const cashAmount = parseFloat(document.getElementById('cashAmount').value) || 0;
+            const debitAmounts = Array.from(document.querySelectorAll('.debit-amount'))
+                .map(input => parseFloat(input.value) || 0);
+            const totalDebits = debitAmounts.reduce((sum, amount) => sum + amount, 0);
+            const netBalance = totalDebits - cashAmount;
+
+            document.getElementById('totalDebits').textContent = formatCurrency(totalDebits);
+            document.getElementById('cashDisplay').textContent = formatCurrency(cashAmount);
+            document.getElementById('netBalance').textContent = formatCurrency(netBalance);
+        }
+
+        // Form submission
+        document.getElementById('purchaseOrderForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Validate at least one debit
+            const debitItems = document.querySelectorAll('.debit-item');
+            let hasValidDebit = false;
+            
+            debitItems.forEach(item => {
+                const debitType = item.querySelector('.debit-select').value;
+                const debitAmount = item.querySelector('.debit-amount').value;
+                if (debitType && debitAmount) {
+                    hasValidDebit = true;
+                }
+            });
+
+            if (!hasValidDebit) {
+                showToast('Please add at least one valid debit account', 'error');
+                return;
+            }
+
+            const debits = [];
+            debitItems.forEach(item => {
+                const debitType = item.querySelector('.debit-select').value;
+                const debitAmount = parseFloat(item.querySelector('.debit-amount').value);
+                
+                if (debitType && debitAmount) {
+                    debits.push({
+                        debit_type: debitType,
+                        amount: debitAmount
+                    });
+                }
+            });
+
+            const purchaseOrderData = {
+                check_voucher_number: document.getElementById('checkVoucherNumber').value,
+                check_number: document.getElementById('checkNumber').value,
+                check_date: document.getElementById('checkDate').value,
+                date: document.getElementById('poDate').value,
+                or_date: document.getElementById('orDate').value,
+                ar_cr_or_number: document.getElementById('arCrOrNumber').value,
+                po_number: document.getElementById('poNumber').value,
+                lf_no: document.getElementById('lfNo').value,
+                particulars: document.getElementById('particulars').value,
+                supplier_payee: document.getElementById('supplierPayee').value,
+                tin_number: document.getElementById('tinNumber').value,
+                cash_amount: parseFloat(document.getElementById('cashAmount').value),
+                net_balance: parseFloat(document.getElementById('netBalance').textContent.replace('₱', '').replace(',', '')),
+                debits: debits,
+                // category: if debit account is  PLDT Globe/Smart, Sun Meralco Rent Expense then FIXED else VARIABLE
+                // category: debits.some(d => ['PLDT', 'Globe/Smart, Sun', 'Meralco', 'Rent Expense'].includes(d.debit_type)) ? 'FIXED' : 'VARIABLE'
+            };
+
+            showLoading(true);
+            fetch('{{ url_for("create_purchase_order") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(purchaseOrderData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                showLoading(false);
+                if (data.success) {
+                    showToast('Purchase order created successfully!', 'success');
+                    if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
+                    document.getElementById('purchaseOrderForm').reset();
+                    
+                    // Reset dates
+                    const today = new Date().toISOString().split('T')[0];
+                    document.getElementById('checkDate').value = today;
+                    document.getElementById('poDate').value = today;
+                    
+                    // Reset debits to single empty item
+                    document.getElementById('debitsList').innerHTML = `
+                        <div class="debit-item">
+                            <select class="debit-select" required>
+                                <option value="">Select Debit Type</option>
+                                <option value="Input VAT">Input VAT</option>
+                                <option value="Cost of Goods Sold">Cost of Goods Sold</option>
+                                <option value="Software">Software</option>
+                                <option value="Rent Expense">Rent Expense</option>
+                                <option value="Cash Advance">Cash Advance</option>
+                                <option value="Government Contribution/Loan">Government Contribution/Loan</option>
+                                <option value="PLDT">PLDT</option>
+                                <option value="Globe/Smart, Sun">Globe/Smart, Sun</option>
+                                <option value="Petty Cash">Petty Cash</option>
+                                <option value="Commission">Commission</option>
+                                <option value="BDO Amortization">BDO Amortization</option>
+                                <option value="Dividends Payable">Dividends Payable</option>
+                                <option value="Meralco">Meralco</option>
+                                <option value="Support Allowance">Support Allowance</option>
+                                <option value="Fund Transfer">Fund Transfer</option>
+                                <option value="Various Expenses">Various Expenses</option>
+                            </select>
+                            <input type="number" placeholder="Amount" class="debit-amount" min="0" step="0.01" required>
+                            <button type="button" class="btn-remove-debit" onclick="removeDebit(this)">×</button>
+                        </div>
+                    `;
+                    
+                    calculateTotals();
+                    loadPurchaseOrders();
+                } else {
+                    showToast(data.error || 'Failed to create purchase order', 'error');
+                }
+            })
+            .catch(error => {
+                showLoading(false);
+                showToast('Error creating purchase order', 'error');
+            });
+        });
+
+        // Utility functions
+        function showLoading(show) {
+            if (show) {
+                const overlay = document.createElement('div');
+                overlay.id = 'loadingOverlay';
+                overlay.className = 'loading-overlay';
+                overlay.innerHTML = `
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                        <p>Processing...</p>
+                    </div>
+                `;
+                overlay.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                `;
+                document.body.appendChild(overlay);
+            } else {
+                const overlay = document.getElementById('loadingOverlay');
+                if (overlay) {
+                    overlay.remove();
+                }
+            }
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-PH', {
+                style: 'currency',
+                currency: 'PHP'
+            }).format(amount || 0);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '';
+            const parts = String(dateString).split('T')[0].split('-');
+            if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            return dateString;
+        }
+
+        function statusBadge(status) {
+            const statusClass = status === 'COMPLETED' ? 'status-completed' : 'status-pending';
+            return '<span class="status-badge ' + statusClass + '">' + status + '</span>';
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            toast.style.cssText = `
+                background: ${type === 'error' ? '#EF4444' : type === 'success' ? '#10B981' : '#3B82F6'};
+                color: white;
+                padding: 1rem;
+                border-radius: 0.5rem;
+                margin-bottom: 0.5rem;
+                animation: slideIn 0.3s ease;
+            `;
+            
+            document.getElementById('toastContainer').appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        let adminCleanRows = [];
+        async function previewAdminUpload(interfaceName) {
+            const input = document.getElementById('adminUploadFiles');
+            if (!input || input.files.length === 0) return showToast('Select CSV or Excel files first.', 'error');
+            const formData = new FormData();
+            Array.from(input.files).forEach(file => formData.append('files', file));
+            const response = await fetch(`/admin/upload-preview/${interfaceName}`, { method: 'POST', body: formData });
+            const data = await response.json();
+            if (!data.success) return showToast(data.error || 'Preview failed', 'error');
+            if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
+            adminCleanRows = data.rows;
+            document.getElementById('adminUploadDocs').innerHTML = data.documentation.map(step => `<div>${step}</div>`).join('');
+            document.getElementById('adminUploadOutliers').innerHTML = data.outliers.length
+                ? `<strong>Outliers:</strong> ${data.outliers.map(o => `Row ${o.index + 1} ${o.field}=${o.value} z=${o.z_score} <button class="btn btn-outline btn-sm" onclick="removeAdminRow(${o.index})">Remove</button>`).join('<br>')}`
+                : '<strong>No Z-score outliers detected.</strong>';
+            renderAdminPreview();
+        }
+        function removeAdminRow(index) { adminCleanRows.splice(index, 1); renderAdminPreview(); }
+        function renderAdminPreview() {
+            const container = document.getElementById('adminUploadPreview');
+            if (!container || adminCleanRows.length === 0) return container ? container.innerHTML = '<p class="no-data">No cleaned rows ready.</p>' : null;
+            const columns = Object.keys(adminCleanRows[0]).filter(key => !key.startsWith('_')).slice(0, 10);
+            const displayValue = value => Array.isArray(value)
+                ? value.map(item => `${item.debit_type}: ${formatCurrency(item.amount)}`).join(', ')
+                : (value ?? '');
+            container.innerHTML = `<table><thead><tr>${columns.map(col => `<th>${col}</th>`).join('')}<th></th></tr></thead><tbody>${adminCleanRows.slice(0, 50).map((row, idx) => `<tr>${columns.map(col => `<td>${displayValue(row[col])}</td>`).join('')}<td><button class="btn btn-outline btn-sm" onclick="removeAdminRow(${idx})">Remove</button></td></tr>`).join('')}</tbody></table>`;
+        }
+        async function commitAdminUpload(interfaceName) {
+            if (adminCleanRows.length === 0) return showToast('No cleaned rows to upload.', 'error');
+            const response = await fetch(`/admin/upload-commit/${interfaceName}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: adminCleanRows }) });
+            const data = await response.json();
+            if (!data.success) return showToast(data.error || 'Upload failed', 'error');
+            showToast(data.message || 'Rows uploaded.', 'success');
+            if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
+            adminCleanRows = [];
+            renderAdminPreview();
+            loadPurchaseOrders();
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Attach listeners to first debit item
+            const firstDebit = document.querySelector('.debit-item');
+            if (firstDebit) {
+                attachDebitListeners(firstDebit);
+            }
+        });
+    </script>
+</body>
+</html>
