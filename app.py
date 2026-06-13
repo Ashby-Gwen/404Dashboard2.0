@@ -65,7 +65,8 @@ default_database_path = os.path.join(app.instance_path, 'syluxent.db').replace(o
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
 # Render free services use an ephemeral filesystem, so this SQLite fallback is suitable
 # only for capstone demos/prototypes. Use SYLUXENT_DATABASE_URI for any persistent DB.
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SYLUXENT_DATABASE_URI', f'sqlite:///{default_database_path}')
+database_uri = os.environ.get('SYLUXENT_DATABASE_URI') or f'sqlite:///{default_database_path}'
+app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
