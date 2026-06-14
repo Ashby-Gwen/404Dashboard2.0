@@ -8,10 +8,7 @@ import pandas as pd
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
-
-from cloud_db_guard import require_destructive_cloud_db_tests  # noqa: E402
-
-require_destructive_cloud_db_tests()
+os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 
 from app import (  # noqa: E402
     AnalyticsData,

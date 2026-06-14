@@ -29,12 +29,28 @@ from sqlalchemy import extract, func
 MAPE_DEFAULT_THRESHOLD = 20.0
 
 
-def postgres_month_key(column: Any):
-    return func.to_char(column, 'YYYY-MM')
+def db_is_postgres(db: Any) -> bool:
+    return db.engine.dialect.name == "postgresql"
 
 
-def postgres_weekday(column: Any):
-    return extract('dow', column)
+def db_month_key(db: Any, column: Any):
+    if db_is_postgres(db):
+        return func.to_char(column, 'YYYY-MM')
+    return func.strftime('%Y-%m', column)
+
+
+def db_weekday(db: Any, column: Any):
+    if db_is_postgres(db):
+        return extract('dow', column)
+    return func.strftime('%w', column)
+
+
+def db_year(column: Any):
+    return extract('year', column)
+
+
+def db_month_number(column: Any):
+    return extract('month', column)
 
 
 def numeric(value: Any, digits: int | None = None) -> float:
@@ -849,7 +865,7 @@ def get_sales_analysis(db: Any, models: dict[str, Any], mape_threshold: float = 
 
 def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_date: Any = None, end_date: Any = None) -> dict[str, Any]:
     """Build descriptive analytics for products, periods, and trend direction."""
-    month_key = postgres_month_key(SalesOrder.order_date).label('month')
+    month_key = db_month_key(db, SalesOrder.order_date).label('month')
     monthly_query = (
         db.session.query(
             month_key,
@@ -886,7 +902,7 @@ def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_d
         {"item": row.particular, "quantity": numeric(row.quantity, 2), "revenue": numeric(row.revenue, 2)}
         for row in item_rows
     ]
-    weekday_number = postgres_weekday(SalesOrder.order_date).label('weekday')
+    weekday_number = db_weekday(db, SalesOrder.order_date).label('weekday')
     weekday_query = (
         db.session.query(
             weekday_number,
@@ -1069,7 +1085,7 @@ def get_sales_forecast(
         avg_cost = sum((row.unit_cost or 0) for row in item_rows) / len(item_rows) if item_rows else 0
         monthly_quantities = []
         if SalesOrder is not None:
-            month_key = postgres_month_key(SalesOrder.order_date).label('month')
+            month_key = db_month_key(db, SalesOrder.order_date).label('month')
             monthly_query = (
                 db.session.query(
                     month_key,
@@ -1105,7 +1121,7 @@ def get_sales_forecast(
     monthly_revenue = []
     monthly_profit = []
     if SalesOrder is not None:
-        month_key = postgres_month_key(SalesOrder.order_date).label('month')
+        month_key = db_month_key(db, SalesOrder.order_date).label('month')
         revenue_query = (
             db.session.query(
                 month_key,
@@ -1301,8 +1317,8 @@ def get_comparative_analysis(db: Any, Invoice: Any, year1: int, year2: int) -> d
         year1_revenue = (
             db.session.query(func.sum(Invoice.amount_paid))
             .filter(
-                func.extract("year", Invoice.invoice_date) == year1,
-                func.extract("month", Invoice.invoice_date) == month,
+                db_year(Invoice.invoice_date) == year1,
+                db_month_number(Invoice.invoice_date) == month,
                 Invoice.status == "PAID"
             )
             .scalar() or 0
@@ -1311,8 +1327,8 @@ def get_comparative_analysis(db: Any, Invoice: Any, year1: int, year2: int) -> d
         year2_revenue = (
             db.session.query(func.sum(Invoice.amount_paid))
             .filter(
-                func.extract("year", Invoice.invoice_date) == year2,
-                func.extract("month", Invoice.invoice_date) == month,
+                db_year(Invoice.invoice_date) == year2,
+                db_month_number(Invoice.invoice_date) == month,
                 Invoice.status == "PAID"
             )
             .scalar() or 0

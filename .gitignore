@@ -4,4 +4,7 @@ __pycache__/
 .pytest_cache/
 .env
 instance/*.db
+database.db
+*.sqlite
+*.sqlite3
 static/uploads/

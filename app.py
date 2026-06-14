@@ -8,6 +8,7 @@ try:
     from collections import defaultdict
     from sqlalchemy import func, extract, asc, desc, or_, and_, case # type: ignore[import]
     from sqlalchemy.orm import selectinload, synonym
+    from dotenv import load_dotenv  # type: ignore[import]
     from decimal import Decimal, InvalidOperation     # <--- ADD THIS LINE HERE
     import pandas as pd  # type: ignore[import]
     from openpyxl import load_workbook  # type: ignore[import]
@@ -56,43 +57,43 @@ from admin_services import (
     run_safe_sql,
 )
 
+load_dotenv()
+
 app = Flask(__name__)
 os.makedirs(app.instance_path, exist_ok=True)
 os.makedirs(os.path.join(app.static_folder, 'uploads', 'profiles'), exist_ok=True)
 
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+basedir = os.path.abspath(os.path.dirname(__file__))
+database_url = os.environ.get("DATABASE_URL")
+if database_url and database_url.startswith("postgres://"):
+    database_url = "postgresql://" + database_url[len("postgres://"):]
 
-def get_required_database_uri():
-    database_uri = (os.environ.get('SYLUXENT_DATABASE_URI') or '').strip()
-    if not database_uri:
-        raise RuntimeError(
-            'SYLUXENT_DATABASE_URI is required. Set it to the Supabase Postgres connection string.'
-        )
-    if any(placeholder in database_uri for placeholder in ('[YOUR-PASSWORD]', '<PASSWORD>', ':password@')):
-        raise RuntimeError('SYLUXENT_DATABASE_URI still contains a password placeholder.')
-    if database_uri.startswith('postgresql://'):
-        database_uri = 'postgresql+psycopg://' + database_uri[len('postgresql://'):]
-    elif database_uri.startswith('postgres://'):
-        database_uri = 'postgresql+psycopg://' + database_uri[len('postgres://'):]
-    if not database_uri.startswith('postgresql+psycopg://'):
-        raise RuntimeError('SYLUXENT_DATABASE_URI must use a PostgreSQL/Supabase connection string.')
-    return database_uri
+if database_url:
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+else:
+    # SQLite on Render free tier is suitable only for demo/prototype use because
+    # local file storage is ephemeral and does not persist reliably across restarts.
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir, "database.db")
 
-database_uri = get_required_database_uri()
-app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_pre_ping": True}
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 300,
+}
 
 db = SQLAlchemy(app)
 
-def postgres_year(column):
+def db_year(column):
     return extract('year', column).cast(db.Integer)
 
-def postgres_month_number(column):
+def db_month_number(column):
     return extract('month', column).cast(db.Integer)
 
-def postgres_month_key(column):
-    return func.to_char(column, 'YYYY-MM')
+def db_month_key(column):
+    if db.engine.dialect.name == 'postgresql':
+        return func.to_char(column, 'YYYY-MM')
+    return func.strftime('%Y-%m', column)
 
 # Database Models
 class User(db.Model):
@@ -1377,12 +1378,12 @@ def sales_order_description(sales_order):
 def report_available_years():
     current_year = datetime.now().year
     available_year_rows = (
-        db.session.query(postgres_year(SalesOrder.order_date).label('year'))
+        db.session.query(db_year(SalesOrder.order_date).label('year'))
         .filter(SalesOrder.order_date.isnot(None))
         .union(
-            db.session.query(postgres_year(Invoice.invoice_date).label('year'))
+            db.session.query(db_year(Invoice.invoice_date).label('year'))
             .filter(Invoice.invoice_date.isnot(None)),
-            db.session.query(postgres_year(PurchaseOrder.date).label('year'))
+            db.session.query(db_year(PurchaseOrder.date).label('year'))
             .filter(PurchaseOrder.date.isnot(None))
         )
         .all()
@@ -2042,8 +2043,6 @@ def seed_evaluation_questions():
 
 def init_db():
     with app.app_context():
-        if db.engine.dialect.name != 'postgresql':
-            raise RuntimeError('Supabase-only mode requires a PostgreSQL database.')
         db.create_all()
         
         # Create default roles if they don't exist
@@ -2282,12 +2281,12 @@ def dashboard():
         return value or 0
 
     available_year_rows = (
-        db.session.query(postgres_year(SalesOrder.order_date).label('year'))
+        db.session.query(db_year(SalesOrder.order_date).label('year'))
         .filter(SalesOrder.order_date.isnot(None))
         .union(
-            db.session.query(postgres_year(Invoice.invoice_date).label('year'))
+            db.session.query(db_year(Invoice.invoice_date).label('year'))
             .filter(Invoice.invoice_date.isnot(None)),
-            db.session.query(postgres_year(PurchaseOrder.date).label('year'))
+            db.session.query(db_year(PurchaseOrder.date).label('year'))
             .filter(PurchaseOrder.date.isnot(None))
         )
         .all()
@@ -2680,7 +2679,7 @@ def get_sales_order_reports():
     try:
         filters = parse_report_date_filter()
         report_rows = sales_report_itemized_rows(filters)
-        year_month = postgres_month_key(SalesOrder.order_date).label('year_month')
+        year_month = db_month_key(SalesOrder.order_date).label('year_month')
 
         monthly_query = (
             db.session.query(
@@ -4475,7 +4474,7 @@ def get_overview():
         period = filters['period']
 
         # Get available unique years for filter dropdown
-        years_query = db.session.query(postgres_year(AnalyticsData.transaction_date)).distinct().all()
+        years_query = db.session.query(db_year(AnalyticsData.transaction_date)).distinct().all()
         available_years = sorted([int(y[0]) for y in years_query if y[0] is not None], reverse=True)
         
         # 1. Calculate overall dashboard totals (Gross Revenue & Cost of Goods Sold)
@@ -4502,7 +4501,7 @@ def get_overview():
         total_cost = kpi_totals.total_cost or 0.0
 
         # 2. GROUP BY MONTH & SORT CHRONOLOGICALLY
-        month_number = postgres_month_number(AnalyticsData.transaction_date).label('month_num')
+        month_number = db_month_number(AnalyticsData.transaction_date).label('month_num')
         monthly_query = db.session.query(
             month_number,
             func.min(AnalyticsData.transaction_date).label('first_day_of_month'),
@@ -5336,8 +5335,4 @@ def dev_json_viewer():
 init_db()
 
 if __name__ == '__main__':
-    app.run(
-        debug=True,
-        host=os.environ.get('FLASK_RUN_HOST', '0.0.0.0'),
-        port=int(os.environ.get('FLASK_RUN_PORT', 5000))
-    )
+    app.run(debug=True)
