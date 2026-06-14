@@ -8,7 +8,10 @@ import pandas as pd
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
-os.environ['SYLUXENT_DATABASE_URI'] = 'sqlite:///:memory:'
+
+from cloud_db_guard import require_destructive_cloud_db_tests  # noqa: E402
+
+require_destructive_cloud_db_tests()
 
 from app import (  # noqa: E402
     AnalyticsData,

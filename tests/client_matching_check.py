@@ -5,7 +5,10 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
-os.environ['SYLUXENT_DATABASE_URI'] = 'sqlite:///:memory:'
+
+from cloud_db_guard import require_destructive_cloud_db_tests  # noqa: E402
+
+require_destructive_cloud_db_tests()
 
 from app import Client, ClientAlias, Role, SalesOrder, User, app, db, normalize_client_match_key, resolve_client_name  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402

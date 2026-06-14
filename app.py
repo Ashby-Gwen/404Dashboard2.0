@@ -28,7 +28,6 @@ except ImportError as e:
 
 from datetime import UTC, date, datetime, timedelta
 import os
-import sqlite3
 import json
 from functools import wraps
 from io import StringIO, TextIOWrapper, BytesIO# <--- MAKE SURE THIS IS HERE
@@ -61,15 +60,39 @@ app = Flask(__name__)
 os.makedirs(app.instance_path, exist_ok=True)
 os.makedirs(os.path.join(app.static_folder, 'uploads', 'profiles'), exist_ok=True)
 
-default_database_path = os.path.join(app.instance_path, 'syluxent.db').replace(os.sep, '/')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
-# Render free services use an ephemeral filesystem, so this SQLite fallback is suitable
-# only for capstone demos/prototypes. Use SYLUXENT_DATABASE_URI for any persistent DB.
-database_uri = os.environ.get('SYLUXENT_DATABASE_URI') or f'sqlite:///{default_database_path}'
+
+def get_required_database_uri():
+    database_uri = (os.environ.get('SYLUXENT_DATABASE_URI') or '').strip()
+    if not database_uri:
+        raise RuntimeError(
+            'SYLUXENT_DATABASE_URI is required. Set it to the Supabase Postgres connection string.'
+        )
+    if any(placeholder in database_uri for placeholder in ('[YOUR-PASSWORD]', '<PASSWORD>', ':password@')):
+        raise RuntimeError('SYLUXENT_DATABASE_URI still contains a password placeholder.')
+    if database_uri.startswith('postgresql://'):
+        database_uri = 'postgresql+psycopg://' + database_uri[len('postgresql://'):]
+    elif database_uri.startswith('postgres://'):
+        database_uri = 'postgresql+psycopg://' + database_uri[len('postgres://'):]
+    if not database_uri.startswith('postgresql+psycopg://'):
+        raise RuntimeError('SYLUXENT_DATABASE_URI must use a PostgreSQL/Supabase connection string.')
+    return database_uri
+
+database_uri = get_required_database_uri()
 app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_pre_ping": True}
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+
+def postgres_year(column):
+    return extract('year', column).cast(db.Integer)
+
+def postgres_month_number(column):
+    return extract('month', column).cast(db.Integer)
+
+def postgres_month_key(column):
+    return func.to_char(column, 'YYYY-MM')
 
 # Database Models
 class User(db.Model):
@@ -1354,12 +1377,12 @@ def sales_order_description(sales_order):
 def report_available_years():
     current_year = datetime.now().year
     available_year_rows = (
-        db.session.query(func.strftime('%Y', SalesOrder.order_date).label('year'))
+        db.session.query(postgres_year(SalesOrder.order_date).label('year'))
         .filter(SalesOrder.order_date.isnot(None))
         .union(
-            db.session.query(func.strftime('%Y', Invoice.invoice_date).label('year'))
+            db.session.query(postgres_year(Invoice.invoice_date).label('year'))
             .filter(Invoice.invoice_date.isnot(None)),
-            db.session.query(func.strftime('%Y', PurchaseOrder.date).label('year'))
+            db.session.query(postgres_year(PurchaseOrder.date).label('year'))
             .filter(PurchaseOrder.date.isnot(None))
         )
         .all()
@@ -1973,244 +1996,6 @@ def inject_user_navigation():
     }
 
 # Initialize Database
-def get_configured_sqlite_path():
-    database_path = db.engine.url.database
-    if not database_path or database_path == ':memory:':
-        return None
-    if os.path.isabs(database_path):
-        return database_path
-    return os.path.join(app.instance_path, database_path)
-
-def ensure_schema_updates():
-    db_path = get_configured_sqlite_path()
-    if not db_path:
-        return
-    if not os.path.exists(db_path):
-        return
-
-    conn = sqlite3.connect(db_path)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(users)")
-        user_columns = [column[1] for column in cursor.fetchall()]
-        if 'email' not in user_columns:
-            cursor.execute("ALTER TABLE users ADD COLUMN email VARCHAR(255)")
-        if 'status' not in user_columns:
-            cursor.execute("ALTER TABLE users ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'")
-        if 'profile_photo' not in user_columns:
-            cursor.execute("ALTER TABLE users ADD COLUMN profile_photo VARCHAR(255)")
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS password_resets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                username VARCHAR(80) NOT NULL,
-                status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-                requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                resolved_at DATETIME,
-                resolved_by_user_id INTEGER,
-                FOREIGN KEY(user_id) REFERENCES users(id),
-                FOREIGN KEY(resolved_by_user_id) REFERENCES users(id)
-            )
-        """)
-
-        cursor.execute("PRAGMA table_info(clients)")
-        client_columns = [column[1] for column in cursor.fetchall()]
-        if 'status' not in client_columns:
-            cursor.execute("ALTER TABLE clients ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE'")
-        if 'total_revenue' not in client_columns:
-            cursor.execute("ALTER TABLE clients ADD COLUMN total_revenue FLOAT DEFAULT 0.0")
-        if 'total_paid' not in client_columns:
-            cursor.execute("ALTER TABLE clients ADD COLUMN total_paid FLOAT DEFAULT 0.0")
-        if 'total_balance' not in client_columns:
-            cursor.execute("ALTER TABLE clients ADD COLUMN total_balance FLOAT DEFAULT 0.0")
-        if 'balance_status' not in client_columns:
-            cursor.execute("ALTER TABLE clients ADD COLUMN balance_status VARCHAR(30) DEFAULT 'Settled'")
-        if 'last_invoice_date' not in client_columns:
-            cursor.execute("ALTER TABLE clients ADD COLUMN last_invoice_date DATE")
-        if 'last_payment_date' not in client_columns:
-            cursor.execute("ALTER TABLE clients ADD COLUMN last_payment_date DATE")
-        if 'financials_updated_at' not in client_columns:
-            cursor.execute("ALTER TABLE clients ADD COLUMN financials_updated_at DATETIME")
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS client_aliases (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                alias_name VARCHAR(200) NOT NULL,
-                normalized_alias VARCHAR(200) NOT NULL UNIQUE,
-                client_id INTEGER NOT NULL,
-                status VARCHAR(20) DEFAULT 'ACTIVE',
-                created_at DATETIME,
-                FOREIGN KEY(client_id) REFERENCES clients(id)
-            )
-        """)
-        cursor.execute("PRAGMA table_info(sales_orders)")
-        sales_order_columns = [column[1] for column in cursor.fetchall()]
-        if 'official_client_name' not in sales_order_columns:
-            cursor.execute("ALTER TABLE sales_orders ADD COLUMN official_client_name VARCHAR(200)")
-        if 'original_entered_client_name' not in sales_order_columns:
-            cursor.execute("ALTER TABLE sales_orders ADD COLUMN original_entered_client_name VARCHAR(200)")
-
-        cursor.execute("PRAGMA table_info(purchase_orders)")
-        purchase_order_columns = [column[1] for column in cursor.fetchall()]
-        if 'status' not in purchase_order_columns:
-            cursor.execute("ALTER TABLE purchase_orders ADD COLUMN status VARCHAR(20) DEFAULT 'PENDING'")
-        if 'category' not in purchase_order_columns:
-            cursor.execute("ALTER TABLE purchase_orders ADD COLUMN category VARCHAR(20) DEFAULT 'FIXED'")
-
-        cursor.execute("PRAGMA table_info(invoices)")
-        invoice_info = cursor.fetchall()
-        invoice_columns = [column[1] for column in invoice_info]
-        if 'cr_number' not in invoice_columns:
-            cursor.execute("ALTER TABLE invoices ADD COLUMN cr_number VARCHAR(50)")
-        if 'uploaded_client_name' not in invoice_columns:
-            cursor.execute("ALTER TABLE invoices ADD COLUMN uploaded_client_name VARCHAR(200)")
-        if 'upload_source' not in invoice_columns:
-            cursor.execute("ALTER TABLE invoices ADD COLUMN upload_source VARCHAR(50)")
-        if 'admin_upload_note' not in invoice_columns:
-            cursor.execute("ALTER TABLE invoices ADD COLUMN admin_upload_note TEXT")
-
-        cursor.execute("PRAGMA table_info(invoices)")
-        invoice_info = cursor.fetchall()
-        invoice_constraints = {column[1]: column for column in invoice_info}
-        requires_invoice_rebuild = any(
-            invoice_constraints.get(column_name, [None, None, None, 0])[3]
-            for column_name in ('sales_order_id', 'total_amount', 'balance')
-        )
-        if requires_invoice_rebuild:
-            rebuild_invoices_for_admin_upload(cursor)
-
-        ensure_analytics_data_ledger_schema(cursor)
-        ensure_evaluation_schema(cursor)
-        cursor.execute("DROP TABLE IF EXISTS analytics_table")
-
-        conn.commit()
-    finally:
-        conn.close()
-
-def ensure_analytics_data_ledger_schema(cursor):
-    cursor.execute("PRAGMA table_info(analytics_data)")
-    existing_columns = [column[1] for column in cursor.fetchall()]
-    if existing_columns:
-        if 'upload_batch_id' not in existing_columns:
-            cursor.execute("ALTER TABLE analytics_data ADD COLUMN upload_batch_id VARCHAR(80)")
-        if 'source_filename' not in existing_columns:
-            cursor.execute("ALTER TABLE analytics_data ADD COLUMN source_filename VARCHAR(255)")
-        if 'source_format' not in existing_columns:
-            cursor.execute("ALTER TABLE analytics_data ADD COLUMN source_format VARCHAR(20)")
-        return
-    ledger_columns = {
-        'analytics_id', 'source_type', 'source_id', 'transaction_date',
-        'financial_stage', 'flow_direction', 'flow_status', 'party_name',
-        'party_role', 'amount', 'balance_amount', 'category', 'status', 'description',
-        'upload_batch_id', 'source_filename', 'source_format', 'created_at'
-    }
-    if set(existing_columns) == ledger_columns:
-        return
-    cursor.execute("DROP TABLE IF EXISTS analytics_data")
-    cursor.execute("""
-        CREATE TABLE analytics_data (
-            analytics_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_type TEXT NOT NULL,
-            source_id TEXT NOT NULL,
-            transaction_date DATE NOT NULL,
-            financial_stage TEXT NOT NULL,
-            flow_direction TEXT NOT NULL,
-            flow_status TEXT NOT NULL,
-            party_name TEXT NOT NULL,
-            party_role TEXT NOT NULL,
-            amount REAL NOT NULL DEFAULT 0,
-            balance_amount REAL DEFAULT 0,
-            category TEXT NOT NULL,
-            status TEXT,
-            description TEXT,
-            upload_batch_id VARCHAR(80),
-            source_filename VARCHAR(255),
-            source_format VARCHAR(20),
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-def ensure_evaluation_schema(cursor):
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS evaluation_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            evaluator_name VARCHAR(120) NOT NULL,
-            evaluator_role VARCHAR(80),
-            overall_comment TEXT,
-            overall_mean FLOAT DEFAULT 0.0,
-            interpretation VARCHAR(50),
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS evaluation_questions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category VARCHAR(80) NOT NULL,
-            question_text TEXT NOT NULL,
-            display_order INTEGER DEFAULT 0,
-            is_active BOOLEAN DEFAULT 1
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS evaluation_responses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id INTEGER NOT NULL,
-            question_id INTEGER NOT NULL,
-            rating INTEGER NOT NULL,
-            comment TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(session_id) REFERENCES evaluation_sessions(id),
-            FOREIGN KEY(question_id) REFERENCES evaluation_questions(id)
-        )
-    """)
-
-def rebuild_invoices_for_admin_upload(cursor):
-    cursor.execute("PRAGMA foreign_keys=OFF")
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS invoices_admin_upload_migration (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            invoice_number VARCHAR(50) NOT NULL UNIQUE,
-            sales_order_id INTEGER,
-            invoice_type VARCHAR(20) NOT NULL,
-            invoice_date DATE NOT NULL,
-            summary TEXT,
-            payment_type VARCHAR(20),
-            cr_number VARCHAR(50),
-            payment_amount FLOAT DEFAULT 0.0,
-            tax_amount_paid FLOAT DEFAULT 0.0,
-            is_2307_checked BOOLEAN DEFAULT 0,
-            total_amount FLOAT,
-            amount_paid FLOAT DEFAULT 0.0,
-            balance FLOAT,
-            status VARCHAR(20) DEFAULT 'UNPAID',
-            uploaded_client_name VARCHAR(200),
-            upload_source VARCHAR(50),
-            admin_upload_note TEXT,
-            created_at DATETIME,
-            FOREIGN KEY(sales_order_id) REFERENCES sales_orders(id)
-        )
-    """)
-    cursor.execute("PRAGMA table_info(invoices)")
-    existing_columns = [column[1] for column in cursor.fetchall()]
-    target_columns = [
-        'id', 'invoice_number', 'sales_order_id', 'invoice_type', 'invoice_date',
-        'summary', 'payment_type', 'cr_number', 'payment_amount', 'tax_amount_paid',
-        'is_2307_checked', 'total_amount', 'amount_paid', 'balance', 'status',
-        'uploaded_client_name', 'upload_source', 'admin_upload_note', 'created_at'
-    ]
-    select_columns = [
-        column if column in existing_columns else 'NULL'
-        for column in target_columns
-    ]
-    cursor.execute(f"""
-        INSERT INTO invoices_admin_upload_migration ({', '.join(target_columns)})
-        SELECT {', '.join(select_columns)} FROM invoices
-    """)
-    cursor.execute("DROP TABLE invoices")
-    cursor.execute("ALTER TABLE invoices_admin_upload_migration RENAME TO invoices")
-    cursor.execute("PRAGMA foreign_keys=ON")
-
 DEFAULT_EVALUATION_QUESTIONS = [
     ("Functionality", "The system provides the analytics functions needed to monitor POS and hardware sales performance."),
     ("Functionality", "The upload and validation workflow supports accurate sales data entry."),
@@ -2257,11 +2042,9 @@ def seed_evaluation_questions():
 
 def init_db():
     with app.app_context():
-        db_path = get_configured_sqlite_path()
-        if db_path:
-            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        if db.engine.dialect.name != 'postgresql':
+            raise RuntimeError('Supabase-only mode requires a PostgreSQL database.')
         db.create_all()
-        ensure_schema_updates()
         
         # Create default roles if they don't exist
         if not Role.query.first():
@@ -2499,12 +2282,12 @@ def dashboard():
         return value or 0
 
     available_year_rows = (
-        db.session.query(func.strftime('%Y', SalesOrder.order_date).label('year'))
+        db.session.query(postgres_year(SalesOrder.order_date).label('year'))
         .filter(SalesOrder.order_date.isnot(None))
         .union(
-            db.session.query(func.strftime('%Y', Invoice.invoice_date).label('year'))
+            db.session.query(postgres_year(Invoice.invoice_date).label('year'))
             .filter(Invoice.invoice_date.isnot(None)),
-            db.session.query(func.strftime('%Y', PurchaseOrder.date).label('year'))
+            db.session.query(postgres_year(PurchaseOrder.date).label('year'))
             .filter(PurchaseOrder.date.isnot(None))
         )
         .all()
@@ -2897,10 +2680,11 @@ def get_sales_order_reports():
     try:
         filters = parse_report_date_filter()
         report_rows = sales_report_itemized_rows(filters)
+        year_month = postgres_month_key(SalesOrder.order_date).label('year_month')
 
         monthly_query = (
             db.session.query(
-                func.strftime('%Y-%m', SalesOrder.order_date).label('year_month'),
+                year_month,
                 func.sum(SalesOrderItem.total).label('monthly_total')
             )
             .join(SalesOrderItem, SalesOrder.id == SalesOrderItem.sales_order_id)
@@ -2909,8 +2693,8 @@ def get_sales_order_reports():
                 SalesOrder.order_date >= filters['start_date'],
                 SalesOrder.order_date < filters['end_date']
             )
-            .group_by('year_month')
-            .order_by(asc('year_month'))
+            .group_by(year_month)
+            .order_by(asc(year_month))
         )
         monthly_summary = monthly_query.all()
 
@@ -4691,7 +4475,7 @@ def get_overview():
         period = filters['period']
 
         # Get available unique years for filter dropdown
-        years_query = db.session.query(func.strftime('%Y', AnalyticsData.transaction_date)).distinct().all()
+        years_query = db.session.query(postgres_year(AnalyticsData.transaction_date)).distinct().all()
         available_years = sorted([int(y[0]) for y in years_query if y[0] is not None], reverse=True)
         
         # 1. Calculate overall dashboard totals (Gross Revenue & Cost of Goods Sold)
@@ -4718,8 +4502,9 @@ def get_overview():
         total_cost = kpi_totals.total_cost or 0.0
 
         # 2. GROUP BY MONTH & SORT CHRONOLOGICALLY
+        month_number = postgres_month_number(AnalyticsData.transaction_date).label('month_num')
         monthly_query = db.session.query(
-            func.strftime('%m', AnalyticsData.transaction_date).label('month_num'),
+            month_number,
             func.min(AnalyticsData.transaction_date).label('first_day_of_month'),
             func.sum(AnalyticsData.amount).label('monthly_revenue')
         ).filter(
@@ -4728,9 +4513,9 @@ def get_overview():
             AnalyticsData.flow_direction == 'INFLOW',
             AnalyticsData.flow_status == 'ACTUAL'
         ).group_by(
-            func.strftime('%m', AnalyticsData.transaction_date)
+            month_number
         ).order_by(
-            asc(func.strftime('%m', AnalyticsData.transaction_date)) 
+            asc(month_number)
         ).all()
 
         # 3. Format labels consistently as DD/MM/YYYY.

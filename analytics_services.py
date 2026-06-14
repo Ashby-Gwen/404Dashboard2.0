@@ -23,10 +23,18 @@ from typing import Any
 
 
 import pandas as pd
-from sqlalchemy import func
+from sqlalchemy import extract, func
 
 
 MAPE_DEFAULT_THRESHOLD = 20.0
+
+
+def postgres_month_key(column: Any):
+    return func.to_char(column, 'YYYY-MM')
+
+
+def postgres_weekday(column: Any):
+    return extract('dow', column)
 
 
 def numeric(value: Any, digits: int | None = None) -> float:
@@ -841,9 +849,10 @@ def get_sales_analysis(db: Any, models: dict[str, Any], mape_threshold: float = 
 
 def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_date: Any = None, end_date: Any = None) -> dict[str, Any]:
     """Build descriptive analytics for products, periods, and trend direction."""
+    month_key = postgres_month_key(SalesOrder.order_date).label('month')
     monthly_query = (
         db.session.query(
-            func.strftime('%Y-%m', SalesOrder.order_date).label('month'),
+            month_key,
             func.sum(SalesOrderItem.quantity * SalesOrderItem.selling_price).label('revenue'),
             func.sum(SalesOrderItem.quantity).label('quantity'),
         )
@@ -851,8 +860,8 @@ def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_d
     )
     monthly_rows = (
         _apply_date_bounds(monthly_query, SalesOrder.order_date, start_date, end_date)
-        .group_by(func.strftime('%Y-%m', SalesOrder.order_date))
-        .order_by(func.strftime('%Y-%m', SalesOrder.order_date))
+        .group_by(month_key)
+        .order_by(month_key)
         .all()
     )
     monthly_trend = [
@@ -877,16 +886,17 @@ def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_d
         {"item": row.particular, "quantity": numeric(row.quantity, 2), "revenue": numeric(row.revenue, 2)}
         for row in item_rows
     ]
+    weekday_number = postgres_weekday(SalesOrder.order_date).label('weekday')
     weekday_query = (
         db.session.query(
-            func.strftime('%w', SalesOrder.order_date).label('weekday'),
+            weekday_number,
             func.sum(SalesOrderItem.total).label('revenue'),
         )
         .join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
     )
     weekday_rows = (
         _apply_date_bounds(weekday_query, SalesOrder.order_date, start_date, end_date)
-        .group_by(func.strftime('%w', SalesOrder.order_date))
+        .group_by(weekday_number)
         .order_by(func.sum(SalesOrderItem.total).desc())
         .all()
     )
@@ -1059,15 +1069,16 @@ def get_sales_forecast(
         avg_cost = sum((row.unit_cost or 0) for row in item_rows) / len(item_rows) if item_rows else 0
         monthly_quantities = []
         if SalesOrder is not None:
+            month_key = postgres_month_key(SalesOrder.order_date).label('month')
             monthly_query = (
                 db.session.query(
-                    func.strftime('%Y-%m', SalesOrder.order_date).label('month'),
+                    month_key,
                     func.sum(SalesOrderItem.quantity).label('quantity'),
                 )
                 .join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
                 .filter(SalesOrderItem.particular == item.particular)
             )
-            monthly_rows = _apply_date_bounds(monthly_query, SalesOrder.order_date, start_date, end_date).group_by(func.strftime('%Y-%m', SalesOrder.order_date)).order_by(func.strftime('%Y-%m', SalesOrder.order_date)).all()
+            monthly_rows = _apply_date_bounds(monthly_query, SalesOrder.order_date, start_date, end_date).group_by(month_key).order_by(month_key).all()
             monthly_quantities = [float(row.quantity or 0) for row in monthly_rows]
         backtest = backtest_holt_winters(monthly_quantities)
         if backtest["status"] == "tested":
@@ -1094,15 +1105,16 @@ def get_sales_forecast(
     monthly_revenue = []
     monthly_profit = []
     if SalesOrder is not None:
+        month_key = postgres_month_key(SalesOrder.order_date).label('month')
         revenue_query = (
             db.session.query(
-                func.strftime('%Y-%m', SalesOrder.order_date).label('month'),
+                month_key,
                 func.sum(SalesOrderItem.quantity * SalesOrderItem.selling_price).label('revenue'),
                 func.sum(SalesOrderItem.quantity * (SalesOrderItem.selling_price - SalesOrderItem.unit_cost)).label('profit')
             )
             .join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
         )
-        rows = _apply_date_bounds(revenue_query, SalesOrder.order_date, start_date, end_date).group_by(func.strftime('%Y-%m', SalesOrder.order_date)).order_by(func.strftime('%Y-%m', SalesOrder.order_date)).all()
+        rows = _apply_date_bounds(revenue_query, SalesOrder.order_date, start_date, end_date).group_by(month_key).order_by(month_key).all()
         monthly_periods = [row.month for row in rows if row.month]
         monthly_revenue = [float(row.revenue or 0) for row in rows]
         monthly_profit = [float(row.profit or 0) for row in rows]
