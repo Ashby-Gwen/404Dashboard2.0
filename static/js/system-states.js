@@ -554,7 +554,7 @@
                 logo.replaceChildren();
                 image = document.createElement('img');
                 image.dataset.themeNavLogo = 'true';
-                image.alt = 'Syluxent';
+                image.alt = '404 Dashboard';
                 image.decoding = 'async';
                 logo.appendChild(image);
             }
