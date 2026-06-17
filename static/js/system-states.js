@@ -480,12 +480,108 @@
         ]
     };
 
+    const themeBrandingAssets = {
+        dark: {
+            navLogo: 'dark-theme-nav-logo.png',
+            favicon: 'dark-theme-favicon.png'
+        },
+        light: {
+            navLogo: 'light-theme-navbar-logo.png',
+            favicon: 'light-theme-favicon.png'
+        },
+        contrast: {
+            navLogo: 'contrast-theme-nav-logo.png',
+            favicon: 'contrast-theme-favicon.png'
+        },
+        rose: {
+            navLogo: 'rose-theme-nav-logo.png',
+            favicon: 'rose-theme-favicon.png'
+        },
+        ashby: {
+            navLogo: 'ashby-theme-nav-logo.png',
+            favicon: 'ashby-theme-favicon.png'
+        }
+    };
+
+    const themePresetPalettes = {
+        dark: { bg: '#0F1115', bg2: '#1A1D24', orange: '#F97316' },
+        light: { bg: '#F8FAFC', bg2: '#F8FAFC', orange: '#F97316' },
+        contrast: { bg: '#111827', bg2: '#1F2937', orange: '#F59E0B' },
+        rose: { bg: '#F1F4F0', bg2: '#F1F4F0', orange: '#4A7C59' },
+        ashby: { bg: '#FBFAF8', bg2: '#FBFAF8', orange: '#D4AF37' }
+    };
+
+    function cssVariable(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim().toUpperCase();
+    }
+
+    function detectPresetThemeMode() {
+        const bg = cssVariable('--bg');
+        const bg2 = cssVariable('--bg-2');
+        const orange = cssVariable('--orange');
+        return Object.entries(themePresetPalettes).find(([, palette]) => {
+            return bg === palette.bg &&
+                bg2 === palette.bg2 &&
+                orange === palette.orange;
+        })?.[0] || '';
+    }
+
+    function detectThemeMode() {
+        const explicitMode = document.body?.dataset.themeMode || document.documentElement.dataset.themeMode;
+        if (themeBrandingAssets[explicitMode]) return explicitMode;
+        const presetMode = detectPresetThemeMode();
+        if (presetMode) return presetMode;
+        if (isAshbyMode()) return 'ashby';
+        if (isHighContrastPalette()) return 'contrast';
+        if (isDarkPalette()) return 'dark';
+        return 'light';
+    }
+
+    function themeAssetPath(folder, filename) {
+        return `/static/images/${folder}/${filename}`;
+    }
+
+    function updateThemeBranding(mode = '') {
+        if (!document.documentElement) return;
+        const activeMode = themeBrandingAssets[mode] ? mode : detectThemeMode();
+        const assets = themeBrandingAssets[activeMode] || themeBrandingAssets.light;
+        const logoSrc = themeAssetPath('icons', assets.navLogo);
+        const faviconSrc = themeAssetPath('favicon', assets.favicon);
+
+        document.querySelectorAll('.nav-logo').forEach(logo => {
+            let image = logo.querySelector('img[data-theme-nav-logo]');
+            if (!image) {
+                logo.replaceChildren();
+                image = document.createElement('img');
+                image.dataset.themeNavLogo = 'true';
+                image.alt = 'Syluxent';
+                image.decoding = 'async';
+                logo.appendChild(image);
+            }
+            if (image.getAttribute('src') !== logoSrc) {
+                image.src = logoSrc;
+            }
+        });
+
+        let favicon = document.querySelector('link[rel="icon"][data-theme-favicon]');
+        if (!favicon) {
+            favicon = document.createElement('link');
+            favicon.rel = 'icon';
+            favicon.type = 'image/png';
+            favicon.dataset.themeFavicon = 'true';
+            document.head.appendChild(favicon);
+        }
+        if (favicon.getAttribute('href') !== faviconSrc) {
+            favicon.href = faviconSrc;
+        }
+    }
+
     function isAshbyMode() {
         const mode = document.body?.dataset.themeMode || document.documentElement.dataset.themeMode;
         if (mode === 'ashby') return true;
-        const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim().toUpperCase();
-        const bg2 = getComputedStyle(document.documentElement).getPropertyValue('--bg-2').trim().toUpperCase();
-        const highlight = getComputedStyle(document.documentElement).getPropertyValue('--orange').trim().toUpperCase();
+        const bg = cssVariable('--bg');
+        const bg2 = cssVariable('--bg-2');
+        const highlight = cssVariable('--orange');
         return (bg === '#FBFAF8' && bg2 === '#FBFAF8' && highlight === '#D4AF37') ||
             (bg === '#FFFFFF' && bg2 === '#F7E7B5' && highlight === '#C99700');
     }
@@ -503,10 +599,10 @@
     }
 
     function isHighContrastPalette() {
-        const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim().toUpperCase();
-        const bg2 = getComputedStyle(document.documentElement).getPropertyValue('--bg-2').trim().toUpperCase();
-        const orange = getComputedStyle(document.documentElement).getPropertyValue('--orange').trim().toUpperCase();
-        const text = getComputedStyle(document.documentElement).getPropertyValue('--text').trim().toUpperCase();
+        const bg = cssVariable('--bg');
+        const bg2 = cssVariable('--bg-2');
+        const orange = cssVariable('--orange');
+        const text = cssVariable('--text');
         return (bg === '#000000' && orange === '#FF9800') ||
             (bg === '#111827' && bg2 === '#1F2937' && orange === '#F59E0B') ||
             bg === '#020B1F' ||
@@ -517,33 +613,14 @@
 
     function syncThemeMode() {
         if (!document.body) return;
-        if (isAshbyMode()) {
-            document.body.dataset.themeMode = 'ashby';
-            document.documentElement.dataset.themeMode = 'ashby';
-            return;
-        }
-        if (isHighContrastPalette()) {
-            document.body.dataset.themeMode = 'contrast';
-            document.documentElement.dataset.themeMode = 'contrast';
+        const mode = detectThemeMode();
+        document.body.dataset.themeMode = mode;
+        document.documentElement.dataset.themeMode = mode;
+        updateThemeBranding(mode);
+        if (mode !== 'ashby') {
             document.body.classList.remove('ashby-sidebar-collapsed');
             delete document.body.dataset.ashbyVerseInitialized;
-            return;
         }
-        if (isDarkPalette()) {
-            document.body.dataset.themeMode = 'dark';
-            document.documentElement.dataset.themeMode = 'dark';
-            document.body.classList.remove('ashby-sidebar-collapsed');
-            delete document.body.dataset.ashbyVerseInitialized;
-            return;
-        }
-        if (document.body.dataset.themeMode === 'ashby' || document.body.dataset.themeMode === 'dark') {
-            document.body.dataset.themeMode = '';
-        }
-        if (document.documentElement.dataset.themeMode === 'ashby' || document.documentElement.dataset.themeMode === 'dark') {
-            document.documentElement.dataset.themeMode = '';
-        }
-        document.body.classList.remove('ashby-sidebar-collapsed');
-        delete document.body.dataset.ashbyVerseInitialized;
     }
 
     function ensureAshbySidebar() {
@@ -908,6 +985,7 @@
             initializeFutureDateWarnings();
             initializeLogoutCacheCleanup();
             initializeEvaluationModal();
+            updateThemeBranding();
             renderAshbyVerse();
         }, { once: true });
     } else {
@@ -916,17 +994,25 @@
         initializeFutureDateWarnings();
         initializeLogoutCacheCleanup();
         initializeEvaluationModal();
+        updateThemeBranding();
         renderAshbyVerse();
     }
     document.addEventListener('syluxent-content-updated', event => {
         initializeFutureDateWarnings(event.target || document);
         initializeLogoutCacheCleanup(event.target || document);
         initializeEvaluationModal();
+        updateThemeBranding();
     });
     new MutationObserver(mutations => {
         if (mutations.some(mutation => Array.from(mutation.addedNodes).some(node => node.nodeType === 1 && (node.matches?.('input[type="date"]') || node.querySelector?.('input[type="date"]'))))) {
             initializeFutureDateWarnings();
         }
+        if (mutations.some(mutation => Array.from(mutation.addedNodes).some(node => node.nodeType === 1 && (node.matches?.('.nav-logo') || node.querySelector?.('.nav-logo'))))) {
+            updateThemeBranding();
+        }
     }).observe(document.documentElement, { childList: true, subtree: true });
-    window.addEventListener('syluxent-theme-mode', renderAshbyVerse);
+    window.addEventListener('syluxent-theme-mode', event => {
+        updateThemeBranding(event.detail?.mode);
+        renderAshbyVerse();
+    });
 })();

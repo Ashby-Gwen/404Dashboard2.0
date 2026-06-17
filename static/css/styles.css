@@ -2466,6 +2466,11 @@ nav:not(:has(.nav-menu)) .nav-user {
         border-radius: var(--radius-lg);
     }
 
+    .nav-logo img[data-theme-nav-logo] {
+        height: 34px !important;
+        max-width: 132px !important;
+    }
+
     .profile-link {
         max-width: 58px;
         padding-right: 5px;
@@ -3471,6 +3476,14 @@ body > nav {
     border-radius: var(--radius-lg) !important;
 }
 
+.nav-logo img[data-theme-nav-logo] {
+    display: block !important;
+    width: auto !important;
+    height: 40px !important;
+    max-width: min(180px, 100%) !important;
+    object-fit: contain !important;
+}
+
 .nav-menu {
     min-width: 0 !important;
     width: 100% !important;
@@ -3643,6 +3656,11 @@ body[data-theme-mode="contrast"] [style*="background:#F8FAFC"] {
         min-height: 34px !important;
         padding: 7px 10px !important;
         font-size: 0.8rem !important;
+    }
+
+    .nav-logo img[data-theme-nav-logo] {
+        height: 34px !important;
+        max-width: 132px !important;
     }
 
     .profile-link {
