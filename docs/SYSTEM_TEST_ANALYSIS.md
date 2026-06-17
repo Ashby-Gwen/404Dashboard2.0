@@ -18,7 +18,7 @@ Date: May 13, 2026
 | Homepage & Dashboard Logic | Pass | Total Expenses, Pondo Remaining, and client unpaid sales order drill-through are implemented. |
 | Sales Order Module | Partially Pass | Excel processing still uses backend Python paths instead of being fully browser-side. |
 | Invoice Module | Pass | Required features are implemented. |
-| Purchase Order Module | Pass | Required features are implemented. |
+| Expense Module | Pass | Required features are implemented. |
 | Database Interface | Pass | Session and Client Basket views are implemented. |
 | Analytics Interface | Pass | Weekly cashflow, monthly cashflow, and revenue leakage/bad debt client metric are implemented. |
 | SO Details Viewer Empty State | Pass | No selected sales order displays "no sales order". |
@@ -31,7 +31,7 @@ Overall compliance estimate: 90%. The remaining known compliance gap is the Sale
 
 - Navigation bar with Syluxent logo, user's name, real-time date/time, and logout button.
 - Role-based tabs:
-  - Staff: Home, Sales Order, Invoice, Purchase Order
+  - Staff: Home, Sales Order, Invoice, Expense
   - Admin: Database Interface/User Management
   - Manager: Home, Analytics
 - Login with username and password.
@@ -64,7 +64,7 @@ Result: Pass.
 - Financial cards:
   - Total Accounts Receivable from sales order balances.
   - Total Revenue.
-  - Total Expenses from Purchase Order data.
+  - Total Expenses from expense data.
   - Pondo Remaining for next month.
 - Clients with balances:
   - Display client name and balance.
@@ -77,7 +77,7 @@ Implemented:
 
 - Accounts Receivable card.
 - Total Revenue card.
-- Total Expenses card from Purchase Order cash amounts.
+- Total Expenses card from expense cash amounts.
 - Pondo Remaining card calculated from revenue minus expenses.
 - Sales Orders summary card.
 - Clients summary table.
@@ -171,7 +171,7 @@ Missing or incomplete:
 
 Result: Pass.
 
-## Test 5: Purchase Order Module
+## Test 5: Expense Module
 
 ### Requirements
 
@@ -197,11 +197,11 @@ Result: Pass.
 
 Implemented:
 
-- Required purchase order fields.
+- Required expense fields.
 - 16 debit type dropdown.
 - Add/remove debit functionality.
 - Total debits, cash amount, and net balance calculation.
-- Backend purchase order creation with debit items.
+- Backend expense creation with debit items.
 - Purchase order history table.
 
 Missing or incomplete:
@@ -218,7 +218,7 @@ Result: Pass.
   - Users
   - Session
   - Sales Order
-  - Purchase Order
+  - Expense
   - Invoice
   - Clients
 - Sub-table toggles:
@@ -230,7 +230,7 @@ Result: Pass.
 
 Implemented:
 
-- Tabs for Users, Roles, Clients, Sales Orders, Invoices, and Purchase Orders.
+- Tabs for Users, Roles, Clients, Sales Orders, Invoices, and Expenses.
 - Users table as the default active view.
 - Database statistics cards.
 - User management with add, edit, and delete.
@@ -303,8 +303,8 @@ Result: Pass.
 - Create a sales order and confirm it appears as unpaid before invoice creation.
 - Create a partial invoice and confirm the sales order still appears unpaid.
 - Create a full invoice and confirm the sales order no longer appears unpaid.
-- Create purchase orders and verify Total Expenses reflects them.
+- Create expenses and verify Total Expenses reflects them.
 - Verify Pondo Remaining calculation against the agreed formula.
-- Verify weekly and monthly cashflow against invoice and purchase order records.
+- Verify weekly and monthly cashflow against invoice and expense records.
 - Verify revenue leakage/bad debt identifies the expected highest-impact client.
-- Verify admin table views include Users, Session, Sales Order, Purchase Order, Invoice, Clients, Client Basket, and Roles.
+- Verify admin table views include Users, Session, Sales Order, Expense, Invoice, Clients, Client Basket, and Roles.

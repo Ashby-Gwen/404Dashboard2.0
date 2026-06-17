@@ -6,7 +6,7 @@
 - Database: SQLite through SQLAlchemy
 - Data processing: pandas and openpyxl for CSV/Excel imports
 - Frontend: Jinja templates, static CSS/JavaScript, Chart.js from CDN
-- Runtime assets: local `instance/` database and `static/uploads/` profile files
+- Runtime assets: Supabase Postgres via `DATABASE_URL`; Render local files are not permanent storage.
 
 ## Recommended Deployment Path
 
@@ -18,7 +18,7 @@ Recommended baseline:
 - Python 3.11+
 - Nginx or IIS as the reverse proxy
 - Waitress on Windows or Gunicorn on Linux as the WSGI server
-- Daily backup of `instance/syluxent.db` and `static/uploads/`
+- Daily backup/export of the Supabase database.
 
 ## Linux Production Example
 
@@ -54,7 +54,7 @@ Use IIS, Nginx for Windows, or another reverse proxy to serve HTTPS and forward 
 - Set a strong `SECRET_KEY`; do not rely on development defaults.
 - Disable Flask debug mode.
 - Keep the SQLite database in `instance/` or another persistent folder.
-- Keep `static/uploads/` on persistent storage and include it in backups.
+- Store uploaded/profile data in Supabase-backed persistence. Do not rely on `static/uploads/` on Render.
 - Restrict direct public access to the database and backup files.
 - Use HTTPS for all login and admin activity.
 
@@ -70,8 +70,8 @@ Before a PostgreSQL migration:
 
 ## Backup Suggestions
 
-- Daily: copy `instance/syluxent.db` and `static/uploads/` to a dated backup folder.
-- Weekly: copy backups to external storage or cloud storage.
+- Daily: verify Supabase backups/export coverage for operational tables and settings.
+- Weekly: test restore or export import on a non-production database.
 - Before deployment updates: take a manual database backup.
 - Test restore at least once before relying on the backup routine.
 

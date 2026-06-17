@@ -1,0 +1,288 @@
+FIX 12 — GLOBAL LOADING STATE FOR ALL BUTTONS
+Category: UI Reliability
+Priority: P3
+
+Add loading states to all buttons that trigger actions.
+
+Requirements:
+
+Every save, submit, upload, delete, edit, approve, reject, login, register, print, export, and generate button should show loading while action is processing.
+Disable the button during processing.
+Prevent duplicate submissions.
+Restore button state after success/error.
+Show success or error feedback after completion.
+Match current theme.
+
+Technical requirements:
+
+Create reusable helper function/component.
+Apply to forms and fetch/AJAX actions.
+Handle both normal form submit and async JS requests.
+Ensure accessibility with aria-busy or equivalent if possible.
+
+Acceptance criteria:
+
+Buttons visibly change during processing.
+Users cannot double-submit forms.
+Loading state resets after request completes.
+Existing actions still work.
+
+============================================================
+FIX 13 — SINGLE-FILE ERROR INTERFACE SYSTEM
+Category: Error Handling / UI Feedback
+Priority: P3
+
+Create a reusable error interface system.
+
+Requirements:
+
+Create a single reusable error UI file/component.
+It should display different HTML content depending on error type:
+validation error
+authentication error
+permission error
+database error
+network error
+server error
+empty result
+Each error type should have:
+title
+short message
+suggested user action
+optional technical details for admin/developer
+Error UI must match current theme.
+Replace scattered hardcoded error messages where practical.
+
+Technical requirements:
+
+Inspect existing error handling.
+Add central error mapping.
+Avoid exposing sensitive backend details to normal users.
+For admins, allow more detailed technical messages if appropriate.
+Use server-side and client-side handling where needed.
+
+Acceptance criteria:
+
+Common errors display through the reusable component.
+Different error types show different messages.
+UI is consistent across pages.
+Sensitive details are not leaked.
+
+============================================================
+FIX 14 — MODAL EVALUATION INTERFACE FOR ALL USERS
+Category: Evaluation / Survey
+Priority: P3
+
+Create an evaluation modal for all users.
+
+Requirements:
+
+Add evaluation modal accessible to all approved users.
+Use the evaluation questionnaire categories already provided in the project/documentation if present.
+Include Likert-scale choices.
+Store responses in Supabase.
+Store:
+user ID if available
+role
+question ID
+rating
+submitted_at
+Prevent accidental duplicate submissions if required by existing logic.
+Add thank-you/success state after submission.
+Match current theme.
+
+Technical requirements:
+
+Inspect whether evaluation questions already exist in code/database.
+If not, create migration for questions and responses.
+Keep questions maintainable, not hardcoded everywhere.
+Support all user roles.
+Do not block normal system use unless required.
+
+Acceptance criteria:
+
+Any approved user can open and submit evaluation.
+Responses are saved correctly.
+Modal is responsive.
+Questions and choices display clearly.
+
+============================================================
+FIX 15 — REVISE EVALUATION QUESTIONS
+Category: Evaluation / Questionnaire Quality
+Priority: P3
+
+Revise the evaluation questions used by the system.
+
+Requirements:
+
+Use categories:
+User Experience
+Features
+Design
+Compatibility
+Reliability
+Efficiency
+Security
+Portability
+Overall Agreement
+Make questions neutral, clear, and measurable.
+Avoid leading or exaggerated wording.
+Use a no-neutral Likert scale if the project requires it:
+1 Strongly Disagree
+2 Disagree
+3 Agree
+4 Strongly Agree
+Align wording with ISO/IEC 25010 quality characteristics where applicable.
+Update database seed, frontend display, and documentation text if these exist in the project.
+
+Technical requirements:
+
+Inspect current evaluation question source.
+Do not duplicate questions if they already exist.
+If stored in database, provide migration or seed update.
+If hardcoded, refactor into a reusable data source if practical.
+
+Acceptance criteria:
+
+Questions are clear and professional.
+Scale has no neutral option if required.
+Evaluation modal uses revised questions.
+Existing response saving still works.
+
+============================================================
+FIX 16 — COLOR-CODED PDF REPORT RESULTS
+Category: Reports / PDF Output
+Priority: P4
+
+Add color-coded results to PDF reports.
+
+Requirements:
+
+Negative values should be red.
+Positive values should be green.
+Zero or neutral values should use neutral/default color.
+Add a small legend explaining the colors.
+Apply to report results where positive/negative meaning is clear:
+profit
+cash flow
+variance
+growth/decline
+balance difference
+Do not color values where red/green meaning may be misleading.
+
+Technical requirements:
+
+Inspect current PDF/report generation method.
+If PDF is generated from HTML, update print/report CSS.
+If generated server-side, update PDF rendering logic.
+Ensure colors appear in PDF export and print preview.
+Keep theme consistent but prioritize readability.
+
+Acceptance criteria:
+
+PDF shows red negative and green positive values.
+Legend appears.
+PDF remains readable when printed.
+Existing report data remains accurate.
+
+============================================================
+FIX 17 — REMOVE CLIENTS TAB IN HISTORICAL RECORDS
+Category: Dashboard Cleanup
+Priority: P4
+
+Remove the Clients tab from Historical Records in dashboard.html.
+
+Requirements:
+
+Remove the Clients tab from the Historical Records section.
+Remove related tab-switching JS if it becomes unused.
+Do not delete client analytics or client data elsewhere.
+Ensure dashboard still loads without JS errors.
+Ensure remaining tabs still work.
+
+Technical requirements:
+
+Inspect dashboard.html and related JS.
+Remove only the Historical Records Clients tab.
+Preserve Client Analysis module if separate.
+Check navigation and empty-state behavior.
+
+Acceptance criteria:
+
+Historical Records no longer shows Clients tab.
+No broken UI or console errors.
+Other dashboard tabs still work.
+
+============================================================
+FIX 18 — THEME CONSISTENCY FOR ALL NEW INTERFACES
+Category: UI Theme / Design Consistency
+Priority: Applies to all new UI
+
+Review all new or modified interfaces and make them match the selected/current theme.
+
+Requirements:
+
+Use existing CSS variables, theme classes, layout patterns, cards, buttons, modals, tables, and colors.
+Do not create random new styles unless necessary.
+Ensure all new interfaces are responsive.
+Ensure dark/light/theme behavior is preserved if the system supports it.
+Apply consistent:
+spacing
+border radius
+shadows/glass effect
+button styles
+table style
+modal style
+form inputs
+loading states
+error states
+
+Technical requirements:
+
+Inspect current base CSS/theme system.
+Refactor duplicate styles where practical.
+Keep visual hierarchy clear.
+Do not break existing layout.
+
+Acceptance criteria:
+
+All revised pages feel like one system.
+No inconsistent button/table/modal designs.
+Mobile and desktop layouts remain usable.
+
+============================================================
+FIX 19 — REDEPLOYMENT GUIDE FOR GITHUB, RENDER, SUPABASE
+Category: Deployment Documentation
+Priority: P4
+
+Create or update deployment documentation for GitHub, Render, and Supabase.
+
+Requirements:
+
+Add clear redeployment steps.
+Include GitHub push workflow.
+Include Render deployment checklist.
+Include Supabase migration checklist.
+Include environment variables checklist.
+Include rollback/checking logs.
+Include post-deployment testing checklist.
+Keep wording simple enough for a student developer to follow.
+
+Required sections:
+
+GitHub steps
+Render steps
+Supabase steps
+Environment variables
+Database migration notes
+Storage policy notes
+User testing checklist
+Common deployment errors
+Rollback plan
+
+Acceptance criteria:
+
+Documentation is saved in an appropriate file, such as README.md, DEPLOYMENT.md, or docs/deployment.md.
+Steps match the actual project structure.
+No fake commands or unsupported services are added.
+Documentation is clear and practical.

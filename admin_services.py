@@ -15,7 +15,7 @@ import os
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import inspect, or_, text
+from sqlalchemy import String, cast, inspect, or_, text
 
 
 TABLE_CONFIG = {
@@ -34,46 +34,53 @@ BLOCKED_SQL_KEYWORDS = ("drop", "alter", "attach", "detach", "pragma", "vacuum",
 
 def get_data_grid(db: Any, models: dict[str, Any], table: str, args: Any) -> dict[str, Any]:
     model = _model_for(models, table)
-    page = max(int(args.get("page", 1)), 1)
-    page_size = min(max(int(args.get("page_size", 25)), 5), 200)
+    column_map = _model_column_map(model)
+    display_columns = _display_columns(model, table)
+    queryable_display_columns = [column for column in display_columns if column in column_map]
+    page = max(_safe_int(args.get("page"), 1), 1)
+    page_size = min(max(_safe_int(args.get("page_size"), 25), 5), 200)
     search = (args.get("search") or "").strip()
     status = (args.get("status") or "").strip()
-    sort = args.get("sort") or "id"
-    direction = args.get("direction") or "desc"
-    filters = _parse_filters(args.get("filters"))
+    requested_sort = args.get("sort") or ("id" if "id" in column_map else queryable_display_columns[0])
+    sort = requested_sort if requested_sort in column_map else ("id" if "id" in column_map else queryable_display_columns[0])
+    direction = "desc" if (args.get("direction") or "desc").lower() == "desc" else "asc"
+    filters = _parse_filters(args.get("filters"), queryable_display_columns)
 
     query = model.query
     config = TABLE_CONFIG[table]
     if search:
         clauses = []
         for column_name in config["search"]:
-            column = getattr(model, column_name, None)
+            column = column_map.get(column_name)
             if column is not None:
-                clauses.append(column.ilike(f"%{search}%"))
+                clauses.append(cast(column, String).ilike(f"%{search}%"))
         if clauses:
             query = query.filter(or_(*clauses))
     if status and config["status"]:
-        query = query.filter(getattr(model, config["status"]) == status)
+        query = query.filter(column_map[config["status"]] == status)
     for column_name, value in filters.items():
-        column = getattr(model, column_name, None)
+        column = column_map.get(column_name)
         if column is not None and value not in ("", None):
-            query = query.filter(column.ilike(f"%{value}%"))
-
-    sort_column = getattr(model, sort, getattr(model, "id"))
-    query = query.order_by(sort_column.desc() if direction == "desc" else sort_column.asc())
+            query = query.filter(cast(column, String).ilike(f"%{value}%"))
 
     total = query.count()
+    pages = max((total + page_size - 1) // page_size, 1)
+    page = min(page, pages)
+    sort_column = column_map[sort]
+    query = query.order_by(sort_column.desc() if direction == "desc" else sort_column.asc())
     rows = query.offset((page - 1) * page_size).limit(page_size).all()
-    columns = [column.name for column in model.__table__.columns]
-    if table == "users":
-        columns = ["password" if column == "password_hash" else column for column in columns]
     return {
         "table": table,
         "page": page,
         "page_size": page_size,
         "total": total,
-        "pages": (total + page_size - 1) // page_size,
-        "columns": columns,
+        "pages": pages,
+        "columns": display_columns,
+        "sortable_columns": queryable_display_columns,
+        "filterable_columns": queryable_display_columns,
+        "sort": sort,
+        "direction": direction,
+        "filters": filters,
         "rows": [_serialize_model(row, table) for row in rows],
     }
 
@@ -189,12 +196,37 @@ def _model_for(models: dict[str, Any], table: str) -> Any:
     return models[TABLE_CONFIG[table]["model"]]
 
 
-def _parse_filters(raw_filters: str | None) -> dict[str, Any]:
+def _safe_int(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _model_column_map(model: Any) -> dict[str, Any]:
+    return {column.name: getattr(model, column.name) for column in model.__table__.columns}
+
+
+def _display_columns(model: Any, table: str) -> list[str]:
+    columns = [column.name for column in model.__table__.columns]
+    if table == "users":
+        return ["password" if column == "password_hash" else column for column in columns]
+    return columns
+
+
+def _parse_filters(raw_filters: str | None, allowed_columns: list[str]) -> dict[str, Any]:
     if not raw_filters:
         return {}
     try:
         parsed = json.loads(raw_filters)
-        return parsed if isinstance(parsed, dict) else {}
+        if not isinstance(parsed, dict):
+            return {}
+        allowed = set(allowed_columns)
+        return {
+            str(key): str(value).strip()
+            for key, value in parsed.items()
+            if key in allowed and str(value).strip()
+        }
     except json.JSONDecodeError:
         return {}
 

@@ -50,12 +50,29 @@ analytics_data has no declared foreign keys.
 - password_hash VARCHAR(120) [NOT NULL]
 - role_id INTEGER [FK -> roles.id, NOT NULL]
 - status VARCHAR(20) [NOT NULL]
+- approved_by INTEGER [FK -> users.id]
+- approved_at DATETIME
 - profile_photo VARCHAR(255)
+- profile_photo_data TEXT
+- profile_photo_mime VARCHAR(80)
 - created_at DATETIME
+- updated_at DATETIME
 
 Relationship:
 
 - One `roles` record can be assigned to many `users`.
+- User status is one of `pending`, `approved`, `rejected`, or `disabled`.
+- New profile photo uploads are stored in persistent Supabase Postgres fields; `profile_photo` remains only for legacy static paths.
+
+### system_settings
+
+- key VARCHAR(100) [PK, NOT NULL]
+- value TEXT [NOT NULL]
+- updated_at DATETIME
+
+Purpose:
+
+- Stores shared runtime settings, including the selected theme, in Supabase Postgres instead of Render local files.
 
 ### session_records
 

@@ -128,9 +128,12 @@ def main():
 
             analytics_payload = client.get('/api/analytics/clients?year=2026&period=year').get_json()
             assert analytics_payload['success'] is True
-            analytics_by_name = {row['company_name']: row for row in analytics_payload['clients']}
-            assert analytics_by_name['ALPHA FOODS INC']['total_revenue'] == 0
-            assert analytics_by_name['BETA RETAIL CORP']['total_revenue'] == 1300
+            analytics_by_store = {row['store_name']: row for row in analytics_payload['clients']}
+            assert analytics_by_store['MAIN STORE']['company_name'] == 'BETA RETAIL CORP'
+            assert analytics_by_store['MAIN STORE']['total_revenue'] == 300
+            assert analytics_by_store['UPTOWN STORE']['company_name'] == 'BETA RETAIL CORP'
+            assert analytics_by_store['UPTOWN STORE']['store_branch'] == 'NORTH BRANCH'
+            assert analytics_by_store['UPTOWN STORE']['total_revenue'] == 1000
 
     print('Admin client list check passed.')
 

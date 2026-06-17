@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Syluxent - Purchase Orders</title>
+    <title>Syluxent - Expenses</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
     <style>
         .form-grid {
@@ -109,6 +109,44 @@
             background: #D1FAE5;
             color: #065F46;
         }
+
+        .expense-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.58);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .expense-modal-overlay.hidden {
+            display: none;
+        }
+
+        .expense-modal {
+            width: min(920px, 100%);
+            max-height: 90vh;
+            overflow-y: auto;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-lg);
+            padding: 1.5rem;
+        }
+
+        .expense-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .action-cell {
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -123,16 +161,25 @@
     'staff': [
         ('sales_order', 'Sales Order'),
         ('invoices', 'Invoice'),
-        ('purchase_orders', 'Purchase Order')
+        ('expenses', 'Expense')
+    ],
+    'sales staff': [
+        ('sales_order', 'Sales Order')
+    ],
+    'accounting staff': [
+        ('invoices', 'Invoice'),
+        ('expenses', 'Expense')
     ],
     'manager': [
-        ('analytics', 'Analytics')
+        ('analytics', 'Analytics'),
+        ('reports', 'Reports')
     ],
     'admin': [
         ('sales_order', 'Sales Order'),
         ('invoices', 'Invoice'),
-        ('purchase_orders', 'Purchase Order'),
+        ('expenses', 'Expense'),
         ('analytics', 'Analytics'),
+        ('reports', 'Reports'),
         ('database_interface', 'Database Interface')
     ]
 } %}
@@ -149,8 +196,9 @@
 </div>
         <div class="nav-user">
             <a class="profile-link" href="{{ url_for('profile') }}">
-                {% if current_user and current_user.profile_photo %}
-                <img class="profile-avatar" src="{{ url_for('static', filename=current_user.profile_photo) }}" alt="">
+                {% set avatar_src = profile_photo_src(current_user) %}
+                {% if avatar_src %}
+                <img class="profile-avatar" src="{{ avatar_src }}" alt="">
                 {% else %}
                 <span class="profile-avatar">{{ session.username[:1]|upper }}</span>
                 {% endif %}
@@ -166,14 +214,14 @@
     <main class="page-shell">
         <div class="section-header">
             <div class="page-title">
-                <h1>Purchase Orders</h1>
+                <h1>Expenses</h1>
             </div>
         </div>
 
         {% if session.role == 'admin' %}
         <div class="card" style="margin-bottom: 1.5rem;">
             <h2>Admin Upload, Cleaning, Outlier Identifier, Excel Mapping</h2>
-            <p style="color: var(--text-muted);">Upload CSV/Excel, preview cleaned purchase order fields, review Z-score outliers, remove rows, then upload to database.</p>
+            <p style="color: var(--text-muted);">Upload CSV/Excel, preview cleaned expense fields, review Z-score outliers, remove rows, then upload to database.</p>
             <input type="file" id="adminUploadFiles" accept=".csv,.xlsx,.xls" multiple>
             <button class="btn btn-primary btn-sm" onclick="previewAdminUpload('purchase_order')">Preview Upload</button>
             <button class="btn btn-outline btn-sm" onclick="commitAdminUpload('purchase_order')">Upload Clean Rows</button>
@@ -184,7 +232,7 @@
         {% endif %}
 
         <div class="card">
-            <h2>Create Purchase Order</h2>
+            <h2>Create Expense</h2>
             
             <form id="purchaseOrderForm">
                 <div class="form-grid">
@@ -219,7 +267,7 @@
                     </div>
                     
                     <div class="form-group">
-                        <label>PO Number</label>
+                        <label>Reference/PO Number</label>
                         <input type="text" id="poNumber">
                     </div>
                     
@@ -297,14 +345,14 @@
                 </div>
 
                 <div style="text-align: center; margin-top: 2rem;">
-                    <button type="submit" class="btn btn-primary">Create Purchase Order</button>
+                    <button type="submit" class="btn btn-primary">Create Expense</button>
                 </div>
             </form>
         </div>
 
-        <!-- Purchase Orders History -->
+        <!-- Expense History -->
         <div class="card" style="margin-top: 2rem;">
-            <h2>Purchase Orders History</h2>
+            <h2>Expense History</h2>
             <div class="table-wrap">
                 <table id="purchase-orders-table">
                     <thead>
@@ -317,6 +365,7 @@
                             <th>Cash Amount</th>
                             <th>Net Balance</th>
                             <th>Status</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody id="purchase-orders-tbody">
@@ -327,8 +376,117 @@
         </div>
     </main>
 
+    <div id="editExpenseModal" class="expense-modal-overlay hidden">
+        <div class="expense-modal">
+            <div class="expense-modal-header">
+                <h2 style="margin: 0;">Edit Expense</h2>
+                <button type="button" class="btn btn-outline btn-sm" onclick="closeEditExpenseModal()">Close</button>
+            </div>
+            <form id="editExpenseForm">
+                <input type="hidden" id="editExpenseId">
+                <div class="form-grid">
+                    <div class="form-group required-field">
+                        <label>Check/Cash Voucher Number *</label>
+                        <input type="text" id="editCheckVoucherNumber" required>
+                    </div>
+                    <div class="form-group required-field">
+                        <label>Check Number *</label>
+                        <input type="text" id="editCheckNumber" required>
+                    </div>
+                    <div class="form-group required-field">
+                        <label>Check Date *</label>
+                        <input type="date" id="editCheckDate" required>
+                    </div>
+                    <div class="form-group required-field">
+                        <label>Date *</label>
+                        <input type="date" id="editPoDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label>OR Date</label>
+                        <input type="date" id="editOrDate">
+                    </div>
+                    <div class="form-group">
+                        <label>AR/CR/OR Number</label>
+                        <input type="text" id="editArCrOrNumber">
+                    </div>
+                    <div class="form-group">
+                        <label>Reference/PO Number</label>
+                        <input type="text" id="editPoNumber">
+                    </div>
+                    <div class="form-group">
+                        <label>LF No.</label>
+                        <input type="text" id="editLfNo">
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group required-field">
+                        <label>Particulars *</label>
+                        <textarea id="editParticulars" rows="3" required></textarea>
+                    </div>
+                    <div class="form-group required-field">
+                        <label>Supplier/Payee *</label>
+                        <input type="text" id="editSupplierPayee" required>
+                    </div>
+                    <div class="form-group">
+                        <label>TIN Number</label>
+                        <input type="text" id="editTinNumber">
+                    </div>
+                    <div class="form-group required-field">
+                        <label>Cash Amount *</label>
+                        <input type="number" id="editCashAmount" min="0" step="0.01" required>
+                    </div>
+                </div>
+
+                <div class="debit-section">
+                    <h3>Debit Accounts</h3>
+                    <div id="editDebitsList"></div>
+                    <button type="button" class="btn btn-outline" onclick="addEditDebit()">Add Debit Account</button>
+                </div>
+
+                <div class="calculation-section">
+                    <div class="calc-row">
+                        <span>Total Debit Accounts:</span>
+                        <span id="editTotalDebits">₱0.00</span>
+                    </div>
+                    <div class="calc-row">
+                        <span>Cash Amount:</span>
+                        <span id="editCashDisplay">₱0.00</span>
+                    </div>
+                    <div class="calc-row total">
+                        <span>Net Balance (Checking):</span>
+                        <span id="editNetBalance">₱0.00</span>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-outline" onclick="closeEditExpenseModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         let purchaseOrders = [];
+        const debitTypeOptions = [
+            'Input VAT',
+            'Cost of Goods Sold',
+            'Software',
+            'Rent Expense',
+            'Cash Advance',
+            'Government Contribution/Loan',
+            'PLDT',
+            'Globe/Smart, Sun',
+            'Petty Cash',
+            'Commission',
+            'BDO Amortization',
+            'Dividends Payable',
+            'Meralco',
+            'Support Allowance',
+            'Fund Transfer',
+            'Various Expenses'
+        ];
 
         // Update date/time
         function updateDateTime() {
@@ -338,7 +496,7 @@
         setInterval(updateDateTime, 1000);
         updateDateTime();
 
-        // Load purchase orders on page load
+        // Load expenses on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadPurchaseOrders();
             
@@ -349,18 +507,18 @@
         });
 
         function loadPurchaseOrders() {
-            fetch('{{ url_for("get_purchase_orders") }}')
+            fetch('{{ url_for("get_expenses") }}')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        purchaseOrders = data.purchase_orders;
+                        purchaseOrders = data.expenses || data.purchase_orders || [];
                         displayPurchaseOrders();
                     } else {
-                        showToast('Failed to load purchase orders', 'error');
+                        showToast('Failed to load expenses', 'error');
                     }
                 })
                 .catch(error => {
-                    showToast('Error loading purchase orders', 'error');
+                    showToast('Error loading expenses', 'error');
                 });
         }
 
@@ -368,7 +526,7 @@
             const tbody = document.getElementById('purchase-orders-tbody');
             
             if (purchaseOrders.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="no-data">No purchase orders found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="no-data">No expenses found</td></tr>';
                 return;
             }
 
@@ -382,6 +540,7 @@
                     '<td data-label="Cash Amount">' + formatCurrency(po.cash_amount) + '</td>' +
                     '<td data-label="Net Balance">' + formatCurrency(po.net_balance) + '</td>' +
                     '<td data-label="Status">' + statusBadge(po.status || 'PENDING') + '</td>' +
+                    '<td data-label="Action" class="action-cell"><button type="button" class="btn btn-outline btn-sm" onclick="openEditExpenseModal(' + po.id + ')">Edit</button></td>' +
                 '</tr>';
             }).join('');
         }
@@ -433,10 +592,51 @@
 
         // Calculations
         document.getElementById('cashAmount').addEventListener('input', calculateTotals);
+        document.getElementById('editCashAmount').addEventListener('input', calculateEditTotals);
+        document.getElementById('editExpenseModal').addEventListener('click', function(event) {
+            if (event.target === this) closeEditExpenseModal();
+        });
+
+        function debitOptions(selectedValue = '') {
+            return '<option value="">Select Debit Type</option>' + debitTypeOptions.map(type => {
+                return '<option value="' + escapeHtml(type) + '"' + (type === selectedValue ? ' selected' : '') + '>' + escapeHtml(type) + '</option>';
+            }).join('');
+        }
+
+        function editDebitRow(debit = {}) {
+            const debitItem = document.createElement('div');
+            debitItem.className = 'debit-item';
+            debitItem.innerHTML = `
+                <select class="debit-select edit-debit-select" required>${debitOptions(debit.debit_type || '')}</select>
+                <input type="number" placeholder="Amount" class="debit-amount edit-debit-amount" min="0" step="0.01" value="${Number(debit.amount || 0)}" required>
+                <button type="button" class="btn-remove-debit" onclick="removeEditDebit(this)">×</button>
+            `;
+            attachEditDebitListeners(debitItem);
+            return debitItem;
+        }
+
+        function addEditDebit(debit = {}) {
+            const debitsList = document.getElementById('editDebitsList');
+            debitsList.appendChild(editDebitRow(debit));
+            calculateEditTotals();
+        }
+
+        function removeEditDebit(button) {
+            button.parentElement.remove();
+            calculateEditTotals();
+        }
+
+        function attachEditDebitListeners(container) {
+            const inputs = container.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                input.addEventListener('input', calculateEditTotals);
+                input.addEventListener('change', calculateEditTotals);
+            });
+        }
 
         function calculateTotals() {
             const cashAmount = parseFloat(document.getElementById('cashAmount').value) || 0;
-            const debitAmounts = Array.from(document.querySelectorAll('.debit-amount'))
+            const debitAmounts = Array.from(document.querySelectorAll('#debitsList .debit-amount'))
                 .map(input => parseFloat(input.value) || 0);
             const totalDebits = debitAmounts.reduce((sum, amount) => sum + amount, 0);
             const netBalance = totalDebits - cashAmount;
@@ -444,6 +644,68 @@
             document.getElementById('totalDebits').textContent = formatCurrency(totalDebits);
             document.getElementById('cashDisplay').textContent = formatCurrency(cashAmount);
             document.getElementById('netBalance').textContent = formatCurrency(netBalance);
+        }
+
+        function calculateEditTotals() {
+            const cashAmount = parseFloat(document.getElementById('editCashAmount').value) || 0;
+            const debitAmounts = Array.from(document.querySelectorAll('.edit-debit-amount'))
+                .map(input => parseFloat(input.value) || 0);
+            const totalDebits = debitAmounts.reduce((sum, amount) => sum + amount, 0);
+            const netBalance = totalDebits - cashAmount;
+
+            document.getElementById('editTotalDebits').textContent = formatCurrency(totalDebits);
+            document.getElementById('editCashDisplay').textContent = formatCurrency(cashAmount);
+            document.getElementById('editNetBalance').textContent = formatCurrency(netBalance);
+        }
+
+        function collectDebits(selector) {
+            const debits = [];
+            document.querySelectorAll(selector).forEach(item => {
+                const debitType = item.querySelector('.debit-select').value;
+                const debitAmount = parseFloat(item.querySelector('.debit-amount').value);
+                if (debitType && debitAmount) {
+                    debits.push({
+                        debit_type: debitType,
+                        amount: debitAmount
+                    });
+                }
+            });
+            return debits;
+        }
+
+        function openEditExpenseModal(expenseId) {
+            const expense = purchaseOrders.find(item => Number(item.id) === Number(expenseId));
+            if (!expense) {
+                showToast('Expense record not found', 'error');
+                return;
+            }
+
+            document.getElementById('editExpenseId').value = expense.id;
+            document.getElementById('editCheckVoucherNumber').value = expense.check_voucher_number || '';
+            document.getElementById('editCheckNumber').value = expense.check_number || '';
+            document.getElementById('editCheckDate').value = dateInputValue(expense.check_date);
+            document.getElementById('editPoDate').value = dateInputValue(expense.date);
+            document.getElementById('editOrDate').value = dateInputValue(expense.or_date);
+            document.getElementById('editArCrOrNumber').value = expense.ar_cr_or_number || '';
+            document.getElementById('editPoNumber').value = expense.po_number || '';
+            document.getElementById('editLfNo').value = expense.lf_no || '';
+            document.getElementById('editParticulars').value = expense.particulars || '';
+            document.getElementById('editSupplierPayee').value = expense.supplier_payee || '';
+            document.getElementById('editTinNumber').value = expense.tin_number || '';
+            document.getElementById('editCashAmount').value = Number(expense.cash_amount || 0);
+
+            const debitsList = document.getElementById('editDebitsList');
+            debitsList.innerHTML = '';
+            const debits = expense.debits && expense.debits.length ? expense.debits : [{ debit_type: '', amount: '' }];
+            debits.forEach(debit => debitsList.appendChild(editDebitRow(debit)));
+            calculateEditTotals();
+            document.getElementById('editExpenseModal').classList.remove('hidden');
+        }
+
+        function closeEditExpenseModal() {
+            document.getElementById('editExpenseModal').classList.add('hidden');
+            document.getElementById('editExpenseForm').reset();
+            document.getElementById('editDebitsList').innerHTML = '';
         }
 
         // Form submission
@@ -467,18 +729,7 @@
                 return;
             }
 
-            const debits = [];
-            debitItems.forEach(item => {
-                const debitType = item.querySelector('.debit-select').value;
-                const debitAmount = parseFloat(item.querySelector('.debit-amount').value);
-                
-                if (debitType && debitAmount) {
-                    debits.push({
-                        debit_type: debitType,
-                        amount: debitAmount
-                    });
-                }
-            });
+            const debits = collectDebits('#debitsList .debit-item');
 
             const purchaseOrderData = {
                 check_voucher_number: document.getElementById('checkVoucherNumber').value,
@@ -500,7 +751,7 @@
             };
 
             showLoading(true);
-            fetch('{{ url_for("create_purchase_order") }}', {
+            fetch('{{ url_for("create_expense") }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -511,7 +762,7 @@
             .then(data => {
                 showLoading(false);
                 if (data.success) {
-                    showToast('Purchase order created successfully!', 'success');
+                    showToast('Expense created successfully!', 'success');
                     if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
                     document.getElementById('purchaseOrderForm').reset();
                     
@@ -550,12 +801,63 @@
                     calculateTotals();
                     loadPurchaseOrders();
                 } else {
-                    showToast(data.error || 'Failed to create purchase order', 'error');
+                    showToast(data.error || 'Failed to create expense', 'error');
                 }
             })
             .catch(error => {
                 showLoading(false);
-                showToast('Error creating purchase order', 'error');
+                showToast('Error creating expense', 'error');
+            });
+        });
+
+        document.getElementById('editExpenseForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const expenseId = document.getElementById('editExpenseId').value;
+            const debits = collectDebits('#editDebitsList .debit-item');
+            if (!debits.length) {
+                showToast('Please add at least one valid debit account', 'error');
+                return;
+            }
+
+            const payload = {
+                check_voucher_number: document.getElementById('editCheckVoucherNumber').value,
+                check_number: document.getElementById('editCheckNumber').value,
+                check_date: document.getElementById('editCheckDate').value,
+                date: document.getElementById('editPoDate').value,
+                or_date: document.getElementById('editOrDate').value,
+                ar_cr_or_number: document.getElementById('editArCrOrNumber').value,
+                po_number: document.getElementById('editPoNumber').value,
+                lf_no: document.getElementById('editLfNo').value,
+                particulars: document.getElementById('editParticulars').value,
+                supplier_payee: document.getElementById('editSupplierPayee').value,
+                tin_number: document.getElementById('editTinNumber').value,
+                cash_amount: parseFloat(document.getElementById('editCashAmount').value),
+                debits: debits
+            };
+
+            showLoading(true);
+            fetch('/expenses/' + encodeURIComponent(expenseId), {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                showLoading(false);
+                if (data.success) {
+                    showToast('Expense updated successfully!', 'success');
+                    if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
+                    closeEditExpenseModal();
+                    loadPurchaseOrders();
+                } else {
+                    showToast(data.error || 'Failed to update expense', 'error');
+                }
+            })
+            .catch(error => {
+                showLoading(false);
+                showToast('Error updating expense', 'error');
             });
         });
 
@@ -608,9 +910,19 @@
             return dateString;
         }
 
+        function dateInputValue(dateString) {
+            return dateString ? String(dateString).split('T')[0] : '';
+        }
+
         function statusBadge(status) {
-            const statusClass = status === 'COMPLETED' ? 'status-completed' : 'status-pending';
+            const statusClass = status === 'COMPLETED' || status === 'PAID' ? 'status-completed' : 'status-pending';
             return '<span class="status-badge ' + statusClass + '">' + status + '</span>';
+        }
+
+        function escapeHtml(value) {
+            const div = document.createElement('div');
+            div.textContent = value == null ? '' : String(value);
+            return div.innerHTML;
         }
 
         function showToast(message, type = 'info') {

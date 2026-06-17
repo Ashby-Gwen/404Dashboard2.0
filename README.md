@@ -8,7 +8,7 @@ A comprehensive Enterprise Resource Planning system built with Flask and SQLite 
 - **User Authentication**: Role-based login system (Admin, Manager, Staff)
 - **Sales Order Management**: Excel upload with auto-identification of fields
 - **Invoice Processing**: Sales and Service invoices with 2307 tax checker
-- **Purchase Order Management**: Expense tracking with 16 debit account types
+- **Expense Management**: Expense tracking with 16 debit account types
 - **Analytics Dashboard**: Revenue tracking, cashflow analysis, and leakage detection
 - **Database Interface**: Complete admin control over all data tables
 
@@ -24,6 +24,7 @@ A comprehensive Enterprise Resource Planning system built with Flask and SQLite 
 
 - [System Test Analysis](docs/SYSTEM_TEST_ANALYSIS.md): Current compliance status, known gaps, and verification checklist for the documented ERP requirements.
 - [Deployment Suggestions](docs/DEPLOYMENT_SUGGESTIONS.md): Practical deployment options for the Flask, SQLite, pandas, and Chart.js stack used by this project.
+- [Redeployment Guide](docs/deployment.md): GitHub, Render, Supabase, migration, rollback, and post-deploy testing steps.
 
 ## Installation & Setup
 
@@ -85,7 +86,7 @@ The system uses SQLite with the following main tables:
 - **sales_orders**: Sales order headers and details
 - **sales_order_items**: Line items for sales orders
 - **invoices**: Invoice records with payment tracking
-- **purchase_orders**: Expense and purchase order records
+- **purchase_orders**: Expense records; legacy table name retained for compatibility
 - **purchase_order_debits**: Debit account assignments
 
 ## User Roles & Permissions
@@ -105,7 +106,7 @@ The system uses SQLite with the following main tables:
 ### Staff
 - Sales order creation and management
 - Invoice processing and payment tracking
-- Purchase order entry
+- Expense entry
 - Operational task management
 
 ## Key Features
@@ -127,7 +128,7 @@ The system uses SQLite with the following main tables:
 - **Entry Duplication**: Quick reuse of previous invoice data
 - **Payment Tracking**: Downpayment and full payment options
 
-### Purchase Orders
+### Expenses
 - **16 Debit Types**: Comprehensive expense categorization
 - **Automatic Calculations**: Net balance computation
 - **Required Field Validation**: Ensures complete data entry
@@ -218,10 +219,11 @@ Development mode includes:
 - `GET /get-invoices` - Fetch invoice data
 - `POST /create-invoice` - Create new invoice
 
-### Purchase Orders
-- `GET /purchase-orders` - Purchase order page
-- `GET /get-purchase-orders` - Fetch purchase order data
-- `POST /create-purchase-order` - Create new purchase order
+### Expenses
+- `GET /expenses` - Expense page
+- `GET /get-expenses` - Fetch expense data
+- `POST /create-expense` - Create new expense
+- Legacy compatibility routes remain available: `/purchase-orders`, `/get-purchase-orders`, `/create-purchase-order`
 
 ### Admin Interface
 - `GET /database-interface` - Admin dashboard

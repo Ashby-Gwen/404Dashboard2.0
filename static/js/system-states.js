@@ -145,6 +145,74 @@
         return item;
     }
 
+    const errorTypes = {
+        validation: {
+            title: 'Check the Information',
+            message: 'Some information is missing or needs correction.',
+            action: 'Review the highlighted fields, then try again.'
+        },
+        authentication: {
+            title: 'Sign In Required',
+            message: 'Your session could not be verified.',
+            action: 'Sign in again to continue.'
+        },
+        permission: {
+            title: 'Access Not Allowed',
+            message: 'Your account does not have permission to perform this action.',
+            action: 'Contact an administrator if you believe this is incorrect.'
+        },
+        database: {
+            title: 'Database Unavailable',
+            message: 'The system could not complete the database request.',
+            action: 'Wait a moment, then try again.'
+        },
+        network: {
+            title: 'Connection Problem',
+            message: 'The system could not reach the server.',
+            action: 'Check your connection and try again.'
+        },
+        server: {
+            title: 'Server Error',
+            message: 'Something went wrong while processing the request.',
+            action: 'Try again. If the issue continues, contact an administrator.'
+        },
+        empty: {
+            title: 'No Results Found',
+            message: 'There is no data to show for the current filters.',
+            action: 'Adjust the filters or add records first.'
+        }
+    };
+
+    function errorState(type = 'server', options = {}) {
+        const config = { ...(errorTypes[type] || errorTypes.server), ...options };
+        const details = config.details
+            ? `<details class="system-error-details"><summary>Technical details</summary><pre>${escapeHtml(config.details)}</pre></details>`
+            : '';
+        return `
+            <section class="system-error-state system-error-${type}" role="${type === 'empty' ? 'status' : 'alert'}">
+                <strong>${escapeHtml(config.title)}</strong>
+                <p>${escapeHtml(config.message)}</p>
+                <span>${escapeHtml(config.action)}</span>
+                ${details}
+            </section>`;
+    }
+
+    function renderError(container, type = 'server', options = {}) {
+        const target = typeof container === 'string' ? document.querySelector(container) : container;
+        if (!target) return null;
+        target.innerHTML = errorState(type, options);
+        return target.firstElementChild;
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function skeleton(options = {}) {
         const rows = Math.max(1, Number(options.rows) || 4);
         const columns = Math.max(1, Number(options.columns) || 3);
@@ -154,6 +222,104 @@
             </div>`
         ).join('');
         return `<div class="system-skeleton" aria-label="Loading content">${rowHtml}</div>`;
+    }
+
+    const buttonStates = new WeakMap();
+    let pendingActionButton = null;
+
+    function isButtonLike(element) {
+        return element?.closest?.('button, input[type="submit"], input[type="button"], a.btn, .btn');
+    }
+
+    function shouldManageButton(button) {
+        if (!button || button.dataset.noLoading === 'true') return false;
+        if (button.classList.contains('tab-btn') || button.classList.contains('filter-btn') || button.classList.contains('report-tab')) return false;
+        return true;
+    }
+
+    function setButtonLoading(button, isLoading, label = 'Processing...') {
+        if (!shouldManageButton(button)) return;
+        if (isLoading) {
+            if (buttonStates.has(button)) return;
+            buttonStates.set(button, {
+                html: button.innerHTML,
+                value: button.value,
+                disabled: button.disabled,
+                ariaBusy: button.getAttribute('aria-busy'),
+                ariaDisabled: button.getAttribute('aria-disabled')
+            });
+            button.classList.add('is-loading');
+            button.setAttribute('aria-busy', 'true');
+            if (button.tagName === 'A') button.setAttribute('aria-disabled', 'true');
+            if ('disabled' in button) button.disabled = true;
+            if (button.tagName === 'INPUT') {
+                button.value = label;
+            } else {
+                button.innerHTML = `<span class="button-spinner" aria-hidden="true"></span><span>${escapeHtml(label)}</span>`;
+            }
+            return;
+        }
+        const previous = buttonStates.get(button);
+        if (!previous) return;
+        button.classList.remove('is-loading');
+        button.innerHTML = previous.html;
+        if (button.tagName === 'INPUT') button.value = previous.value;
+        button.disabled = previous.disabled;
+        if (previous.ariaBusy === null) button.removeAttribute('aria-busy');
+        else button.setAttribute('aria-busy', previous.ariaBusy);
+        if (previous.ariaDisabled === null) button.removeAttribute('aria-disabled');
+        else button.setAttribute('aria-disabled', previous.ariaDisabled);
+        buttonStates.delete(button);
+        if (window.lucide?.createIcons) window.lucide.createIcons();
+    }
+
+    async function withButtonLoading(button, operation, label = 'Processing...') {
+        setButtonLoading(button, true, label);
+        try {
+            return await operation();
+        } finally {
+            setButtonLoading(button, false);
+        }
+    }
+
+    function initializeGlobalButtonLoading(root = document) {
+        if (root !== document) return;
+        if (!window.__syluxentFetchLoadingPatched) {
+            window.__syluxentFetchLoadingPatched = true;
+            const nativeFetch = window.fetch.bind(window);
+            window.fetch = (...args) => {
+                const button = pendingActionButton;
+                pendingActionButton = null;
+                if (button) setButtonLoading(button, true);
+                return nativeFetch(...args)
+                    .finally(() => {
+                        if (button) setButtonLoading(button, false);
+                    });
+            };
+        }
+        if (!document.documentElement.dataset.syluxentButtonLoading) {
+            document.documentElement.dataset.syluxentButtonLoading = 'true';
+            document.addEventListener('click', event => {
+                const button = isButtonLike(event.target);
+                if (!shouldManageButton(button)) return;
+                pendingActionButton = button;
+                window.setTimeout(() => {
+                    if (pendingActionButton === button) pendingActionButton = null;
+                }, 800);
+            }, true);
+            document.addEventListener('submit', event => {
+                if (event.defaultPrevented) return;
+                const form = event.target;
+                const submitter = event.submitter || form.querySelector('button[type="submit"], input[type="submit"]');
+                if (!shouldManageButton(submitter)) return;
+                if (form.dataset.submitting === 'true') {
+                    event.preventDefault();
+                    return;
+                }
+                form.dataset.submitting = 'true';
+                setButtonLoading(submitter, true, 'Submitting...');
+            });
+        }
     }
 
     function cleanupTask(task, reason) {
@@ -546,6 +712,136 @@
         });
     }
 
+    function initializeLogoutCacheCleanup(root = document) {
+        root.querySelectorAll('a[href$="/logout"]').forEach(link => {
+            if (link.dataset.syluxentLogoutCleanup === 'true') return;
+            link.dataset.syluxentLogoutCleanup = 'true';
+            link.addEventListener('click', () => dataCache.clear());
+        });
+    }
+
+    function initializeEvaluationModal() {
+        if (!document.body || document.getElementById('evaluationModalRoot')) return;
+        if (!document.querySelector('a[href$="/logout"]')) return;
+
+        const root = document.createElement('div');
+        root.id = 'evaluationModalRoot';
+        root.innerHTML = `
+            <button type="button" class="evaluation-launcher btn btn-outline btn-sm" data-evaluation-open>Evaluate System</button>
+            <div class="system-modal-backdrop evaluation-modal-backdrop" hidden data-evaluation-backdrop>
+                <section class="system-modal evaluation-modal" role="dialog" aria-modal="true" aria-labelledby="evaluationModalTitle">
+                    <div class="evaluation-modal-header">
+                        <div>
+                            <h2 id="evaluationModalTitle">System Evaluation</h2>
+                            <p>Share your experience using the system.</p>
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm" data-evaluation-close>Close</button>
+                    </div>
+                    <div data-evaluation-content>${skeleton({ rows: 4, columns: 1 })}</div>
+                </section>
+            </div>`;
+        document.body.appendChild(root);
+
+        root.querySelector('[data-evaluation-open]').addEventListener('click', openEvaluationModal);
+        root.querySelector('[data-evaluation-close]').addEventListener('click', closeEvaluationModal);
+        root.querySelector('[data-evaluation-backdrop]').addEventListener('click', event => {
+            if (event.target.matches('[data-evaluation-backdrop]')) closeEvaluationModal();
+        });
+    }
+
+    async function openEvaluationModal() {
+        const backdrop = document.querySelector('[data-evaluation-backdrop]');
+        const content = document.querySelector('[data-evaluation-content]');
+        if (!backdrop || !content) return;
+        backdrop.hidden = false;
+        content.innerHTML = skeleton({ rows: 5, columns: 1 });
+        try {
+            const response = await fetch('/api/evaluation/questions');
+            const payload = await response.json();
+            if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to load evaluation questions.');
+            renderEvaluationForm(payload);
+        } catch (error) {
+            renderError(content, 'server', { message: error.message });
+        }
+    }
+
+    function closeEvaluationModal() {
+        const backdrop = document.querySelector('[data-evaluation-backdrop]');
+        if (backdrop) backdrop.hidden = true;
+    }
+
+    function renderEvaluationForm(payload) {
+        const content = document.querySelector('[data-evaluation-content]');
+        const questions = payload.questions || [];
+        const scale = payload.scale || [];
+        const grouped = questions.reduce((acc, question) => {
+            acc[question.category] = acc[question.category] || [];
+            acc[question.category].push(question);
+            return acc;
+        }, {});
+        content.innerHTML = `
+            <form class="evaluation-form" data-evaluation-form>
+                ${Object.entries(grouped).map(([category, items]) => `
+                    <section class="evaluation-category">
+                        <h3>${escapeHtml(category)}</h3>
+                        ${items.map(question => `
+                            <label class="evaluation-question">
+                                <span>${escapeHtml(question.question_text)}</span>
+                                <select class="evaluation-rating" data-question-id="${question.id}" required>
+                                    <option value="">Select rating</option>
+                                    ${scale.map(item => `<option value="${item.value}">${item.value} - ${escapeHtml(item.label)}</option>`).join('')}
+                                </select>
+                            </label>
+                        `).join('')}
+                    </section>
+                `).join('')}
+                <label class="evaluation-question">
+                    <span>Optional feedback</span>
+                    <textarea id="globalEvaluationComment" rows="3" placeholder="Add a short note..."></textarea>
+                </label>
+                <div class="evaluation-actions">
+                    <button type="submit" class="btn btn-primary">Submit Evaluation</button>
+                    <span data-evaluation-status></span>
+                </div>
+            </form>`;
+        content.querySelector('[data-evaluation-form]').addEventListener('submit', submitEvaluationModal);
+    }
+
+    async function submitEvaluationModal(event) {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const status = form.querySelector('[data-evaluation-status]');
+        const submitButton = form.querySelector('button[type="submit"]');
+        const responses = Array.from(form.querySelectorAll('.evaluation-rating')).map(select => ({
+            question_id: Number(select.dataset.questionId),
+            rating: Number(select.value)
+        })).filter(item => item.question_id && item.rating);
+        if (!responses.length) {
+            status.textContent = 'Select ratings before submitting.';
+            status.className = 'evaluation-status-error';
+            return;
+        }
+        await withButtonLoading(submitButton, async () => {
+            const response = await fetch('/api/evaluation/responses', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    overall_comment: form.querySelector('#globalEvaluationComment')?.value || '',
+                    responses
+                })
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to submit evaluation.');
+            status.className = 'evaluation-status-success';
+            status.textContent = `Thank you. Result: ${payload.interpretation}.`;
+            form.querySelectorAll('select, textarea, button').forEach(field => field.disabled = true);
+            window.setTimeout(closeEvaluationModal, 1400);
+        }).catch(error => {
+            status.className = 'evaluation-status-error';
+            status.textContent = error.message;
+        });
+    }
+
     function showServerWarnings(warnings = []) {
         if (!Array.isArray(warnings) || !warnings.length) return;
         warnings.slice(0, 5).forEach(item => {
@@ -572,6 +868,8 @@
         },
         createProgress,
         feedback,
+        errorState,
+        renderError,
         skeleton,
         showSuccess(message, options) {
             return feedback('success', message, options);
@@ -596,7 +894,9 @@
             dataCache.clear(scope);
         },
         initializeFutureDateWarnings,
-        showServerWarnings
+        showServerWarnings,
+        setButtonLoading,
+        withButtonLoading
     };
 
     window.GlobalTaskStatus = api;
@@ -604,15 +904,25 @@
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             ensureInterface();
+            initializeGlobalButtonLoading();
             initializeFutureDateWarnings();
+            initializeLogoutCacheCleanup();
+            initializeEvaluationModal();
             renderAshbyVerse();
         }, { once: true });
     } else {
         ensureInterface();
+        initializeGlobalButtonLoading();
         initializeFutureDateWarnings();
+        initializeLogoutCacheCleanup();
+        initializeEvaluationModal();
         renderAshbyVerse();
     }
-    document.addEventListener('syluxent-content-updated', event => initializeFutureDateWarnings(event.target || document));
+    document.addEventListener('syluxent-content-updated', event => {
+        initializeFutureDateWarnings(event.target || document);
+        initializeLogoutCacheCleanup(event.target || document);
+        initializeEvaluationModal();
+    });
     new MutationObserver(mutations => {
         if (mutations.some(mutation => Array.from(mutation.addedNodes).some(node => node.nodeType === 1 && (node.matches?.('input[type="date"]') || node.querySelector?.('input[type="date"]'))))) {
             initializeFutureDateWarnings();

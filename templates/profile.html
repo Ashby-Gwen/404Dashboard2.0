@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Syluxent - Profile</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
     <style>
         .profile-card { max-width: 720px; margin: 2rem auto; background: white; border: 1px solid var(--border-color); border-radius: var(--radius-xl); padding: 2rem; box-shadow: var(--shadow); }
@@ -38,8 +38,9 @@
                 {% endfor %}
             {% endwith %}
             <div class="profile-heading">
-                {% if user.profile_photo %}
-                    <img class="profile-avatar-large" src="{{ url_for('static', filename=user.profile_photo) }}" alt="Profile photo">
+                {% set avatar_src = profile_photo_src(user) %}
+                {% if avatar_src %}
+                    <img class="profile-avatar-large" src="{{ avatar_src }}" alt="Profile photo">
                 {% else %}
                     <div class="profile-avatar-large">{{ user.username[:1]|upper }}</div>
                 {% endif %}

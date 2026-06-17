@@ -111,7 +111,7 @@ def main():
             clients_payload = client.get('/api/analytics/clients').get_json()
             assert clients_payload['success'] is True
             assert 'client_performance_score' in clients_payload['clients'][0]
-            assert clients_payload['clients'][0]['cohort'] in {'Core Partners', 'Growth Clients', 'At-Risk Clients', 'Low Engagement'}
+            assert clients_payload['clients'][0]['cohort'] in {'Core Ordering Clients', 'Growth Ordering Clients', 'Developing Ordering Clients', 'Low Order Activity'}
 
             sales_payload = client.get('/api/analytics/sales?mape_threshold=25').get_json()
             assert sales_payload['success'] is True
@@ -120,7 +120,8 @@ def main():
 
             questions = client.get('/api/evaluation/questions').get_json()
             assert questions['success'] is True
-            ratings = [{'question_id': question['id'], 'rating': 5} for question in questions['questions']]
+            assert [item['value'] for item in questions['scale']] == [1, 2, 3, 4]
+            ratings = [{'question_id': question['id'], 'rating': 4} for question in questions['questions']]
             submitted = client.post('/api/evaluation/responses', json={
                 'evaluator_name': 'QA Manager',
                 'evaluator_role': 'manager',
@@ -132,7 +133,7 @@ def main():
 
             results = client.get('/api/evaluation/results').get_json()
             assert results['success'] is True
-            assert results['overall_mean'] == 5
+            assert results['overall_mean'] == 4
 
     print('Analytics objective check passed.')
 

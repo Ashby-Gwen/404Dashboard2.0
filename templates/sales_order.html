@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Syluxent - Sales Order</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -379,6 +379,79 @@
             overflow: auto;
         }
 
+        .manual-entry-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(110px, 0.8fr) minmax(130px, 1fr) minmax(130px, 1fr) auto;
+            gap: 0.75rem;
+            align-items: end;
+            margin-top: 1rem;
+        }
+
+        .manual-entry-grid input {
+            min-width: 0;
+        }
+
+        .save-state {
+            display: none;
+            margin-top: 1rem;
+            padding: 0.85rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            background: #F8FAFC;
+            color: var(--text-main);
+        }
+
+        .sales-order-history {
+            margin-top: 1.5rem;
+        }
+
+        .history-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .history-table th,
+        .history-table td {
+            padding: 0.75rem;
+            border-top: 1px solid var(--border-color);
+            text-align: left;
+        }
+
+        .history-table th {
+            background: #F8FAFC;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .history-table td.amount {
+            text-align: right;
+            font-family: monospace;
+            font-weight: 700;
+        }
+
+        @media (max-width: 900px) {
+            .manual-entry-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .manual-entry-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
 
 
         /* Responsive adjustments */
@@ -402,16 +475,25 @@
         'staff': [
         ('sales_order', 'Sales Order'),
         ('invoices', 'Invoice'),
-        ('purchase_orders', 'Purchase Order')
+        ('expenses', 'Expense')
+        ],
+        'sales staff': [
+        ('sales_order', 'Sales Order')
+        ],
+        'accounting staff': [
+        ('invoices', 'Invoice'),
+        ('expenses', 'Expense')
         ],
         'manager': [
-        ('analytics', 'Analytics')
+        ('analytics', 'Analytics'),
+        ('reports', 'Reports')
         ],
         'admin': [
         ('sales_order', 'Sales Order'),
         ('invoices', 'Invoice'),
-        ('purchase_orders', 'Purchase Order'),
+        ('expenses', 'Expense'),
         ('analytics', 'Analytics'),
+        ('reports', 'Reports'),
         ('database_interface', 'Database Interface')
         ]
         } %}
@@ -428,8 +510,9 @@
         </div>
         <div class="nav-user">
             <a class="profile-link" href="{{ url_for('profile') }}">
-                {% if current_user and current_user.profile_photo %}
-                <img class="profile-avatar" src="{{ url_for('static', filename=current_user.profile_photo) }}" alt="">
+                {% set avatar_src = profile_photo_src(current_user) %}
+                {% if avatar_src %}
+                <img class="profile-avatar" src="{{ avatar_src }}" alt="">
                 {% else %}
                 <span class="profile-avatar">{{ session.username[:1]|upper }}</span>
                 {% endif %}
@@ -447,7 +530,7 @@
     <main class="page-shell">
         <div class="section-header">
             <div class="page-title">
-                <h1>Sales Order Data Mapper</h1>
+                <h1>Sales Order Entry</h1>
             </div>
             <div style="display: flex; gap: 0.75rem;">
                 <input type="file" id="fileInput" class="hidden" accept=".xlsx, .xls, .csv" multiple>
@@ -484,10 +567,10 @@
                     </button>
                 </div>
 
-                <!-- Sales Staff is mapped from the spreadsheet using SALES: -->
+                <!-- Spreadsheet mapping can still overwrite this field when SALES: is detected. -->
                 <div class="form-group staff-select">
                     <label>Sales Staff</label>
-                    <input type="text" id="field-salesStaff" placeholder="Auto mapped from SALES:" readonly>
+                    <input type="text" id="field-salesStaff" value="{{ session.username }}" placeholder="Sales staff name" required>
                 </div>
 
                 <div id="formFields">
@@ -588,6 +671,28 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="manual-entry-grid">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Particular</label>
+                            <input type="text" id="manual-particular" placeholder="Item or service">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Qty</label>
+                            <input type="number" id="manual-quantity" min="0.01" step="0.01" value="1">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Unit Cost</label>
+                            <input type="number" id="manual-unit-cost" min="0" step="0.01" value="0">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Selling Price</label>
+                            <input type="number" id="manual-selling-price" min="0.01" step="0.01">
+                        </div>
+                        <button type="button" onclick="addManualParticular()" class="btn btn-outline">
+                            <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                            Add
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Terms Days -->
@@ -602,10 +707,11 @@
                     <textarea id="order-notes" rows="2" placeholder="Additional notes..."></textarea>
                 </div>
 
-                <button onclick="saveOrder()" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                <button id="saveOrderBtn" onclick="saveOrder()" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
                     <i data-lucide="save" style="width: 18px; height: 18px;"></i>
                     Save Sales Order
                 </button>
+                <div id="manualSaveState" class="save-state"></div>
             </div>
 
             <!-- Right Panel: Excel Preview -->
@@ -656,6 +762,37 @@
                             style="font-family: monospace; background: #E2E8F0; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem;"></span>
                     </div>
                 </div>
+            </div>
+        </div>
+        <div class="card sales-order-history">
+            <div class="history-toolbar">
+                <h2 style="margin: 0;">Sales Order History</h2>
+                <button type="button" onclick="loadSalesOrderHistory()" class="btn btn-outline btn-sm">
+                    <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+                    Refresh
+                </button>
+            </div>
+            <div class="table-wrap" style="margin-bottom: 0;">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>SO Number</th>
+                            <th>Company</th>
+                            <th>Store</th>
+                            <th>Branch</th>
+                            <th>Order Date</th>
+                            <th>Sales Staff</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="salesOrderHistoryBody">
+                        <tr>
+                            <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Loading sales orders...</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </main>
@@ -1894,6 +2031,49 @@
             renderParticulars();
         }
 
+        function setSaveState(message, type = 'info', printUrl = '') {
+            const state = document.getElementById('manualSaveState');
+            if (!state) return;
+            state.style.display = message ? 'block' : 'none';
+            state.style.borderColor = type === 'error' ? '#FCA5A5' : type === 'success' ? '#86EFAC' : 'var(--border-color)';
+            state.style.background = type === 'error' ? '#FEF2F2' : type === 'success' ? '#F0FDF4' : '#F8FAFC';
+            state.innerHTML = printUrl
+                ? `${escapeHtml(message)} <a href="${printUrl}" target="_blank" class="btn btn-outline btn-sm" style="margin-left: 0.75rem;">Print</a>`
+                : escapeHtml(message);
+        }
+
+        function parseManualNumber(id) {
+            const value = parseFloat(document.getElementById(id).value);
+            return Number.isFinite(value) ? value : 0;
+        }
+
+        function addManualParticular() {
+            const particularInput = document.getElementById('manual-particular');
+            const particular = particularInput.value.trim();
+            const quantity = parseManualNumber('manual-quantity');
+            const unitCost = parseManualNumber('manual-unit-cost');
+            const sellingPrice = parseManualNumber('manual-selling-price');
+
+            if (!particular || quantity <= 0 || sellingPrice <= 0) {
+                showToast('Enter a particular, quantity, and selling price before adding a line item.', 'error');
+                return;
+            }
+
+            particulars.push({
+                particulars: particular.toUpperCase(),
+                qty: quantity,
+                cost: unitCost,
+                price: sellingPrice,
+                total: quantity * sellingPrice
+            });
+            particularInput.value = '';
+            document.getElementById('manual-quantity').value = '1';
+            document.getElementById('manual-unit-cost').value = '0';
+            document.getElementById('manual-selling-price').value = '';
+            renderParticulars();
+            particularInput.focus();
+        }
+
         let clients = [];
         const DEFAULT_BRANCH_NAME = 'HEAD OFFICE';
 
@@ -1904,8 +2084,21 @@
         // Load clients on init
         (async () => {
             try {
-                const response = await fetch('{{ url_for("get_clients") }}');
-                const data = await response.json();
+                const loader = async () => {
+                    const response = await fetch('{{ url_for("get_client_references") }}');
+                    const data = await response.json();
+                    if (!data.success) throw new Error(data.error || 'Failed to load client references.');
+                    return data.clients || [];
+                };
+                const cachedClients = window.SyluxentUI
+                    ? await SyluxentUI.run({
+                        scope: 'sales-order-workspace',
+                        name: 'Preparing Workspace',
+                        message: 'Preparing your workspace. This may take a moment because the system is loading required data for faster interaction.',
+                        showOverlay: true
+                    }, () => SyluxentUI.rememberData('sales-order', 'client-references', loader, 5 * 60 * 1000))
+                    : await loader();
+                const data = { success: true, clients: cachedClients.cancelled ? [] : cachedClients };
                 if (data.success) {
                     clients = data.clients;
                 }
@@ -2028,12 +2221,14 @@
             const mappedSalesStaff = document.getElementById('field-salesStaff').value.trim();
 
             if (!companyName || !orderDate || !mappedSalesStaff) {
-                showToast('Please complete mapped fields: Company, Date, and Sales Staff from "SALES:". Store defaults to Company when blank.', 'error');
+                showToast('Please complete Company, Order Date, and Sales Staff. Store defaults to Company when blank.', 'error');
+                setSaveState('Please complete Company, Order Date, and Sales Staff.', 'error');
                 return;
             }
 
             if (particulars.length === 0) {
                 showToast("Please add at least one item to sales order.", 'error');
+                setSaveState('Please add at least one item to sales order.', 'error');
                 return;
             }
 
@@ -2050,6 +2245,7 @@
 
             if (items.length === 0) {
                 showToast("No valid items to save.", 'error');
+                setSaveState('No valid items to save.', 'error');
                 return;
             }
 
@@ -2061,7 +2257,12 @@
             const details = `Action: Create Sales Order\nClient: ${clientName}\nDate: ${orderDate}\nTerms: ${termsDays} days\n\nItems:\n${itemList}\n\nTotal: ${formatCurrency(totalAmount)}`;
 
             if (confirm(`Confirm transaction\n\n${details}`)) {
+                const saveBtn = document.getElementById('saveOrderBtn');
                 try {
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = '<i data-lucide="loader-circle" style="width: 18px; height: 18px;"></i> Saving...';
+                    lucide.createIcons();
+                    setSaveState('Saving sales order...', 'info');
                     // Prepare sales order data for Flask API
                     const data = {
                         client_name: clientName,
@@ -2096,6 +2297,8 @@
                     if (result.success) {
                         showToast('Sales order created successfully', 'success');
                         if (window.SyluxentUI) SyluxentUI.showServerWarnings(result.warnings);
+                        const savedNumber = result.sales_order?.so_number || soNumber || 'Sales order';
+                        setSaveState(`${savedNumber} saved successfully.`, 'success', result.print_url || '');
                         document.getElementById('field-orderNumber').value = '';
                         document.getElementById('field-companyName').value = '';
                         document.getElementById('field-storeName').value = '';
@@ -2104,14 +2307,21 @@
                         document.getElementById('order-notes').value = '';
                         particulars = [];
                         renderParticulars();
+                        loadSalesOrderHistory();
                     } else {
                         showToast(result.error || 'Failed to save order', 'error');
+                        setSaveState(result.error || 'Failed to save order', 'error');
                     }
                     console.log('Prepared order data:', data);
                     console.log('API response:', result);
 
                 } catch (error) {
                     showToast(error.message || 'Failed to save order', 'error');
+                    setSaveState(error.message || 'Failed to save order', 'error');
+                } finally {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = '<i data-lucide="save" style="width: 18px; height: 18px;"></i> Save Sales Order';
+                    lucide.createIcons();
                 }
             }
         }
@@ -2128,6 +2338,51 @@
         function formatCurrency(amount) {
             const num = parseFloat(amount) || 0;
             return '₱' + num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+
+        function salesOrderPrintUrl(orderId) {
+            return `{{ url_for("print_sales_order", so_id=0) }}`.replace('/0/', `/${orderId}/`);
+        }
+
+        async function loadSalesOrderHistory() {
+            const tbody = document.getElementById('salesOrderHistoryBody');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Loading sales orders...</td></tr>';
+            try {
+                const response = await fetch('{{ url_for("get_sales_orders") }}');
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error || 'Unable to load sales orders.');
+                }
+
+                const rows = result.sales_orders || [];
+                if (!rows.length) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No sales orders found.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = rows.map(row => `
+                    <tr>
+                        <td>${escapeHtml(row.so_number || '')}</td>
+                        <td>${escapeHtml(row.company_name || '')}</td>
+                        <td>${escapeHtml(row.store_name || '')}</td>
+                        <td>${escapeHtml(row.store_branch || '')}</td>
+                        <td>${escapeHtml(row.order_date || '')}</td>
+                        <td>${escapeHtml(row.sales_staff || '')}</td>
+                        <td class="amount">${formatCurrency(row.total_amount)}</td>
+                        <td>${escapeHtml(row.status || '')}</td>
+                        <td>
+                            <a href="${salesOrderPrintUrl(row.id)}" target="_blank" class="btn btn-outline btn-sm">
+                                <i data-lucide="printer" style="width: 14px; height: 14px;"></i>
+                                Print
+                            </a>
+                        </td>
+                    </tr>
+                `).join('');
+                lucide.createIcons();
+            } catch (error) {
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #B91C1C; padding: 1.5rem;">${escapeHtml(error.message || 'Unable to load sales orders.')}</td></tr>`;
+            }
         }
 
         let adminCleanRows = [];
@@ -2675,6 +2930,7 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', function () {
             lucide.createIcons();
+            loadSalesOrderHistory();
         });
     </script>
 </body>

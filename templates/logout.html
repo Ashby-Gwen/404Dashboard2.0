@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="3; url={{ login_url }}">
+    <title>Syluxent - Logout</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
+</head>
+
+<body>
+    <main class="page-shell" style="min-height: 100vh; display: grid; place-items: center;">
+        <section class="card" style="max-width: 480px; text-align: center;">
+            <h1 style="margin-top: 0;">You have been logged out</h1>
+            <p style="color: var(--text-muted);">Clearing temporary workspace data...</p>
+            <noscript><p><a href="{{ login_url }}">Return to login</a></p></noscript>
+        </section>
+    </main>
+    <script>
+        try {
+            sessionStorage.clear();
+        } catch (error) {
+            console.warn('Session cache cleanup skipped:', error);
+        }
+        window.setTimeout(() => {
+            window.location.replace('{{ login_url }}');
+        }, 250);
+    </script>
+</body>
+
+</html>

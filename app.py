@@ -15,6 +15,7 @@ try:
     from openpyxl.utils import get_column_letter  # type: ignore[import]
     import Levenshtein  # type: ignore[import]
     import csv  # <--- ADD THIS LINE TO YOUR IMPORTS
+    import base64
     try:
         from rapidfuzz import fuzz as rapidfuzz_fuzz  # type: ignore[import]
     except ImportError:
@@ -61,9 +62,11 @@ load_dotenv()
 
 app = Flask(__name__)
 os.makedirs(app.instance_path, exist_ok=True)
-os.makedirs(os.path.join(app.static_folder, 'uploads', 'profiles'), exist_ok=True)
 
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = bool(os.environ.get('RENDER') or os.environ.get('SESSION_COOKIE_SECURE') == 'true')
 basedir = os.path.abspath(os.path.dirname(__file__))
 database_url = os.environ.get("DATABASE_URL")
 if database_url and database_url.startswith("postgres://"):
@@ -71,6 +74,8 @@ if database_url and database_url.startswith("postgres://"):
 
 if database_url:
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+elif os.environ.get("RENDER") or os.environ.get("FLASK_ENV") == "production":
+    raise RuntimeError("DATABASE_URL is required on Render/production so permanent data stays in Supabase.")
 else:
     # SQLite on Render free tier is suitable only for demo/prototype use because
     # local file storage is ephemeral and does not persist reliably across restarts.
@@ -103,11 +108,17 @@ class User(db.Model):
     email = db.Column(db.String(255), unique=True)
     password_hash = db.Column(db.String(120), nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=False)
-    status = db.Column(db.String(20), default='ACTIVE', nullable=False)
+    status = db.Column(db.String(20), default='pending', nullable=False)
+    approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    approved_at = db.Column(db.DateTime)
     profile_photo = db.Column(db.String(255))
+    profile_photo_data = db.Column(db.Text)
+    profile_photo_mime = db.Column(db.String(80))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     role = db.relationship('Role', backref='users')
+    approved_by_user = db.relationship('User', remote_side=[id])
 
 class Role(db.Model):
     __tablename__ = 'roles'
@@ -292,6 +303,7 @@ class AnalyticsData(db.Model):
 class EvaluationSession(db.Model):
     __tablename__ = 'evaluation_sessions'
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     evaluator_name = db.Column(db.String(120), nullable=False)
     evaluator_role = db.Column(db.String(80))
     overall_comment = db.Column(db.Text)
@@ -300,6 +312,7 @@ class EvaluationSession(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     responses = db.relationship('EvaluationResponse', backref='session', cascade='all, delete-orphan')
+    user = db.relationship('User')
 
 class EvaluationQuestion(db.Model):
     __tablename__ = 'evaluation_questions'
@@ -320,19 +333,108 @@ class EvaluationResponse(db.Model):
 
     question = db.relationship('EvaluationQuestion')
 
+class SystemSetting(db.Model):
+    __tablename__ = 'system_settings'
+    key = db.Column(db.String(100), primary_key=True)
+    value = db.Column(db.Text, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # End of Models Section
 
 
-# Authentication Decorators
+# Authentication helpers and decorators
+USER_STATUS_PENDING = 'pending'
+USER_STATUS_APPROVED = 'approved'
+USER_STATUS_REJECTED = 'rejected'
+USER_STATUS_DISABLED = 'disabled'
+USER_STATUS_CHOICES = {
+    USER_STATUS_PENDING,
+    USER_STATUS_APPROVED,
+    USER_STATUS_REJECTED,
+    USER_STATUS_DISABLED,
+}
+LEGACY_USER_STATUS_MAP = {
+    'ACTIVE': USER_STATUS_APPROVED,
+    'INACTIVE': USER_STATUS_DISABLED,
+}
+SALES_ROLES = ('admin', 'staff', 'sales staff')
+ACCOUNTING_ROLES = ('admin', 'staff', 'accounting staff')
+OPERATIONS_ROLES = ('admin', 'staff', 'sales staff', 'accounting staff')
+MANAGEMENT_ROLES = ('admin', 'manager')
+ALL_BUSINESS_ROLES = ('admin', 'manager', 'staff', 'sales staff', 'accounting staff')
+PROFILE_PHOTO_MAX_BYTES = 1024 * 1024
+PROFILE_PHOTO_MIME_TYPES = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+}
+
+ERROR_INTERFACE = {
+    'validation': ('Check the Information', 'Some information is missing or needs correction.', 'Review the fields, then try again.'),
+    'authentication': ('Sign In Required', 'Your session could not be verified.', 'Sign in again to continue.'),
+    'permission': ('Access Not Allowed', 'Your account does not have permission to view this page.', 'Contact an administrator if you believe this is incorrect.'),
+    'database': ('Database Unavailable', 'The system could not complete the database request.', 'Wait a moment, then try again.'),
+    'network': ('Connection Problem', 'The system could not reach the server.', 'Check your connection and try again.'),
+    'server': ('Server Error', 'Something went wrong while processing the request.', 'Try again. If the issue continues, contact an administrator.'),
+    'empty': ('No Results Found', 'There is no data to show for the current filters.', 'Adjust the filters or add records first.'),
+}
+
+def wants_json_response():
+    return request.path.startswith('/api/') or request.accept_mimetypes.best == 'application/json' or request.is_json
+
+def error_interface_payload(error_type='server', details=None):
+    title, message, action = ERROR_INTERFACE.get(error_type, ERROR_INTERFACE['server'])
+    payload = {'type': error_type, 'title': title, 'message': message, 'action': action}
+    if session.get('role') == 'admin' and details:
+        payload['details'] = str(details)
+    return payload
+
+def render_error_interface(error_type='server', status_code=500, details=None):
+    payload = error_interface_payload(error_type, details)
+    if wants_json_response():
+        response = {'success': False, 'error': payload['message'], 'error_type': payload['type']}
+        if payload.get('details'):
+            response['details'] = payload['details']
+        return jsonify(response), status_code
+    return render_template('error_interface.html', error_info=payload), status_code
+
+def normalize_user_status(status):
+    value = (status or USER_STATUS_PENDING).strip()
+    return LEGACY_USER_STATUS_MAP.get(value.upper(), value.lower())
+
+def is_user_approved(user):
+    return bool(user and normalize_user_status(user.status) == USER_STATUS_APPROVED)
+
+def user_access_message(user):
+    status = normalize_user_status(user.status if user else None)
+    if status == USER_STATUS_PENDING:
+        return 'Your account is pending administrator approval.'
+    if status == USER_STATUS_REJECTED:
+        return 'Your account request was not approved. Contact the administrator for assistance.'
+    if status == USER_STATUS_DISABLED:
+        return 'Your account is disabled. Contact the administrator for assistance.'
+    return 'Your account is not approved for access.'
+
+def current_user_record():
+    return db.session.get(User, session.get('user_id')) if session.get('user_id') else None
+
+def user_role_name(user):
+    return user.role.role_name.lower() if user and user.role and user.role.role_name else ''
+
+def user_has_role(user, allowed_roles):
+    allowed = {role.lower() for role in allowed_roles}
+    return user_role_name(user) in allowed
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
             return redirect(url_for('login'))
         user = db.session.get(User, session['user_id'])
-        if not user or user.status != 'ACTIVE':
+        if not is_user_approved(user):
             session.clear()
-            flash('Your account is inactive. Contact the administrator.', 'error')
+            flash(user_access_message(user), 'error')
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
@@ -345,7 +447,7 @@ def role_required(*allowed_roles):
                 return redirect(url_for('login'))
             
             user = db.session.get(User, session['user_id'])
-            if not user or user.status != 'ACTIVE' or user.role.role_name not in allowed_roles:
+            if not is_user_approved(user) or not user_has_role(user, allowed_roles):
                 flash('Access denied. Insufficient permissions.', 'error')
                 return redirect(url_for('dashboard'))
             return f(*args, **kwargs)
@@ -370,10 +472,12 @@ def app_models():
         'EvaluationSession': EvaluationSession,
         'EvaluationQuestion': EvaluationQuestion,
         'EvaluationResponse': EvaluationResponse,
+        'SystemSetting': SystemSetting,
     }
 
 def admin_required_json():
-    if session.get('role') != 'admin':
+    user = current_user_record()
+    if not is_user_approved(user) or not user_has_role(user, ('admin',)):
         return jsonify({'success': False, 'error': 'Admin account required'}), 403
     return None
 
@@ -402,8 +506,35 @@ THEME_FIELDS = {
 def default_theme_settings():
     return {key: field['default'] for key, field in THEME_FIELDS.items()}
 
+def get_system_setting(key):
+    try:
+        setting = db.session.get(SystemSetting, key)
+        return setting.value if setting else None
+    except Exception:
+        db.session.rollback()
+        return None
+
+def set_system_setting(key, value):
+    setting = db.session.get(SystemSetting, key)
+    if not setting:
+        setting = SystemSetting(key=key, value=value)
+        db.session.add(setting)
+    else:
+        setting.value = value
+        setting.updated_at = datetime.utcnow()
+    return setting
+
 def read_theme_settings():
     settings = default_theme_settings()
+    saved_json = get_system_setting('theme_settings')
+    if saved_json:
+        try:
+            saved = json.loads(saved_json)
+            if isinstance(saved, dict):
+                settings.update({key: saved[key] for key in THEME_FIELDS if key in saved})
+                return sanitize_theme_settings(settings)
+        except json.JSONDecodeError:
+            pass
     try:
         with open(THEME_JSON_PATH, 'r', encoding='utf-8') as theme_file:
             saved = json.load(theme_file)
@@ -885,11 +1016,8 @@ body[data-theme-mode="contrast"] [style*="background:#F8FAFC"] {{
 """
 
 def write_theme_files(settings):
-    os.makedirs(os.path.dirname(THEME_CSS_PATH), exist_ok=True)
-    with open(THEME_JSON_PATH, 'w', encoding='utf-8') as theme_file:
-        json.dump(settings, theme_file, indent=2)
-    with open(THEME_CSS_PATH, 'w', encoding='utf-8') as css_file:
-        css_file.write(build_theme_css(settings))
+    # Render file systems are ephemeral; persist runtime theme changes in Supabase Postgres.
+    set_system_setting('theme_settings', json.dumps(settings, separators=(',', ':')))
 
 def clean_text(value, keep_period=False, keep_ampersand=False):
     value = '' if value is None else str(value).strip()
@@ -1209,8 +1337,108 @@ def client_match_candidates(query, limit=10):
 
     return sorted(candidates.values(), key=lambda item: item['match_percent'], reverse=True)[:limit]
 
+def sales_order_item_totals_subquery():
+    return (
+        db.session.query(
+            SalesOrderItem.sales_order_id.label('sales_order_id'),
+            db.func.count(SalesOrderItem.id).label('item_count'),
+            db.func.coalesce(db.func.sum(SalesOrderItem.total), 0).label('item_total')
+        )
+        .group_by(SalesOrderItem.sales_order_id)
+        .subquery()
+    )
+
+def sales_order_invoice_summary_subquery():
+    return (
+        db.session.query(
+            Invoice.sales_order_id.label('sales_order_id'),
+            db.func.count(Invoice.id).label('invoice_count'),
+            db.func.coalesce(db.func.sum(Invoice.amount_paid), 0).label('invoice_amount_paid'),
+            db.func.coalesce(db.func.sum(Invoice.balance), 0).label('invoice_balance'),
+            db.func.max(Invoice.invoice_date).label('last_invoice_date')
+        )
+        .filter(Invoice.sales_order_id.isnot(None))
+        .group_by(Invoice.sales_order_id)
+        .subquery()
+    )
+
+def sales_order_query(statuses=None, outstanding_only=False):
+    item_totals = sales_order_item_totals_subquery()
+    invoice_summary = sales_order_invoice_summary_subquery()
+    computed_total = db.func.coalesce(item_totals.c.item_total, SalesOrder.total_amount, 0)
+    amount_paid = db.func.coalesce(invoice_summary.c.invoice_amount_paid, 0)
+    query = (
+        db.session.query(
+            SalesOrder.id.label('id'),
+            SalesOrder.so_number.label('so_number'),
+            SalesOrder.client_id.label('client_id'),
+            SalesOrder.company_name.label('company_name'),
+            SalesOrder.official_client_name.label('official_client_name'),
+            SalesOrder.original_entered_client_name.label('original_entered_client_name'),
+            SalesOrder.store_name.label('store_name'),
+            SalesOrder.store_branch.label('store_branch'),
+            SalesOrder.order_date.label('order_date'),
+            SalesOrder.sales_staff.label('sales_staff'),
+            SalesOrder.terms.label('terms'),
+            computed_total.label('total_amount'),
+            SalesOrder.status.label('status'),
+            SalesOrder.created_at.label('created_at'),
+            Client.client_name.label('client_name'),
+            db.func.coalesce(item_totals.c.item_count, 0).label('item_count'),
+            db.func.coalesce(invoice_summary.c.invoice_count, 0).label('invoice_count'),
+            db.func.coalesce(invoice_summary.c.invoice_amount_paid, 0).label('invoice_amount_paid'),
+            db.func.coalesce(invoice_summary.c.invoice_balance, 0).label('invoice_balance'),
+            invoice_summary.c.last_invoice_date.label('last_invoice_date'),
+        )
+        .select_from(SalesOrder)
+        .join(Client, SalesOrder.client_id == Client.id)
+        .outerjoin(item_totals, SalesOrder.id == item_totals.c.sales_order_id)
+        .outerjoin(invoice_summary, SalesOrder.id == invoice_summary.c.sales_order_id)
+    )
+    filters = []
+    if statuses:
+        filters.append(SalesOrder.status.in_(statuses))
+    if outstanding_only:
+        filters.append(computed_total > amount_paid)
+    if filters:
+        query = query.filter(or_(*filters))
+    return query
+
+def sales_order_row_payload(row):
+    company_name = row.company_name or row.client_name or ''
+    total_amount = float(row.total_amount or 0)
+    amount_paid = float(row.invoice_amount_paid or 0)
+    current_balance = max(total_amount - amount_paid, 0)
+    return {
+        'id': row.id,
+        'so_number': row.so_number,
+        'client_id': row.client_id,
+        'company_name': company_name,
+        'client_name': row.client_name,
+        'official_client_name': row.official_client_name,
+        'original_entered_client_name': row.original_entered_client_name,
+        'store_name': row.store_name or company_name,
+        'store_branch': row.store_branch or DEFAULT_STORE_BRANCH,
+        'order_date': row.order_date.isoformat() if row.order_date else None,
+        'sales_staff': row.sales_staff,
+        'terms': row.terms,
+        'total_amount': total_amount,
+        'status': row.status,
+        'item_count': int(row.item_count or 0),
+        'invoice_count': int(row.invoice_count or 0),
+        'invoice_amount_paid': amount_paid,
+        'invoice_balance': current_balance,
+        'current_balance': current_balance,
+        'last_invoice_date': row.last_invoice_date.isoformat() if row.last_invoice_date else None,
+        'created_at': row.created_at.isoformat() if row.created_at else None,
+    }
+
 
 def sales_order_admin_payload(order):
+    line_total = sum(float(item.total or 0) for item in getattr(order, 'items', []) or [])
+    invoices = getattr(order, 'invoices', []) or []
+    amount_paid = sum(float(invoice.amount_paid or 0) for invoice in invoices)
+    total_amount = line_total if line_total else float(order.total_amount or 0)
     return {
         'id': order.id,
         'so_number': order.so_number,
@@ -1221,8 +1449,12 @@ def sales_order_admin_payload(order):
         'store_name': order.store_name,
         'store_branch': order.store_branch,
         'order_date': order.order_date.isoformat() if order.order_date else None,
-        'total_amount': float(order.total_amount or 0),
+        'sales_staff': order.sales_staff,
+        'total_amount': total_amount,
         'status': order.status,
+        'invoice_count': len(invoices),
+        'invoice_amount_paid': amount_paid,
+        'current_balance': max(total_amount - amount_paid, 0),
     }
 
 
@@ -1231,7 +1463,8 @@ def admin_client_list_payload():
         Client.query
         .options(
             selectinload(Client.aliases),
-            selectinload(Client.sales_orders),
+            selectinload(Client.sales_orders).selectinload(SalesOrder.items),
+            selectinload(Client.sales_orders).selectinload(SalesOrder.invoices),
         )
         .order_by(Client.client_name.asc())
         .all()
@@ -1300,9 +1533,10 @@ def refresh_client_financials(client=None):
         if item
     }
 
-    for sales_order in SalesOrder.query.all():
+    for sales_order in SalesOrder.query.options(selectinload(SalesOrder.items)).all():
         if sales_order.client_id in financials:
-            financials[sales_order.client_id]['sales_revenue'] += float(sales_order.total_amount or 0)
+            line_total = sum(float(item.total or 0) for item in sales_order.items)
+            financials[sales_order.client_id]['sales_revenue'] += line_total if line_total else float(sales_order.total_amount or 0)
 
     linked_invoices = (
         Invoice.query
@@ -1484,6 +1718,7 @@ def sales_report_itemized_rows(filters=None):
             'client_name': client.client_name,
             'store_name': order.store_name,
             'store_branch': order.store_branch,
+            'sales_staff': order.sales_staff,
             'particular': item.particular,
             'quantity': float(item.quantity or 0),
             'unit_cost': float(item.unit_cost or 0),
@@ -1839,9 +2074,9 @@ def parse_optional_integer(value):
     try:
         parsed = float(str(value).strip())
     except (TypeError, ValueError):
-        raise ValueError(f'Invalid purchase order ID: {value}')
+        raise ValueError(f'Invalid expense ID: {value}')
     if not parsed.is_integer() or parsed <= 0:
-        raise ValueError(f'Invalid purchase order ID: {value}')
+        raise ValueError(f'Invalid expense ID: {value}')
     return int(parsed)
 
 def normalize_purchase_order_debits(lower):
@@ -1988,25 +2223,43 @@ def pending_password_reset_count():
         return 0
     return PasswordReset.query.filter_by(status='PENDING').count()
 
+def pending_account_approval_count():
+    if session.get('role') != 'admin':
+        return 0
+    return User.query.filter(func.lower(User.status) == USER_STATUS_PENDING).count()
+
+def pending_admin_notification_count():
+    return pending_password_reset_count() + pending_account_approval_count()
+
+def profile_photo_src(user):
+    if not user:
+        return None
+    if user.profile_photo_data and user.profile_photo_mime:
+        return f'data:{user.profile_photo_mime};base64,{user.profile_photo_data}'
+    if user.profile_photo:
+        return url_for('static', filename=user.profile_photo)
+    return None
+
 @app.context_processor
 def inject_user_navigation():
     current_user = db.session.get(User, session.get('user_id')) if session.get('user_id') else None
     return {
         'current_user': current_user,
-        'pending_notification_count': pending_password_reset_count(),
+        'pending_notification_count': pending_admin_notification_count(),
+        'profile_photo_src': profile_photo_src,
     }
 
 # Initialize Database
 DEFAULT_EVALUATION_QUESTIONS = [
-    ("Functionality", "The system provides the analytics functions needed to monitor POS and hardware sales performance."),
-    ("Functionality", "The upload and validation workflow supports accurate sales data entry."),
-    ("Usability", "The dashboard is easy to navigate and understand."),
-    ("Usability", "The analytics controls and filters are clear for regular users."),
-    ("Analytics Accuracy", "The displayed metrics and forecasts are useful for understanding sales performance."),
-    ("Analytics Accuracy", "The Client Performance Score fairly represents client value and payment behavior."),
-    ("Dashboard Readability", "Charts and tables are readable and help compare sales performance."),
-    ("Decision Support", "The recommendations help users decide what action to take next."),
-    ("Performance", "The dashboard loads and responds within an acceptable time."),
+    ("User Experience", "The system is easy to navigate during regular work tasks."),
+    ("Features", "The available features support the main sales, invoice, expense, and reporting workflows."),
+    ("Design", "The interface layout and visual hierarchy make information easy to understand."),
+    ("Compatibility", "The system works reliably on the devices and browsers used for daily operations."),
+    ("Reliability", "The system produces consistent results when the same task is repeated."),
+    ("Efficiency", "The system helps users complete tasks with reasonable time and effort."),
+    ("Security", "The system provides appropriate access control for each user role."),
+    ("Portability", "The system can be deployed and maintained across the intended Render and Supabase environment."),
+    ("Overall Agreement", "Overall, the system is suitable for supporting the organization's business workflow."),
 ]
 
 def default_seed_users():
@@ -2035,10 +2288,15 @@ def default_seed_users():
     ]
 
 def seed_evaluation_questions():
-    if EvaluationQuestion.query.first():
-        return
     for order, (category, text) in enumerate(DEFAULT_EVALUATION_QUESTIONS, start=1):
-        db.session.add(EvaluationQuestion(category=category, question_text=text, display_order=order, is_active=True))
+        question = EvaluationQuestion.query.filter_by(display_order=order).first()
+        if not question:
+            question = EvaluationQuestion(display_order=order)
+            db.session.add(question)
+        question.category = category
+        question.question_text = text
+        question.is_active = True
+    EvaluationQuestion.query.filter(EvaluationQuestion.display_order > len(DEFAULT_EVALUATION_QUESTIONS)).update({'is_active': False})
     db.session.commit()
 
 def init_db():
@@ -2074,7 +2332,8 @@ def init_db():
                         username=user_info["username"],
                         password_hash=generate_password_hash(user_info["password"]),
                         role_id=role.id,
-                        status='ACTIVE'
+                        status=USER_STATUS_APPROVED,
+                        approved_at=datetime.now(UTC)
                     )
                     db.session.add(new_user)
                     print(f"Created default user: {user_info['username']}")
@@ -2091,6 +2350,34 @@ def init_db():
 def landing():
     return render_template('landing.html')
 
+@app.route('/theme-overrides.css')
+def theme_overrides_css():
+    return Response(
+        build_theme_css(read_theme_settings()),
+        mimetype='text/css',
+        headers={'Cache-Control': 'no-store'}
+    )
+
+@app.errorhandler(400)
+def bad_request_error(error):
+    return render_error_interface('validation', 400, error)
+
+@app.errorhandler(401)
+def unauthorized_error(error):
+    return render_error_interface('authentication', 401, error)
+
+@app.errorhandler(403)
+def forbidden_error(error):
+    return render_error_interface('permission', 403, error)
+
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_error_interface('empty', 404, error)
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    return render_error_interface('server', 500, error)
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -2099,10 +2386,13 @@ def login():
         
         user = User.query.filter_by(username=username).first()
         
-        if user and user.status == 'ACTIVE' and check_password_hash(user.password_hash, password):
+        if user and check_password_hash(user.password_hash, password):
+            if not is_user_approved(user):
+                flash(user_access_message(user), 'error')
+                return render_template('login.html')
             session['user_id'] = user.id
             session['username'] = user.username
-            session['role'] = user.role.role_name
+            session['role'] = user_role_name(user)
             session_record = SessionRecord(
                 user_id=user.id,
                 username=user.username,
@@ -2125,7 +2415,7 @@ def forgot_password():
     if request.method == 'POST':
         username = (request.form.get('username') or '').strip()
         user = User.query.filter(func.lower(User.username) == username.lower()).first()
-        if user and user.status == 'ACTIVE':
+        if user and is_user_approved(user):
             existing = PasswordReset.query.filter_by(user_id=user.id, status='PENDING').first()
             if not existing:
                 reset_request = PasswordReset(user_id=user.id, username=user.username)
@@ -2163,11 +2453,11 @@ def register():
         
         # Check if username already exists
         if User.query.filter_by(username=username).first():
-            flash('Username already exists', 'error')
+            flash('An account with those details already exists or cannot be created.', 'error')
             return render_template('register.html')
 
         if User.query.filter_by(email=email).first():
-            flash('Email already exists', 'error')
+            flash('An account with those details already exists or cannot be created.', 'error')
             return render_template('register.html')
 
         staff_role = Role.query.filter_by(role_name='staff').first()
@@ -2179,7 +2469,8 @@ def register():
             email=email,
             username=username,
             password_hash=generate_password_hash(password),
-            role_id=staff_role.id
+            role_id=staff_role.id,
+            status=USER_STATUS_PENDING
         )
         db.session.add(user)
         db.session.flush()
@@ -2189,11 +2480,11 @@ def register():
             action='REGISTER',
             table_name='users',
             record_id=str(user.id),
-            new_value=str({'username': user.username, 'email': user.email, 'role': 'staff'})
+            new_value=str({'username': user.username, 'role': 'staff', 'status': user.status})
         ))
         db.session.commit()
         
-        flash('Account created successfully!', 'success')
+        flash('Registration received. Your account is pending administrator approval.', 'info')
         return redirect(url_for('login'))
     
     return render_template('register.html')
@@ -2231,14 +2522,16 @@ def profile():
         photo = request.files.get('profile_photo')
         if photo and photo.filename:
             extension = os.path.splitext(secure_filename(photo.filename))[1].lower()
-            if extension not in {'.png', '.jpg', '.jpeg', '.webp'}:
+            if extension not in PROFILE_PHOTO_MIME_TYPES:
                 flash('Profile photo must be PNG, JPG, JPEG, or WEBP.', 'error')
                 return render_template('profile.html', user=user)
-            upload_dir = os.path.join(app.static_folder, 'uploads', 'profiles')
-            os.makedirs(upload_dir, exist_ok=True)
-            filename = f'user-{user.id}-{int(datetime.now().timestamp())}{extension}'
-            photo.save(os.path.join(upload_dir, filename))
-            user.profile_photo = f'uploads/profiles/{filename}'
+            photo_bytes = photo.read(PROFILE_PHOTO_MAX_BYTES + 1)
+            if len(photo_bytes) > PROFILE_PHOTO_MAX_BYTES:
+                flash('Profile photo must be 1 MB or smaller.', 'error')
+                return render_template('profile.html', user=user)
+            user.profile_photo_data = base64.b64encode(photo_bytes).decode('ascii')
+            user.profile_photo_mime = PROFILE_PHOTO_MIME_TYPES[extension]
+            user.profile_photo = None
 
         user.username = username
         user.email = email
@@ -2261,8 +2554,7 @@ def logout():
             log_audit('LOGOUT', 'session_records', session_record.id, None, {'username': session.get('username')})
             db.session.commit()
     session.clear()
-    flash('You have been logged out', 'info')
-    return redirect(url_for('login'))
+    return render_template('logout.html', login_url=url_for('login'))
 
 @app.route('/dashboard')
 @login_required
@@ -2371,37 +2663,13 @@ def dashboard():
 
     actual_profit = total_revenue - total_expenses
 
-    # Recent sales orders
-    item_count_sq = (
-        db.session.query(
-            SalesOrderItem.sales_order_id.label('sales_order_id'),
-            db.func.count(SalesOrderItem.id).label('item_count'),
-            db.func.coalesce(
-                db.func.sum(SalesOrderItem.quantity * SalesOrderItem.selling_price),
-                0
-            ).label('item_total')
-        )
-        .group_by(SalesOrderItem.sales_order_id)
-        .subquery()
-    )
-
     recent_sales_orders = (
-        db.session.query(
-            SalesOrder.id,
-            SalesOrder.so_number,
-            SalesOrder.order_date,
-            db.func.coalesce(item_count_sq.c.item_total, 0).label('total_amount'),
-            SalesOrder.status,
-            Client.client_name,
-            db.func.coalesce(item_count_sq.c.item_count, 0).label('item_count')
-        )
-        .join(Client, SalesOrder.client_id == Client.id)
-        .outerjoin(item_count_sq, SalesOrder.id == item_count_sq.c.sales_order_id)
+        sales_order_query()
         .filter(
             SalesOrder.order_date >= year_start,
             SalesOrder.order_date < next_year_start
         )
-        .order_by(SalesOrder.created_at.desc())
+        .order_by(SalesOrder.order_date.desc(), SalesOrder.created_at.desc(), SalesOrder.id.desc())
         .limit(10)
         .all()
     )
@@ -2487,10 +2755,35 @@ def dashboard():
     client_summaries = []
     analysis_clients = get_clients_analysis(db, app_models(), year_start, next_year_start).get('clients', [])
 
-    analysis_by_name = {
-        normalize_client_match_key(item.get('company_name')): item
-        for item in analysis_clients
-    }
+    analysis_by_client_id = defaultdict(lambda: {
+        'total_revenue': 0.0,
+        'total_paid': 0.0,
+        'balance': 0.0,
+        'client_performance_score': 0.0,
+        'cohort': None,
+        'value_status': None,
+        'balance_status': None,
+        'last_purchase': None,
+    })
+    for item in analysis_clients:
+        client_ids = item.get('client_ids') or []
+        for client_id in client_ids:
+            summary = analysis_by_client_id[client_id]
+            summary['total_revenue'] += float(item.get('total_revenue') or 0)
+            summary['total_paid'] += float(item.get('total_paid') or 0)
+            summary['balance'] += float(item.get('balance') or 0)
+            if float(item.get('client_performance_score') or 0) > float(summary.get('client_performance_score') or 0):
+                summary['client_performance_score'] = item.get('client_performance_score')
+                summary['cohort'] = item.get('cohort')
+                summary['value_status'] = item.get('value_status')
+            if item.get('balance_status') == 'Unsettled Balance':
+                summary['balance_status'] = item.get('balance_status')
+            elif not summary.get('balance_status'):
+                summary['balance_status'] = item.get('balance_status')
+            if item.get('last_purchase') and (
+                not summary.get('last_purchase') or item.get('last_purchase') > summary.get('last_purchase')
+            ):
+                summary['last_purchase'] = item.get('last_purchase')
     for client in Client.query.order_by(Client.client_name.asc()).all():
         client_orders = orders_by_client.get(client.id, [])
         unpaid_sales_orders = []
@@ -2525,7 +2818,7 @@ def dashboard():
 
         client_paid += admin_paid_by_client.get(client.id, 0)
 
-        analysis_client = analysis_by_name.get(normalize_client_match_key(client.client_name), {})
+        analysis_client = analysis_by_client_id.get(client.id, {})
         client_revenue = float(analysis_client.get('total_revenue', client_revenue) or 0)
         client_paid = float(client_paid or 0)
         current_balance = max(client_revenue - client_paid, 0)
@@ -2539,7 +2832,7 @@ def dashboard():
             'total_paid': client_paid,
             'balance_status': analysis_client.get('balance_status') or ('Settled' if current_balance <= 0.01 else 'Unsettled Balance'),
             'client_performance_score': analysis_client.get('client_performance_score', 0),
-            'cohort': analysis_client.get('cohort') or analysis_client.get('value_status') or 'Low Engagement',
+            'cohort': analysis_client.get('cohort') or analysis_client.get('value_status') or 'Low Order Activity',
             'last_purchase': analysis_client.get('last_purchase'),
             'unpaid_sales_order_count': len(unpaid_sales_orders),
             'unpaid_sales_orders': unpaid_sales_orders
@@ -2663,6 +2956,7 @@ def dashboard():
 
 @app.route('/sales-order')
 @login_required
+@role_required(*SALES_ROLES)
 def sales_order():
     return render_template('sales_order.html')
 
@@ -2823,6 +3117,7 @@ def audit_report_export():
 
 @app.route('/get-clients')
 @login_required
+@role_required(*ALL_BUSINESS_ROLES)
 def get_clients():
     try:
         clients_list = Client.query.order_by(Client.created_at.desc()).all()
@@ -2850,6 +3145,7 @@ def get_clients():
 
 @app.route('/client-match-preview', methods=['POST'])
 @login_required
+@role_required(*OPERATIONS_ROLES)
 def client_match_preview():
     try:
         payload = request.get_json() or {}
@@ -2870,6 +3166,7 @@ def client_match_preview():
 
 @app.route('/create-client', methods=['POST'])
 @login_required
+@role_required(*OPERATIONS_ROLES)
 def create_client():
     try:
         data = request.get_json()
@@ -2912,6 +3209,7 @@ def create_client():
 
 @app.route('/upload-excel', methods=['POST'])
 @login_required
+@role_required(*OPERATIONS_ROLES)
 def upload_excel():
     if 'file' not in request.files:
         return jsonify({'success': False, 'error': 'No file uploaded'})
@@ -2933,6 +3231,7 @@ def upload_excel():
 
 @app.route('/admin/upload-preview/<interface>', methods=['POST'])
 @login_required
+@role_required('admin')
 def admin_upload_preview(interface):
     denied = admin_required_json()
     if denied:
@@ -2972,7 +3271,7 @@ def admin_upload_preview(interface):
             elif interface == 'purchase_order':
                 warning_fields.extend([
                     (f'Row {index} Check date', row.get('check_date')),
-                    (f'Row {index} Purchase Order date', row.get('date')),
+                    (f'Row {index} Expense date', row.get('date')),
                     (f'Row {index} OR date', row.get('or_date')),
                 ])
         return jsonify({
@@ -2992,6 +3291,7 @@ def admin_upload_preview(interface):
 
 @app.route('/admin/upload-commit/<interface>', methods=['POST'])
 @login_required
+@role_required('admin')
 def admin_upload_commit(interface):
     denied = admin_required_json()
     if denied:
@@ -3046,7 +3346,7 @@ def admin_upload_commit(interface):
             elif interface == 'purchase_order':
                 upload_warning_fields.extend([
                     (f'Row {index} Check date', row.get('check_date')),
-                    (f'Row {index} Purchase Order date', row.get('date')),
+                    (f'Row {index} Expense date', row.get('date')),
                     (f'Row {index} OR date', row.get('or_date')),
                 ])
         warnings = future_date_warnings(dict(upload_warning_fields))
@@ -3199,6 +3499,7 @@ def admin_upload_commit(interface):
 
 @app.route('/auto-identify-fields', methods=['POST'])
 @login_required
+@role_required(*OPERATIONS_ROLES)
 def auto_identify_fields():
     try:
         data = request.get_json().get('data', [])
@@ -3256,14 +3557,43 @@ def auto_identify_fields():
 
 @app.route('/create-sales-order', methods=['POST'])
 @login_required
+@role_required(*SALES_ROLES)
 def create_sales_order():
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         warnings = future_date_warnings({'Sales Order date': data.get('order_date')})
 
         company_name = (data.get('company_name') or data.get('client_name') or '').strip()
+        order_date = parse_date_value(data.get('order_date'), default_today=False)
         client_id = data.get('client_id')
         resolutions = parse_resolution_payload(data)
+
+        if not company_name:
+            return jsonify({'success': False, 'error': 'Company name is required'}), 400
+        if not order_date:
+            return jsonify({'success': False, 'error': 'Order date is required'}), 400
+
+        valid_items = []
+        for item in data.get('items') or []:
+            particular = clean_text(item.get('particular', ''), keep_period=True, keep_ampersand=True).upper()
+            quantity = parse_amount(item.get('quantity') or item.get('qty'))
+            unit_cost = parse_amount(item.get('unit_cost') or item.get('cost'))
+            selling_price = parse_amount(item.get('selling_price') or item.get('item_price') or item.get('price'))
+            calculated_total = selling_price * quantity
+            total = parse_amount(item.get('total')) or calculated_total
+            if total <= 0:
+                total = calculated_total
+            if particular and quantity > 0 and selling_price > 0:
+                valid_items.append({
+                    'particular': particular,
+                    'quantity': quantity,
+                    'unit_cost': unit_cost,
+                    'selling_price': selling_price,
+                    'total': total,
+                })
+
+        if not valid_items:
+            return jsonify({'success': False, 'error': 'At least one valid line item is required'}), 400
 
         # Create or get client. The client basket is derived from sales order
         # items, so every order must be attached to the saved client id.
@@ -3271,8 +3601,6 @@ def create_sales_order():
         if client_id:
             client = db.session.get(Client, client_id)
         if not client:
-            if not company_name:
-                return jsonify({'success': False, 'error': 'Company name is required'})
             resolution = resolve_client_name(
                 company_name,
                 resolutions,
@@ -3303,9 +3631,13 @@ def create_sales_order():
         
         # Create sales order
         store_name = clean_text(data.get('store_name', '')) or clean_text(company_name or client_name, keep_period=True, keep_ampersand=True)
+        total_amount = sum(item['total'] for item in valid_items)
+        terms_days = int(parse_amount(data.get('terms_days') or data.get('terms')) or 30)
+        if terms_days <= 0:
+            terms_days = 30
         sales_order = SalesOrder(
             so_number=so_number,
-            order_date=datetime.strptime(data['order_date'], '%Y-%m-%d').date(),
+            order_date=order_date,
             client_id=client.id,
             company_name=client_name,
             official_client_name=client_name,
@@ -3313,8 +3645,8 @@ def create_sales_order():
             store_name=store_name.upper(),
             store_branch=(clean_text(data.get('store_branch', '')) or DEFAULT_STORE_BRANCH).upper(),
             sales_staff=data.get('sales_staff') or session.get('username', ''),
-            total_amount=float(data.get('total_amount') or 0),
-            terms=int(data.get('terms_days') or data.get('terms') or 30),
+            total_amount=total_amount,
+            terms=terms_days,
             notes=data.get('notes', ''),
             status='PENDING'
         )
@@ -3323,18 +3655,14 @@ def create_sales_order():
         db.session.flush()
         
         # Add items
-        for item in data['items']:
-            quantity = float(item.get('quantity') or item.get('qty') or 0)
-            unit_cost = float(item.get('unit_cost') or item.get('cost') or 0)
-            selling_price = float(item.get('selling_price') or item.get('item_price') or item.get('price') or 0)
-            total = float(item.get('total') or (selling_price * quantity))
+        for item in valid_items:
             order_item = SalesOrderItem(
                 sales_order_id=sales_order.id,
                 particular=item['particular'],
-                quantity=quantity,
-                unit_cost=unit_cost,
-                selling_price=selling_price,
-                total=total
+                quantity=item['quantity'],
+                unit_cost=item['unit_cost'],
+                selling_price=item['selling_price'],
+                total=item['total']
             )
             db.session.add(order_item)
         
@@ -3342,23 +3670,104 @@ def create_sales_order():
         log_audit('CREATE', 'sales_orders', sales_order.id, None, {'so_number': sales_order.so_number, 'total_amount': sales_order.total_amount})
         db.session.commit()
         
-        return json_success({'message': 'Sales order created successfully'}, warnings)
+        return json_success({
+            'message': 'Sales order created successfully',
+            'sales_order': {
+                'id': sales_order.id,
+                'so_number': sales_order.so_number,
+                'company_name': sales_order.company_name,
+                'store_name': sales_order.store_name,
+                'store_branch': sales_order.store_branch,
+                'order_date': sales_order.order_date.isoformat(),
+                'sales_staff': sales_order.sales_staff,
+                'total_amount': sales_order.total_amount,
+                'status': sales_order.status,
+            },
+            'print_url': url_for('print_sales_order', so_id=sales_order.id)
+        }, warnings)
     
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/get-sales-orders')
+@login_required
+@role_required(*SALES_ROLES)
+def get_sales_orders():
+    try:
+        sales_orders_list = (
+            sales_order_query()
+            .order_by(SalesOrder.order_date.desc(), SalesOrder.created_at.desc(), SalesOrder.id.desc())
+            .limit(100)
+            .all()
+        )
+        return jsonify({
+            'success': True,
+            'sales_orders': [sales_order_row_payload(so) for so in sales_orders_list]
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/get-client-references')
+@login_required
+@role_required(*ALL_BUSINESS_ROLES)
+def get_client_references():
+    try:
+        clients_list = (
+            Client.query
+            .options(selectinload(Client.aliases))
+            .filter(Client.status != 'INACTIVE')
+            .order_by(Client.client_name.asc())
+            .limit(500)
+            .all()
+        )
+        return jsonify({
+            'success': True,
+            'clients': [
+                {
+                    'id': client.id,
+                    'client_name': client.client_name,
+                    'status': client.status or 'ACTIVE',
+                    'aliases': [alias.alias_name for alias in client.aliases if alias.status == 'ACTIVE'],
+                } for client in clients_list
+            ]
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/sales-orders/<int:so_id>/print')
+@login_required
+@role_required(*SALES_ROLES)
+def print_sales_order(so_id):
+    sales_order = SalesOrder.query.options(
+        selectinload(SalesOrder.client),
+        selectinload(SalesOrder.items),
+    ).filter(SalesOrder.id == so_id).first_or_404()
+    return render_template('sales_order_print.html', sales_order=sales_order, datetime=datetime)
+
 @app.route('/invoices')
 @login_required
+@role_required(*ACCOUNTING_ROLES)
 def invoices():
     return render_template('invoices.html')
 
 
 @app.route('/get-invoices')
 @login_required
+@role_required(*ACCOUNTING_ROLES)
 def get_invoices():
     try:
-        invoices_list = db.session.query(
+        try:
+            page = max(int(request.args.get('page', 1)), 1)
+        except (TypeError, ValueError):
+            page = 1
+        try:
+            page_size = min(max(int(request.args.get('page_size', 50)), 1), 100)
+        except (TypeError, ValueError):
+            page_size = 50
+        invoice_type = (request.args.get('invoice_type') or '').upper()
+
+        invoice_query = db.session.query(
             Invoice.id, Invoice.invoice_number, Invoice.sales_order_id, SalesOrder.so_number,
             Invoice.invoice_type, Invoice.invoice_date, Invoice.total_amount,
             Invoice.payment_type, Invoice.cr_number, Invoice.payment_amount,
@@ -3370,13 +3779,25 @@ def get_invoices():
         ).join(
             Client, SalesOrder.client_id == Client.id
             , isouter=True
-        ).order_by(Invoice.created_at.desc()).all()
-        
-        invoice_count = len(invoices_list)
+        )
+        if invoice_type in {'SALES', 'SERVICE'}:
+            invoice_query = invoice_query.filter(Invoice.invoice_type == invoice_type)
+
+        invoice_count = invoice_query.count()
+        invoices_list = (
+            invoice_query
+            .order_by(Invoice.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
         
         return jsonify({
             'success': True,
             'count': invoice_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': max((invoice_count + page_size - 1) // page_size, 1),
             'invoices': [
                 {
                     'id': inv.id,
@@ -3406,57 +3827,69 @@ def get_invoices():
 
 @app.route('/get-pending-sales-orders')
 @login_required
+@role_required(*ACCOUNTING_ROLES)
 def get_pending_sales_orders():
     try:
-        pending_orders = db.session.query(
-            SalesOrder.id, SalesOrder.so_number, SalesOrder.order_date,
-            SalesOrder.total_amount, SalesOrder.status, Client.client_name
-        ).join(Client).filter(SalesOrder.status.in_(['PENDING', 'PARTIAL'])).all()
+        search = (request.args.get('q') or '').strip()
+        try:
+            limit = min(max(int(request.args.get('limit', 25)), 1), 50)
+        except (TypeError, ValueError):
+            limit = 25
+
+        query = sales_order_query(statuses=['PENDING', 'PARTIAL'], outstanding_only=True)
+        if search:
+            pattern = f'%{search}%'
+            search_filters = [
+                SalesOrder.so_number.ilike(pattern),
+                SalesOrder.company_name.ilike(pattern),
+                SalesOrder.official_client_name.ilike(pattern),
+                SalesOrder.original_entered_client_name.ilike(pattern),
+                SalesOrder.store_name.ilike(pattern),
+                SalesOrder.store_branch.ilike(pattern),
+                SalesOrder.sales_staff.ilike(pattern),
+                SalesOrder.status.ilike(pattern),
+                Client.client_name.ilike(pattern),
+            ]
+            parsed_date = parse_date_value(search, default_today=False)
+            if parsed_date:
+                search_filters.append(SalesOrder.order_date == parsed_date)
+            query = query.filter(or_(*search_filters))
+
+        pending_orders = (
+            query
+            .order_by(SalesOrder.order_date.desc(), SalesOrder.created_at.desc(), SalesOrder.id.desc())
+            .limit(limit)
+            .all()
+        )
         
         return jsonify({
             'success': True,
-            'sales_orders': [
-                {
-                    'id': so.id,
-                    'so_number': so.so_number,
-                    'client_name': so.client_name,
-                    'order_date': so.order_date.isoformat() if so.order_date else None,
-                    'total_amount': so.total_amount,
-                    'status': so.status
-                } for so in pending_orders
-            ]
+            'query': search,
+            'sales_orders': [sales_order_row_payload(so) for so in pending_orders]
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/get-sales-order-details/<int:so_id>')
 @login_required
+@role_required(*ACCOUNTING_ROLES)
 def get_sales_order_details(so_id):
     try:
-        sales_order = db.session.query(
-            SalesOrder.id, SalesOrder.so_number, SalesOrder.order_date,
-            SalesOrder.total_amount, SalesOrder.status, Client.client_name
-        ).join(Client).filter(SalesOrder.id == so_id).first()
+        sales_order = sales_order_query().filter(SalesOrder.id == so_id).first()
         
         if not sales_order:
             return jsonify({'success': False, 'error': 'Sales order not found'})
         
         return jsonify({
             'success': True,
-            'sales_order': {
-                'id': sales_order.id,
-                'so_number': sales_order.so_number,
-                'client_name': sales_order.client_name,
-                'order_date': sales_order.order_date.isoformat() if sales_order.order_date else None,
-                'total_amount': sales_order.total_amount,
-                'status': sales_order.status
-            }
+            'sales_order': sales_order_row_payload(sales_order)
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/generate-invoice-number')
 @login_required
+@role_required(*ACCOUNTING_ROLES)
 def generate_invoice_number():
     try:
         invoice_type = request.args.get('type', 'SALES')
@@ -3483,6 +3916,7 @@ def generate_invoice_number():
 
 @app.route('/create-invoice', methods=['POST'])
 @login_required
+@role_required(*ACCOUNTING_ROLES)
 def create_invoice():
     try:
         data = request.get_json()
@@ -3545,6 +3979,7 @@ def create_invoice():
 
 @app.route('/update-invoice-payment/<int:invoice_id>', methods=['POST'])
 @login_required
+@role_required(*ACCOUNTING_ROLES)
 def update_invoice_payment(invoice_id):
     try:
         data = request.get_json()
@@ -3585,93 +4020,275 @@ def update_invoice_payment(invoice_id):
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/purchase-orders')
+def expense_history_payload(limit=None):
+    query = PurchaseOrder.query.order_by(PurchaseOrder.created_at.desc())
+    if limit:
+        query = query.limit(limit)
+    purchase_orders_list = query.all()
+    return [
+        {
+            'id': po.id,
+            'check_voucher_number': po.check_voucher_number,
+            'check_number': po.check_number,
+            'check_date': po.check_date.isoformat() if po.check_date else None,
+            'supplier_payee': po.supplier_payee,
+            'date': po.date.isoformat() if po.date else None,
+            'particulars': po.particulars,
+            'cash_amount': po.cash_amount,
+            'net_balance': po.net_balance,
+            'status': po.status or 'PENDING',
+            'category': po.category or 'VARIABLE',
+            'created_at': po.created_at.isoformat() if po.created_at else None,
+            'or_date': po.or_date.isoformat() if po.or_date else None,
+            'ar_cr_or_number': po.ar_cr_or_number,
+            'po_number': po.po_number,
+            'lf_no': po.lf_no,
+            'tin_number': po.tin_number,
+            'debits': [
+                {
+                    'id': debit.id,
+                    'debit_type': debit.debit_type,
+                    'amount': debit.amount,
+                }
+                for debit in po.debits
+            ],
+        }
+        for po in purchase_orders_list
+    ]
+
+
+def expense_audit_snapshot(expense):
+    data = serialize_record(expense) or {}
+    data['debits'] = [
+        {
+            'debit_type': debit.debit_type,
+            'amount': float(debit.amount or 0),
+        }
+        for debit in PurchaseOrderDebit.query
+        .filter_by(purchase_order_id=expense.id)
+        .order_by(PurchaseOrderDebit.id.asc())
+        .all()
+    ]
+    return data
+
+
+def normalize_expense_payload(data):
+    data = data or {}
+    required_text_fields = {
+        'check_voucher_number': 'Check/Cash Voucher Number',
+        'check_number': 'Check Number',
+        'particulars': 'Particulars',
+        'supplier_payee': 'Supplier/Payee',
+    }
+    normalized = {}
+    for field, label in required_text_fields.items():
+        value = str(data.get(field) or '').strip()
+        if not value:
+            raise ValueError(f'{label} is required.')
+        normalized[field] = value
+
+    for field, label in {'check_date': 'Check date', 'date': 'Expense date'}.items():
+        value = data.get(field)
+        if not value:
+            raise ValueError(f'{label} is required.')
+        normalized[field] = datetime.strptime(value, '%Y-%m-%d').date()
+
+    normalized['or_date'] = (
+        datetime.strptime(data.get('or_date'), '%Y-%m-%d').date()
+        if data.get('or_date') else None
+    )
+    for field in ('ar_cr_or_number', 'po_number', 'lf_no', 'tin_number'):
+        normalized[field] = str(data.get(field) or '').strip()
+
+    try:
+        cash_amount = float(data.get('cash_amount'))
+    except (TypeError, ValueError):
+        raise ValueError('Cash amount is required.')
+    if cash_amount < 0:
+        raise ValueError('Cash amount cannot be negative.')
+    normalized['cash_amount'] = round(cash_amount, 2)
+
+    debits = []
+    for debit in data.get('debits', []):
+        debit_type = str(debit.get('debit_type') or '').strip()
+        if not debit_type:
+            continue
+        try:
+            amount = float(debit.get('amount'))
+        except (TypeError, ValueError):
+            raise ValueError(f'Invalid amount for debit account {debit_type}.')
+        if amount <= 0:
+            raise ValueError(f'Debit amount for {debit_type} must be greater than zero.')
+        debits.append({'debit_type': debit_type, 'amount': round(amount, 2)})
+    if not debits:
+        raise ValueError('At least one debit account is required.')
+
+    total_debits = round(sum(debit['amount'] for debit in debits), 2)
+    net_balance = round(total_debits - normalized['cash_amount'], 2)
+    normalized['debits'] = debits
+    normalized['net_balance'] = net_balance
+    normalized['category'] = 'FIXED' if any(
+        debit['debit_type'] in ['PLDT', 'Globe/Smart, Sun', 'Meralco', 'Rent Expense']
+        for debit in debits
+    ) else 'VARIABLE'
+    normalized['status'] = 'PAID' if abs(net_balance) < 0.005 else 'PENDING'
+    return normalized
+
+
+def apply_expense_payload(expense, normalized):
+    expense.check_voucher_number = normalized['check_voucher_number']
+    expense.check_number = normalized['check_number']
+    expense.check_date = normalized['check_date']
+    expense.date = normalized['date']
+    expense.or_date = normalized['or_date']
+    expense.ar_cr_or_number = normalized['ar_cr_or_number']
+    expense.po_number = normalized['po_number']
+    expense.lf_no = normalized['lf_no']
+    expense.particulars = normalized['particulars']
+    expense.supplier_payee = normalized['supplier_payee']
+    expense.tin_number = normalized['tin_number']
+    expense.cash_amount = normalized['cash_amount']
+    expense.net_balance = normalized['net_balance']
+    expense.category = normalized['category']
+    expense.status = normalized['status']
+
+
+def replace_expense_debits(expense, debits):
+    PurchaseOrderDebit.query.filter_by(purchase_order_id=expense.id).delete()
+    for debit_data in debits:
+        db.session.add(PurchaseOrderDebit(
+            purchase_order_id=expense.id,
+            debit_type=debit_data['debit_type'],
+            amount=debit_data['amount'],
+        ))
+
+
+def create_expense_record(data):
+    warnings = future_date_warnings({
+        'Check date': data.get('check_date') if data else None,
+        'Expense date': data.get('date') if data else None,
+        'OR date': data.get('or_date') if data else None,
+    })
+    normalized = normalize_expense_payload(data)
+
+    expense = PurchaseOrder(
+        check_voucher_number=normalized['check_voucher_number'],
+        check_number=normalized['check_number'],
+        check_date=normalized['check_date'],
+        date=normalized['date'],
+        or_date=normalized['or_date'],
+        ar_cr_or_number=normalized['ar_cr_or_number'],
+        po_number=normalized['po_number'],
+        lf_no=normalized['lf_no'],
+        particulars=normalized['particulars'],
+        supplier_payee=normalized['supplier_payee'],
+        tin_number=normalized['tin_number'],
+        cash_amount=normalized['cash_amount'],
+        net_balance=normalized['net_balance'],
+        category=normalized['category'],
+        status=normalized['status']
+    )
+
+    db.session.add(expense)
+    db.session.flush()
+    replace_expense_debits(expense, normalized['debits'])
+
+    log_audit('CREATE', 'purchase_orders', expense.id, None, {
+        'check_voucher_number': expense.check_voucher_number,
+        'cash_amount': expense.cash_amount,
+        'module_label': 'Expense',
+    })
+    db.session.commit()
+    return warnings
+
+
+@app.route('/expenses')
 @login_required
-def purchase_orders():
+@role_required(*ACCOUNTING_ROLES)
+def expenses():
     return render_template('purchase_orders.html')
 
-@app.route('/get-purchase-orders')
+@app.route('/purchase-orders')
 @login_required
-def get_purchase_orders():
+@role_required(*ACCOUNTING_ROLES)
+def purchase_orders():
+    return redirect(url_for('expenses'))
+
+@app.route('/get-expenses')
+@login_required
+@role_required(*ACCOUNTING_ROLES)
+def get_expenses():
     try:
-        purchase_orders_list = PurchaseOrder.query.order_by(PurchaseOrder.created_at.desc()).all()
-        
+        expenses_list = expense_history_payload()
         return jsonify({
             'success': True,
-            'purchase_orders': [
-                {
-                    'check_voucher_number': po.check_voucher_number,
-                    'check_number': po.check_number,
-                    'supplier_payee': po.supplier_payee,
-                    'date': po.date.isoformat() if po.date else None,
-                    'particulars': po.particulars,
-                    'cash_amount': po.cash_amount,
-                    'net_balance': po.net_balance,
-                    'status': po.status or 'PENDING',
-                    'category': po.category or 'VARIABLE'
-                } for po in purchase_orders_list
-            ]
+            'expenses': expenses_list,
+            'purchase_orders': expenses_list,
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/create-purchase-order', methods=['POST'])
+@app.route('/get-purchase-orders')
 @login_required
-def create_purchase_order():
+@role_required(*ACCOUNTING_ROLES)
+def get_purchase_orders():
+    return get_expenses()
+
+@app.route('/create-expense', methods=['POST'])
+@login_required
+@role_required(*ACCOUNTING_ROLES)
+def create_expense():
     try:
         data = request.get_json()
-        warnings = future_date_warnings({
-            'Check date': data.get('check_date'),
-            'Purchase Order date': data.get('date'),
-            'OR date': data.get('or_date'),
-        })
-        
-        # Create purchase order
-        category = data.get('category')
-        if not category:
-            category = 'FIXED' if any(
-                debit.get('debit_type') in ['PLDT', 'Globe/Smart, Sun', 'Meralco', 'Rent Expense']
-                for debit in data.get('debits', [])
-            ) else 'VARIABLE'
-
-        purchase_order = PurchaseOrder(
-            check_voucher_number=data['check_voucher_number'],
-            check_number=data['check_number'],
-            check_date=datetime.strptime(data['check_date'], '%Y-%m-%d').date(),
-            date=datetime.strptime(data['date'], '%Y-%m-%d').date(),
-            or_date=datetime.strptime(data['or_date'], '%Y-%m-%d').date() if data.get('or_date') else None,
-            ar_cr_or_number=data.get('ar_cr_or_number', ''),
-            po_number=data.get('po_number', ''),
-            lf_no=data.get('lf_no', ''),
-            particulars=data['particulars'],
-            supplier_payee=data['supplier_payee'],
-            tin_number=data.get('tin_number', ''),
-            cash_amount=data['cash_amount'],
-            net_balance=data['net_balance'],
-            category=category,
-            status='PENDING'
-        )
-        
-        db.session.add(purchase_order)
-        db.session.flush()
-        
-        # Add debit items
-        for debit_data in data['debits']:
-            debit_item = PurchaseOrderDebit(
-                purchase_order_id=purchase_order.id,
-                debit_type=debit_data['debit_type'],
-                amount=debit_data['amount']
-            )
-            db.session.add(debit_item)
-        
-        log_audit('CREATE', 'purchase_orders', purchase_order.id, None, {'check_voucher_number': purchase_order.check_voucher_number, 'cash_amount': purchase_order.cash_amount})
-        db.session.commit()
-        
-        return json_success({'message': 'Purchase order created successfully'}, warnings)
+        warnings = create_expense_record(data)
+        return json_success({'message': 'Expense created successfully'}, warnings)
     
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/create-purchase-order', methods=['POST'])
+@login_required
+@role_required(*ACCOUNTING_ROLES)
+def create_purchase_order():
+    return create_expense()
+
+@app.route('/expenses/<int:expense_id>', methods=['PUT'])
+@login_required
+@role_required(*ACCOUNTING_ROLES)
+def update_expense(expense_id):
+    try:
+        expense = db.session.get(PurchaseOrder, expense_id)
+        if not expense:
+            return jsonify({'success': False, 'error': 'Expense not found'}), 404
+
+        data = request.get_json() or {}
+        warnings = future_date_warnings({
+            'Check date': data.get('check_date'),
+            'Expense date': data.get('date'),
+            'OR date': data.get('or_date'),
+        })
+        normalized = normalize_expense_payload(data)
+        old_value = expense_audit_snapshot(expense)
+        apply_expense_payload(expense, normalized)
+        replace_expense_debits(expense, normalized['debits'])
+        db.session.flush()
+        new_value = expense_audit_snapshot(expense)
+        log_audit('UPDATE', 'purchase_orders', expense.id, old_value, new_value)
+        db.session.commit()
+        return json_success({'message': 'Expense updated successfully'}, warnings)
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/update-expense/<int:expense_id>', methods=['POST', 'PUT'])
+@login_required
+@role_required(*ACCOUNTING_ROLES)
+def update_expense_compat(expense_id):
+    return update_expense(expense_id)
 
 @app.route('/database-interface')
 @login_required
@@ -3806,25 +4423,16 @@ def get_client_basket():
 @role_required('admin')
 def get_sales_orders_admin():
     try:
-        sales_orders_list = db.session.query(
-            SalesOrder.id, SalesOrder.so_number, SalesOrder.order_date,
-            SalesOrder.total_amount, SalesOrder.status, Client.client_name,
-            SalesOrder.created_at
-        ).join(Client).order_by(SalesOrder.created_at.desc()).limit(50).all()
+        sales_orders_list = (
+            sales_order_query()
+            .order_by(SalesOrder.order_date.desc(), SalesOrder.created_at.desc(), SalesOrder.id.desc())
+            .limit(50)
+            .all()
+        )
         
         return jsonify({
             'success': True,
-            'sales_orders': [
-                {
-                    'id': so.id,
-                    'so_number': so.so_number,
-                    'client_name': so.client_name,
-                    'order_date': so.order_date.isoformat() if so.order_date else None,
-                    'total_amount': so.total_amount,
-                    'status': so.status,
-                    'created_at': so.created_at.isoformat() if so.created_at else None
-                } for so in sales_orders_list
-            ]
+            'sales_orders': [sales_order_row_payload(so) for so in sales_orders_list]
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -3867,20 +4475,11 @@ def get_invoices_admin():
 @role_required('admin')
 def get_purchase_orders_admin():
     try:
-        purchase_orders_list = PurchaseOrder.query.order_by(PurchaseOrder.created_at.desc()).limit(50).all()
+        expenses_list = expense_history_payload(limit=50)
         return jsonify({
             'success': True,
-            'purchase_orders': [
-                {
-                    'id': po.id,
-                    'check_voucher_number': po.check_voucher_number,
-                    'supplier_payee': po.supplier_payee,
-                    'date': po.date.isoformat() if po.date else None,
-                    'cash_amount': po.cash_amount,
-                    'status': po.status or 'PENDING',
-                    'created_at': po.created_at.isoformat() if po.created_at else None
-                } for po in purchase_orders_list
-            ]
+            'expenses': expenses_list,
+            'purchase_orders': expenses_list,
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -3934,7 +4533,9 @@ def create_user():
             email=email,
             password_hash=generate_password_hash(data['password']),
             role_id=data['role_id'],
-            status='ACTIVE'
+            status=USER_STATUS_APPROVED,
+            approved_by=session.get('user_id'),
+            approved_at=datetime.now(UTC)
         )
         
         db.session.add(user)
@@ -3981,10 +4582,15 @@ def update_user(user_id):
         user.username = username
         user.email = email
         user.role_id = requested_role_id
-        requested_status = (data.get('status') or user.status or 'ACTIVE').upper()
-        if user_is_admin and requested_status != 'ACTIVE':
+        requested_status = normalize_user_status(data.get('status') or user.status or USER_STATUS_APPROVED)
+        if requested_status not in USER_STATUS_CHOICES:
+            return jsonify({'success': False, 'error': 'Invalid user status'}), 400
+        if user_is_admin and requested_status != USER_STATUS_APPROVED:
             return jsonify({'success': False, 'error': 'The only admin account cannot be deactivated'}), 409
-        user.status = requested_status if requested_status in {'ACTIVE', 'INACTIVE'} else user.status
+        if normalize_user_status(user.status) != USER_STATUS_APPROVED and requested_status == USER_STATUS_APPROVED:
+            user.approved_by = session.get('user_id')
+            user.approved_at = datetime.now(UTC)
+        user.status = requested_status
         
         if data.get('password'):
             user.password_hash = generate_password_hash(data['password'])
@@ -3993,6 +4599,7 @@ def update_user(user_id):
         db.session.commit()
         if user.id == session['user_id']:
             session['username'] = user.username
+            session['role'] = user_role_name(user)
         
         return jsonify({'success': True, 'message': 'User updated successfully'})
     
@@ -4013,7 +4620,7 @@ def delete_user(user_id):
             return jsonify({'success': False, 'error': 'The current or admin account cannot be deactivated'}), 409
         
         old_value = serialize_record(user)
-        user.status = 'INACTIVE'
+        user.status = USER_STATUS_DISABLED
         SessionRecord.query.filter_by(user_id=user.id, status='ACTIVE').update({
             'status': 'FORCED_LOGOUT',
             'logout_at': datetime.now(UTC)
@@ -4021,7 +4628,7 @@ def delete_user(user_id):
         log_audit('DEACTIVATE', 'users', user_id, old_value, serialize_record(user))
         db.session.commit()
         
-        return jsonify({'success': True, 'message': 'User marked inactive successfully'})
+        return jsonify({'success': True, 'message': 'User disabled successfully'})
     
     except Exception as e:
         db.session.rollback()
@@ -4285,17 +4892,23 @@ def admin_bulk_update():
         data = request.get_json() or {}
         table = data.get('table', '')
         if table == 'users':
-            status = (data.get('status') or '').upper()
-            if status not in {'ACTIVE', 'INACTIVE'}:
-                return jsonify({'success': False, 'error': 'Users only support ACTIVE or INACTIVE status'}), 400
+            status = normalize_user_status(data.get('status') or '')
+            if status not in USER_STATUS_CHOICES:
+                return jsonify({'success': False, 'error': 'Invalid user status'}), 400
             selected_users = User.query.filter(User.id.in_(data.get('ids', []))).all()
-            if status == 'INACTIVE' and any(
+            if status != USER_STATUS_APPROVED and any(
                 user.id == session['user_id']
                 or (user.role and user.role.role_name.lower() == 'admin')
                 for user in selected_users
             ):
-                return jsonify({'success': False, 'error': 'The current or admin account cannot be deactivated'}), 409
+                return jsonify({'success': False, 'error': 'The current or admin account cannot be disabled or rejected'}), 409
+            data['status'] = status
         count = bulk_update_status(db, app_models(), table, data.get('ids', []), data.get('status', ''))
+        if table == 'users' and data.get('status') == USER_STATUS_APPROVED:
+            User.query.filter(User.id.in_(data.get('ids', [])), User.approved_at.is_(None)).update(
+                {'approved_by': session.get('user_id'), 'approved_at': datetime.now(UTC)},
+                synchronize_session=False
+            )
         if table in ('sales_orders', 'invoices', 'purchase_orders'):
             refresh_client_financials()
         log_audit('BULK_UPDATE_STATUS', table, ','.join(map(str, data.get('ids', []))), None, {'status': data.get('status', '')})
@@ -4326,14 +4939,37 @@ def admin_bulk_delete():
 @login_required
 @role_required('admin')
 def admin_notifications():
-    requests = PasswordReset.query.order_by(
+    reset_requests = PasswordReset.query.order_by(
         case((PasswordReset.status == 'PENDING', 0), else_=1),
         PasswordReset.requested_at.desc()
     ).limit(100).all()
+    approval_requests = (
+        User.query
+        .join(Role)
+        .filter(func.lower(User.status) == USER_STATUS_PENDING)
+        .order_by(User.created_at.asc())
+        .limit(100)
+        .all()
+    )
+    pending_accounts = User.query.filter(func.lower(User.status) == USER_STATUS_PENDING).count()
+    pending_resets = PasswordReset.query.filter_by(status='PENDING').count()
     return jsonify({
         'success': True,
-        'pending_count': PasswordReset.query.filter_by(status='PENDING').count(),
-        'notifications': [
+        'pending_count': pending_accounts + pending_resets,
+        'pending_account_count': pending_accounts,
+        'pending_password_reset_count': pending_resets,
+        'account_approvals': [
+            {
+                'id': item.id,
+                'username': item.username,
+                'email': item.email,
+                'role_name': item.role.role_name if item.role else 'staff',
+                'status': normalize_user_status(item.status),
+                'created_at': item.created_at.isoformat() if item.created_at else None,
+            }
+            for item in approval_requests
+        ],
+        'password_resets': [
             {
                 'id': item.id,
                 'username': item.username,
@@ -4342,9 +4978,55 @@ def admin_notifications():
                 'resolved_at': item.resolved_at.isoformat() if item.resolved_at else None,
                 'resolved_by': item.resolved_by.username if item.resolved_by else None,
             }
-            for item in requests
+            for item in reset_requests
         ]
     })
+
+@app.route('/admin/users/<int:user_id>/approval', methods=['POST'])
+@login_required
+@role_required('admin')
+def admin_user_approval(user_id):
+    try:
+        data = request.get_json(silent=True) or {}
+        decision = (data.get('decision') or '').lower()
+        if decision not in {'approve', 'reject'}:
+            return jsonify({'success': False, 'error': 'Approval decision is required'}), 400
+
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'Account request not found'}), 404
+        if user.id == session.get('user_id'):
+            return jsonify({'success': False, 'error': 'You cannot approve or reject your own account'}), 409
+        if normalize_user_status(user.status) != USER_STATUS_PENDING:
+            return jsonify({'success': False, 'error': 'Account request has already been reviewed'}), 409
+
+        old_value = {
+            'username': user.username,
+            'role': user.role.role_name if user.role else None,
+            'status': normalize_user_status(user.status),
+        }
+        if decision == 'approve':
+            user.status = USER_STATUS_APPROVED
+            user.approved_by = session.get('user_id')
+            user.approved_at = datetime.now(UTC)
+            action = 'APPROVE_USER'
+            message = 'Account approved successfully.'
+        else:
+            user.status = USER_STATUS_REJECTED
+            action = 'REJECT_USER'
+            message = 'Account request rejected.'
+
+        new_value = {
+            'username': user.username,
+            'role': user.role.role_name if user.role else None,
+            'status': user.status,
+        }
+        log_audit(action, 'users', user.id, old_value, new_value)
+        db.session.commit()
+        return jsonify({'success': True, 'message': message})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/admin/password-resets/<int:reset_id>/resolve', methods=['POST'])
 @login_required
@@ -4356,7 +5038,7 @@ def resolve_password_reset(reset_id):
     if reset_request.status != 'PENDING':
         return jsonify({'success': False, 'error': 'Password reset request is already resolved'}), 409
     user = db.session.get(User, reset_request.user_id)
-    if not user or user.status != 'ACTIVE':
+    if not is_user_approved(user):
         return jsonify({'success': False, 'error': 'The user account is unavailable or inactive'}), 409
     payload = request.get_json(silent=True) or {}
     admin_user = db.session.get(User, session['user_id'])
@@ -5145,19 +5827,17 @@ def api_analytics_sales():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 def likert_interpretation(mean_score):
-    if mean_score >= 4.20:
-        return 'Excellent'
-    if mean_score >= 3.40:
-        return 'Very Good'
-    if mean_score >= 2.60:
-        return 'Good'
-    if mean_score >= 1.80:
-        return 'Fair'
-    return 'Needs Improvement'
+    if mean_score >= 3.50:
+        return 'Strong Agreement'
+    if mean_score >= 2.50:
+        return 'Agreement'
+    if mean_score >= 1.50:
+        return 'Disagreement'
+    return 'Strong Disagreement'
 
 @app.route('/api/evaluation/questions')
 @login_required
-@role_required('manager', 'admin')
+@role_required(*ALL_BUSINESS_ROLES)
 def evaluation_questions():
     seed_evaluation_questions()
     questions = EvaluationQuestion.query.filter_by(is_active=True).order_by(EvaluationQuestion.display_order.asc()).all()
@@ -5166,9 +5846,8 @@ def evaluation_questions():
         'scale': [
             {'value': 1, 'label': 'Strongly Disagree'},
             {'value': 2, 'label': 'Disagree'},
-            {'value': 3, 'label': 'Neutral'},
-            {'value': 4, 'label': 'Agree'},
-            {'value': 5, 'label': 'Strongly Agree'},
+            {'value': 3, 'label': 'Agree'},
+            {'value': 4, 'label': 'Strongly Agree'},
         ],
         'questions': [
             {'id': question.id, 'category': question.category, 'question_text': question.question_text, 'display_order': question.display_order}
@@ -5178,7 +5857,7 @@ def evaluation_questions():
 
 @app.route('/api/evaluation/responses', methods=['POST'])
 @login_required
-@role_required('manager', 'admin')
+@role_required(*ALL_BUSINESS_ROLES)
 def evaluation_responses():
     payload = request.get_json() or {}
     responses = payload.get('responses') or []
@@ -5186,6 +5865,7 @@ def evaluation_responses():
         return jsonify({'success': False, 'error': 'At least one Likert response is required.'}), 400
     ratings = []
     session_record = EvaluationSession(
+        user_id=session.get('user_id'),
         evaluator_name=clean_text(payload.get('evaluator_name')) or session.get('username', 'Evaluator'),
         evaluator_role=clean_text(payload.get('evaluator_role')) or session.get('role', ''),
         overall_comment=clean_text(payload.get('overall_comment'), keep_period=True, keep_ampersand=True),
@@ -5196,7 +5876,7 @@ def evaluation_responses():
     for item in responses:
         question_id = int(item.get('question_id') or 0)
         rating = int(item.get('rating') or 0)
-        if question_id not in valid_question_ids or rating < 1 or rating > 5:
+        if question_id not in valid_question_ids or rating < 1 or rating > 4:
             db.session.rollback()
             return jsonify({'success': False, 'error': 'Invalid question or rating detected.'}), 400
         ratings.append(rating)

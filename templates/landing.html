@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Syluxent - Enterprise Resource Planning</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
     <style>
         .hero {
@@ -265,8 +265,8 @@
                             <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                         </svg>
                     </div>
-                    <h3 class="feature-title">Purchase Orders</h3>
-                    <p class="feature-description">Manage expenses and purchase orders with comprehensive debit tracking and financial controls.</p>
+                    <h3 class="feature-title">Expenses</h3>
+                    <p class="feature-description">Manage expenses with comprehensive debit tracking and financial controls.</p>
                 </div>
                 
                 <div class="feature-card">
@@ -301,7 +301,7 @@
                         </svg>
                     </div>
                     <h3 class="feature-title">Secure & Reliable</h3>
-                    <p class="feature-description">Enterprise-grade security with local database storage ensures your data remains private and accessible.</p>
+                    <p class="feature-description">Enterprise-grade security with persistent Supabase storage keeps your data private and accessible.</p>
                 </div>
             </div>
         </div>

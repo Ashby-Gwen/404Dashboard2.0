@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Syluxent - Reports</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
     <style>
         .reports-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
@@ -30,8 +30,14 @@
         .report-table .month-total td { background: #FAFAFA; border-top: 2px solid #64748B; font-weight: 700; }
         .report-table .grand-total td { background: #FFF7ED; border-top: 2px solid #C2410C; font-weight: 800; }
         .report-table .numeric { text-align: right; white-space: nowrap; }
-        .profit-positive { color: #166534; }
-        .profit-negative { color: #B91C1C; }
+        .value-positive, .profit-positive { color: #166534; font-weight: 700; }
+        .value-negative, .profit-negative { color: #B91C1C; font-weight: 700; }
+        .value-neutral { color: #475569; font-weight: 700; }
+        .report-color-legend { display: flex; justify-content: center; gap: 12pt; flex-wrap: wrap; margin: 8pt 0 12pt; font-size: 9pt; color: #475569; }
+        .legend-swatch { display: inline-block; width: 9pt; height: 9pt; border-radius: 50%; margin-right: 4pt; vertical-align: -1pt; }
+        .legend-positive { background: #166534; }
+        .legend-negative { background: #B91C1C; }
+        .legend-neutral { background: #94A3B8; }
         .page-notice { font-size: .95rem; color: var(--text-muted); margin: .25rem 0 0; }
         .report-preview-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1.5rem; background: rgba(15, 23, 42, .55); }
         .report-preview-modal[hidden] { display: none; }
@@ -67,7 +73,6 @@
             .preview-viewport { display: block; overflow: visible; padding: 0; background: white; }
             .report-paper { width: 279mm; min-height: 216mm; margin: 0; box-shadow: none; }
             .report-paper.portrait { width: 216mm; min-height: 279mm; }
-            .profit-positive, .profit-negative { color: inherit; }
         }
     </style>
 </head>
@@ -80,9 +85,11 @@
             Syluxent
         </div>
         {% set nav_links = {
-        'staff': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('purchase_orders', 'Purchase Order')],
+        'staff': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('expenses', 'Expense')],
+        'sales staff': [('sales_order', 'Sales Order')],
+        'accounting staff': [('invoices', 'Invoice'), ('expenses', 'Expense')],
         'manager': [('analytics', 'Analytics'), ('reports', 'Reports')],
-        'admin': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('purchase_orders', 'Purchase Order'), ('analytics', 'Analytics'), ('reports', 'Reports'), ('database_interface', 'Database Interface')]
+        'admin': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('expenses', 'Expense'), ('analytics', 'Analytics'), ('reports', 'Reports'), ('database_interface', 'Database Interface')]
         } %}
         <div class="nav-menu">
             <a href="{{ url_for('dashboard') }}" class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}">Home</a>
@@ -92,8 +99,9 @@
         </div>
         <div class="nav-user">
             <a class="profile-link" href="{{ url_for('profile') }}">
-                {% if current_user and current_user.profile_photo %}
-                <img class="profile-avatar" src="{{ url_for('static', filename=current_user.profile_photo) }}" alt="">
+                {% set avatar_src = profile_photo_src(current_user) %}
+                {% if avatar_src %}
+                <img class="profile-avatar" src="{{ avatar_src }}" alt="">
                 {% else %}
                 <span class="profile-avatar">{{ session.username[:1]|upper }}</span>
                 {% endif %}
@@ -466,13 +474,13 @@
                         <td>${row.month}</td>
                         <td class="numeric">${money(row.inflow)}</td>
                         <td class="numeric">${money(row.outflow)}</td>
-                        <td class="numeric ${profitClass(row.netProfit)}">${money(row.netProfit)}</td>
+                        <td class="numeric ${valueClass(row.netProfit)}">${money(row.netProfit)}</td>
                     </tr>`).join('') + `
                     <tr class="grand-total">
                         <td>Grand Total</td>
                         <td class="numeric">${money(totals.inflow)}</td>
                         <td class="numeric">${money(totals.outflow)}</td>
-                        <td class="numeric ${profitClass(totals.netProfit)}">${money(totals.netProfit)}</td>
+                        <td class="numeric ${valueClass(totals.netProfit)}">${money(totals.netProfit)}</td>
                     </tr>`
                 : '<tr><td colspan="4">No records found.</td></tr>';
             reportTable.innerHTML = `
@@ -481,7 +489,23 @@
         }
 
         function profitClass(value) {
-            return Number(value) < 0 ? 'profit-negative' : 'profit-positive';
+            return valueClass(value);
+        }
+
+        function valueClass(value) {
+            const numberValue = Number(value || 0);
+            if (numberValue > 0) return 'value-positive';
+            if (numberValue < 0) return 'value-negative';
+            return 'value-neutral';
+        }
+
+        function reportLegend() {
+            return `
+                <div class="report-color-legend" aria-label="Report color legend">
+                    <span><span class="legend-swatch legend-positive"></span>Positive value</span>
+                    <span><span class="legend-swatch legend-negative"></span>Negative value</span>
+                    <span><span class="legend-swatch legend-neutral"></span>Zero or neutral</span>
+                </div>`;
         }
 
         function exportCsv() {
@@ -517,6 +541,7 @@
                     <p>Reporting Period: ${reportPeriod(config, activeRows)}</p>
                     <p>Generated: ${new Date().toLocaleString('en-PH')}</p>
                 </header>
+                ${activeReport === 'historical' ? reportLegend() : ''}
                 <table class="print-table">${document.getElementById('reportTable').innerHTML}</table>`;
             document.getElementById('reportPreviewModal').hidden = false;
         }

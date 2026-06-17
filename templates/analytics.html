@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Analytics</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -331,7 +331,14 @@
         'staff': [
         ('sales_order', 'Sales Order'),
         ('invoices', 'Invoice'),
-        ('purchase_orders', 'Purchase Order')
+        ('expenses', 'Expense')
+        ],
+        'sales staff': [
+        ('sales_order', 'Sales Order')
+        ],
+        'accounting staff': [
+        ('invoices', 'Invoice'),
+        ('expenses', 'Expense')
         ],
         'manager': [
         ('analytics', 'Analytics'),
@@ -340,7 +347,7 @@
         'admin': [
         ('sales_order', 'Sales Order'),
         ('invoices', 'Invoice'),
-        ('purchase_orders', 'Purchase Order'),
+        ('expenses', 'Expense'),
         ('analytics', 'Analytics'),
         ('reports', 'Reports'),
         ('database_interface', 'Database Interface')
@@ -976,13 +983,14 @@
                 const breakdown = client.score_breakdown || {};
                 return `
                 <tr>
-                    <td style="font-weight: 600;">${client.company_name}</td>
-                    <td style="text-align: right;">${client.branches_count}</td>
+                    <td style="font-weight: 600;">${client.store_name || client.company_name}</td>
+                    <td style="font-size: 0.85rem; color: var(--text-muted);">${client.company_name || '-'}</td>
+                    <td style="font-size: 0.85rem; color: var(--text-muted);">${client.store_branch || '-'}</td>
                     <td class="${kpiClassFor('revenue', client.total_revenue)}" style="text-align: right;">${formatCurrency(client.total_revenue)}</td>
                     <td class="${kpiClassFor('revenue', client.total_paid)}" style="text-align: right;">${formatCurrency(client.total_paid)}</td>
                     <td class="${kpiClassFor('accounts_receivable', client.balance)}" style="text-align: right;">${formatCurrency(client.balance)}</td>
                     <td style="text-align: right; font-weight: 600;">${Number(client.client_performance_score || 0).toFixed(2)}</td>
-                    <td style="font-size: 0.78rem; color: var(--text-muted);">P ${Number(breakdown.purchasing_behavior || 0).toFixed(1)} / Pay ${Number(breakdown.payment_reliability || 0).toFixed(1)} / V ${Number(breakdown.business_value || 0).toFixed(1)}</td>
+                    <td style="font-size: 0.78rem; color: var(--text-muted);">SO Amt ${Number(breakdown.total_sales_order_amount || 0).toFixed(1)} / Orders ${Number(breakdown.sales_order_count || 0).toFixed(1)} / Recency ${Number(breakdown.order_recency || 0).toFixed(1)} / Repeat ${Number(breakdown.repeat_order_frequency || 0).toFixed(1)} / AOV ${Number(breakdown.average_order_value || 0).toFixed(1)}</td>
                     <td style="text-align: center;"><span style="display: inline-block; padding: 0.25rem 0.75rem; background-color: ${valColor.bg}; color: ${valColor.text}; border-radius: var(--radius-lg); font-size: 0.85rem; font-weight: 500;">${client.cohort || client.value_status}</span></td>
                     <td style="text-align: center;"><span style="display: inline-block; padding: 0.25rem 0.75rem; background-color: ${balColor.bg}; color: ${balColor.text}; border-radius: var(--radius-lg); font-size: 0.85rem; font-weight: 500;">${client.balance_status}</span></td>
                 </tr>`;
@@ -993,12 +1001,13 @@
                 <table class="client-table">
                     <thead>
                         <tr>
-                            <th style="text-align: left;">Company Name</th>
-                            <th style="text-align: right;">Branches</th>
-                            <th style="text-align: right;">Total Revenue</th>
+                            <th style="text-align: left;">Store Name</th>
+                            <th style="text-align: left;">Company</th>
+                            <th style="text-align: left;">Store Branch</th>
+                            <th style="text-align: right;">Sales Order Amount</th>
                             <th style="text-align: right;">Paid</th>
                             <th style="text-align: right;">Balance</th>
-                            <th style="text-align: right;">CPS</th>
+                            <th style="text-align: right;">SO Value</th>
                             <th style="text-align: left;">Breakdown</th>
                             <th style="text-align: center;">Cohort</th>
                             <th style="text-align: center;">Balance Status</th>
@@ -1020,10 +1029,10 @@
 
             // Helper functions for badge colors based on new backend structure
             const getValueStatusColor = (status) => {
-                if (status === 'Core Partners') return { bg: '#d1fae5', text: '#065f46' };
-                if (status === 'Growth Clients') return { bg: '#dbeafe', text: '#1e40af' };
-                if (status === 'At-Risk Clients') return { bg: '#fee2e2', text: '#991b1b' };
-                if (status === 'Low Engagement') return { bg: '#f3f4f6', text: '#374151' };
+                if (status === 'Core Ordering Clients') return { bg: '#d1fae5', text: '#065f46' };
+                if (status === 'Growth Ordering Clients') return { bg: '#dbeafe', text: '#1e40af' };
+                if (status === 'Developing Ordering Clients') return { bg: '#fef3c7', text: '#92400e' };
+                if (status === 'Low Order Activity') return { bg: '#f3f4f6', text: '#374151' };
                 if (status === 'Valued Clients') return { bg: '#d1fae5', text: '#065f46' };
                 if (status === 'Active Clients') return { bg: '#dbeafe', text: '#1e40af' };
                 return { bg: '#f3f4f6', text: '#374151' };
@@ -1040,8 +1049,8 @@
             <div class="filter-controls" style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
                 <div>
                     <label style="color: var(--text-main); font-weight: 600; margin-right: 1rem;">Sort By:</label>
-                    <button class="btn-secondary sort-btn active" data-sort="revenue">Revenue</button>
-                    <button class="btn-secondary sort-btn" data-sort="score">Client Value</button>
+                    <button class="btn-secondary sort-btn active" data-sort="revenue">SO Amount</button>
+                    <button class="btn-secondary sort-btn" data-sort="score">SO Value</button>
                 </div>
                 <div class="view-toggle-buttons">
                     <button id="btn-view-table" class="btn-secondary ${clientViewMode === 'table' ? 'active' : ''}" style="margin-right: 0.5rem; padding: 0.5rem 1rem;">📋 Table View</button>
@@ -1051,7 +1060,7 @@
 
             <div style="display: grid; grid-template-columns: 1fr 300px; gap: 2rem; margin-bottom: 2rem; ">
                 <div class="card" style="max-height: 500px; display: flex; flex-direction: column; width: 100%; box-sizing: border-box;">
-                    <h3 style="color: var(--text-main); margin-bottom: 1.5rem;">Clients Overview</h3>
+                    <h3 style="color: var(--text-main); margin-bottom: 1.5rem;">Store Overview</h3>
                     
                     <div id="clients-dynamic-view" style="overflow-y: auto; flex-grow: 1; scrollbar-width: thin; -webkit-overflow-scrolling: touch;">
     `;
@@ -1065,9 +1074,10 @@
                 <table style="width: 100%; border-collapse: collapse;">
                     <thead>
                         <tr style="border-bottom: 2px solid var(--border-color);">
-                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: left; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Company Name</th>
-                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Branches</th>
-                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Total Revenue</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: left; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Store Name</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: left; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Company</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: left; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Store Branch</th>
+                            <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Sales Order Amount</th>
                             <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Paid</th>
                             <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Balance</th>
                             <th style="position: sticky; top: 0; background: var(--bg-card, #fff); z-index: 2; text-align: center; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Value Status</th>
@@ -1082,8 +1092,9 @@
                     const balColor = getBalanceStatusColor(client.balance_status);
                     clientsHTML += `
                 <tr style="border-bottom: 1px solid var(--border-color);">
-                    <td style="padding: 0.75rem; color: var(--text-main); font-weight: 600;">${client.company_name}</td>
-                    <td style="text-align: right; padding: 0.75rem; color: var(--text-main);">${client.branches_count}</td>
+                    <td style="padding: 0.75rem; color: var(--text-main); font-weight: 600;">${client.store_name || client.company_name}</td>
+                    <td style="padding: 0.75rem; color: var(--text-muted);">${client.company_name || '-'}</td>
+                    <td style="padding: 0.75rem; color: var(--text-muted);">${client.store_branch || '-'}</td>
                     <td class="${kpiClassFor('revenue', client.total_revenue)}" style="text-align: right; padding: 0.75rem;">${formatCurrency(client.total_revenue)}</td>
                     <td class="${kpiClassFor('revenue', client.total_paid)}" style="text-align: right; padding: 0.75rem;">${formatCurrency(client.total_paid)}</td>
                     <td class="${kpiClassFor('accounts_receivable', client.balance)}" style="text-align: right; padding: 0.75rem;">${formatCurrency(client.balance)}</td>
@@ -1103,13 +1114,14 @@
                     const balColor = getBalanceStatusColor(client.balance_status);
                     clientsHTML += `
                 <div style="border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; background: var(--bg-surface);">
-                    <h4 style="color: var(--text-main); margin-top:0; margin-bottom: 1rem; font-size: 1.1rem;">${client.company_name}</h4>
+                    <h4 style="color: var(--text-main); margin-top:0; margin-bottom: 0.35rem; font-size: 1.1rem;">${client.store_name || client.company_name}</h4>
+                    <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">${client.company_name || '-'}</div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
-                        <span style="color: var(--text-muted);">Branches:</span>
-                        <strong style="color: var(--text-main);">${client.branches_count}</strong>
+                        <span style="color: var(--text-muted);">Store Branch:</span>
+                        <strong style="color: var(--text-main);">${client.store_branch || '-'}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 0.9rem;">
-                        <span style="color: var(--text-muted);">Revenue:</span>
+                        <span style="color: var(--text-muted);">SO Amount:</span>
                         <strong class="${kpiClassFor('revenue', client.total_revenue)}">${formatCurrency(client.total_revenue)}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 0.9rem;">
@@ -1117,7 +1129,7 @@
                         <strong class="${kpiClassFor('accounts_receivable', client.balance)}">${formatCurrency(client.balance)}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 0.9rem;">
-                        <span style="color: var(--text-muted);">CPS:</span>
+                        <span style="color: var(--text-muted);">SO Value:</span>
                         <strong style="color: var(--text-main);">${Number(client.client_performance_score || 0).toFixed(2)}</strong>
                     </div>
                     <div style="display: flex; gap: 0.5rem; justify-content: flex-start;">
@@ -1144,7 +1156,8 @@
                 clientsHTML += `
             <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color);">
                 <div style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">${idx + 1}. ${client.client}</div>
-                <div style="color: var(--text-muted); font-size: 0.85rem; margin: 0.25rem 0;">CPS: <strong>${Number(client.client_performance_score || 0).toFixed(2)}</strong> | ${client.cohort || ''}</div>
+                <div style="color: var(--text-muted); font-size: 0.8rem;">${client.company_name || ''}${client.store_branch ? ' / ' + client.store_branch : ''}</div>
+                <div style="color: var(--text-muted); font-size: 0.85rem; margin: 0.25rem 0;">SO Value: <strong>${Number(client.client_performance_score || 0).toFixed(2)}</strong> | ${client.cohort || ''}</div>
                 <div style="display: inline-block; padding: 0.25rem 0.5rem; background-color: ${balColor.bg}; color: ${balColor.text}; border-radius: var(--radius-lg); font-size: 0.8rem; margin-top: 0.25rem;">${client.balance_status}</div>
             </div>
         `;
@@ -1157,9 +1170,9 @@
             </div>
 
             <div class="card" style="margin-top: 2rem;">
-                <h3 style="color: var(--text-main); margin-bottom: 1rem;">Client Value Analysis</h3>
+                <h3 style="color: var(--text-main); margin-bottom: 1rem;">Sales Order-based Client Value Analysis</h3>
                 <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">
-                   Axes match <strong>Branches vs Revenue</strong>. Bubble size maps to Client Performance Score, color maps to cohort tiers.
+                   Axes match <strong>Store Branch Count vs Sales Order Amount</strong>. Bubble size maps to Sales Order Value Score, color maps to ordering cohorts.
                 </p>
                 <div style="position: relative; height: 400px; width: 100%;">
                     <canvas id="clientBubbleChart"></canvas>
@@ -1204,12 +1217,13 @@
                 <table style="width: 100%; border-collapse: collapse;">
                     <thead>
                         <tr style="border-bottom: 2px solid var(--border-color);">
-                            <th style="text-align: left; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Company Name</th>
-                            <th style="text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Branches</th>
-                            <th style="text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Total Revenue</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Store Name</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Company</th>
+                            <th style="text-align: left; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Store Branch</th>
+                            <th style="text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Sales Order Amount</th>
                             <th style="text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Paid</th>
                             <th style="text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Balance</th>
-                            <th style="text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Client Value</th>
+                            <th style="text-align: right; padding: 0.75rem; color: var(--text-main); font-weight: 600;">SO Value</th>
                             <th style="text-align: center; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Value Status</th>
                             <th style="text-align: center; padding: 0.75rem; color: var(--text-main); font-weight: 600;">Balance Status</th>
                         </tr>
@@ -1221,8 +1235,9 @@
                     const balColor = balColorFn(client.balance_status);
                     html += `
                 <tr style="border-bottom: 1px solid var(--border-color);">
-                    <td style="padding: 0.75rem; color: var(--text-main); font-weight: 600;">${client.company_name}</td>
-                    <td style="text-align: right; padding: 0.75rem; color: var(--text-main);">${client.branches_count}</td>
+                    <td style="padding: 0.75rem; color: var(--text-main); font-weight: 600;">${client.store_name || client.company_name}</td>
+                    <td style="padding: 0.75rem; color: var(--text-muted);">${client.company_name || '-'}</td>
+                    <td style="padding: 0.75rem; color: var(--text-muted);">${client.store_branch || '-'}</td>
                     <td class="${kpiClassFor('revenue', client.total_revenue)}" style="text-align: right; padding: 0.75rem;">${formatCurrency(client.total_revenue)}</td>
                     <td class="${kpiClassFor('revenue', client.total_paid)}" style="text-align: right; padding: 0.75rem;">${formatCurrency(client.total_paid)}</td>
                     <td class="${kpiClassFor('accounts_receivable', client.balance)}" style="text-align: right; padding: 0.75rem;">${formatCurrency(client.balance)}</td>
@@ -1240,13 +1255,14 @@
                     const balColor = balColorFn(client.balance_status);
                     html += `
                 <div style="border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; background: var(--bg-surface);">
-                    <h4 style="color: var(--text-main); margin-top:0; margin-bottom: 1rem; font-size: 1.1rem;">${client.company_name}</h4>
+                    <h4 style="color: var(--text-main); margin-top:0; margin-bottom: 0.35rem; font-size: 1.1rem;">${client.store_name || client.company_name}</h4>
+                    <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">${client.company_name || '-'}</div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
-                        <span style="color: var(--text-muted);">Branches:</span>
-                        <strong style="color: var(--text-main);">${client.branches_count}</strong>
+                        <span style="color: var(--text-muted);">Store Branch:</span>
+                        <strong style="color: var(--text-main);">${client.store_branch || '-'}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 0.9rem;">
-                        <span style="color: var(--text-muted);">Revenue:</span>
+                        <span style="color: var(--text-muted);">SO Amount:</span>
                         <strong class="${kpiClassFor('revenue', client.total_revenue)}">${formatCurrency(client.total_revenue)}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 0.9rem;">
@@ -1254,7 +1270,7 @@
                         <strong class="${kpiClassFor('accounts_receivable', client.balance)}">${formatCurrency(client.balance)}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 1rem; font-size: 0.9rem;">
-                        <span style="color: var(--text-muted);">CPS:</span>
+                        <span style="color: var(--text-muted);">SO Value:</span>
                         <strong style="color: var(--text-main);">${Number(client.client_performance_score || 0).toFixed(2)}</strong>
                     </div>
                     <div style="display: flex; gap: 0.5rem; justify-content: flex-start;">
@@ -1276,10 +1292,10 @@
 
             // Segmenting datasets to map colors explicitly via Value Rating status categories
             const categories = {
-                'Core Partners': { label: 'Core Partners', color: 'rgba(16, 185, 129, 0.75)', border: '#10b981' },
-                'Growth Clients': { label: 'Growth Clients', color: 'rgba(59, 130, 246, 0.75)', border: '#3b82f6' },
-                'At-Risk Clients': { label: 'At-Risk Clients', color: 'rgba(239, 68, 68, 0.75)', border: '#ef4444' },
-                'Low Engagement': { label: 'Low Engagement', color: 'rgba(107, 114, 128, 0.75)', border: '#6b7280' }
+                'Core Ordering Clients': { label: 'Core Ordering Clients', color: 'rgba(16, 185, 129, 0.75)', border: '#10b981' },
+                'Growth Ordering Clients': { label: 'Growth Ordering Clients', color: 'rgba(59, 130, 246, 0.75)', border: '#3b82f6' },
+                'Developing Ordering Clients': { label: 'Developing Ordering Clients', color: 'rgba(245, 158, 11, 0.75)', border: '#f59e0b' },
+                'Low Order Activity': { label: 'Low Order Activity', color: 'rgba(107, 114, 128, 0.75)', border: '#6b7280' }
             };
 
             const datasets = Object.keys(categories).map(catKey => {
@@ -1295,7 +1311,9 @@
                             y: c.total_revenue,
                             // Client value controls bubble size radius.
                             r: Math.max(6, Math.min(6 + (Number(c.client_performance_score || 0) / 100 * 24), 30)),
-                            name: c.company_name,
+                            name: c.store_name || c.company_name,
+                            company: c.company_name,
+                            branch: c.store_branch,
                             clientValue: c.client_performance_score
                         }))
                 };
@@ -1309,11 +1327,11 @@
                     maintainAspectRatio: false,
                     scales: {
                         x: {
-                            title: { display: true, text: 'Number of Active Branches', color: '#374151', font: { weight: 'bold' } },
+                            title: { display: true, text: 'Store Branch Count', color: '#374151', font: { weight: 'bold' } },
                             grid: { color: 'rgba(229, 231, 235, 0.5)' }
                         },
                         y: {
-                            title: { display: true, text: 'Total Accrued Revenue', color: '#374151', font: { weight: 'bold' } },
+                            title: { display: true, text: 'Total Sales Order Amount', color: '#374151', font: { weight: 'bold' } },
                             grid: { color: 'rgba(229, 231, 235, 0.5)' },
                             ticks: { callback: (value) => formatCurrency(value, { maximumFractionDigits: 0 }) }
                         }
@@ -1323,7 +1341,7 @@
                             callbacks: {
                                 label: function (context) {
                                     const p = context.raw;
-                                    return `${p.name} | Branches: ${p.x} | Rev: ${formatCurrency(p.y, { maximumFractionDigits: 0 })} | CPS: ${Number(p.clientValue || 0).toFixed(2)}`;
+                                    return `${p.name} | Company: ${p.company || '-'} | Branches: ${p.x} | SO: ${formatCurrency(p.y, { maximumFractionDigits: 0 })} | SO Value: ${Number(p.clientValue || 0).toFixed(2)}`;
                                 }
                             }
                         }
@@ -1335,9 +1353,10 @@
         // Helper function to get status color
         function getStatusColor(status) {
             const colors = {
-                'Core Partners': { bg: '#DCFCE7', text: '#166534' },
-                'Growth Clients': { bg: '#DBEAFE', text: '#1E40AF' },
-                'Low Engagement': { bg: '#F1F5F9', text: '#64748B' },
+                'Core Ordering Clients': { bg: '#DCFCE7', text: '#166534' },
+                'Growth Ordering Clients': { bg: '#DBEAFE', text: '#1E40AF' },
+                'Developing Ordering Clients': { bg: '#FEF3C7', text: '#92400E' },
+                'Low Order Activity': { bg: '#F1F5F9', text: '#64748B' },
                 'At-Risk Whales': { bg: '#FEE2E2', text: '#991B1B' },
                 'Active Explorers': { bg: '#DBEAFE', text: '#1E40AF' },
                 'Casual Niche': { bg: '#F1F5F9', text: '#64748B' },
@@ -1777,6 +1796,7 @@
             if (!resultsPayload.success) throw new Error(resultsPayload.error || 'Unable to load evaluation results.');
             syncAnalyticsFilterFromPayload(resultsPayload);
             const questions = questionsPayload.questions || [];
+            const scale = questionsPayload.scale || [];
             const grouped = questions.reduce((acc, question) => {
                 acc[question.category] = acc[question.category] || [];
                 acc[question.category].push(question);
@@ -1805,11 +1825,7 @@
                                             <div style="font-weight:600; margin-bottom:0.55rem;">${question.question_text}</div>
                                             <select data-question-id="${question.id}" class="likert-rating" required style="padding:0.5rem; border:1px solid var(--border-color); border-radius:var(--radius-md); width:100%;">
                                                 <option value="">Select rating</option>
-                                                <option value="5">5 - Strongly Agree</option>
-                                                <option value="4">4 - Agree</option>
-                                                <option value="3">3 - Neutral</option>
-                                                <option value="2">2 - Disagree</option>
-                                                <option value="1">1 - Strongly Disagree</option>
+                                                ${scale.map(item => `<option value="${item.value}">${item.value} - ${item.label}</option>`).join('')}
                                             </select>
                                         </div>
                                     `).join('')}

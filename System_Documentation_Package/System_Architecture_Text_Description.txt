@@ -1,0 +1,1363 @@
+SYLUXENT ERP SYSTEM ARCHITECTURE
+
+1. System Overview
+
+Syluxent is a web-based Enterprise Resource Planning system built with Flask.
+It provides modules for authentication, dashboard monitoring, client records,
+sales orders, invoices, purchase orders, reports, analytics, evaluation forms,
+and administrator database controls.
+
+The system follows a standard web application architecture:
+
+Browser Frontend
+    -> Flask Web Application
+    -> Service and Business Logic Layer
+    -> SQLAlchemy ORM
+    -> Database Storage
+
+For local development, the system can use SQLite automatically.
+For Render production deployment, the system should use Supabase PostgreSQL
+through the DATABASE_URL environment variable.
+
+
+2. Main Components
+
+2.1 Browser / Frontend Layer
+
+Component name:
+    Browser Client
+
+Technology:
+    HTML, CSS, JavaScript, Flask Jinja templates
+
+Main folders/files:
+    templates/
+    static/css/styles.css
+    static/css/theme-overrides.css
+    static/js/system-states.js
+
+Responsibilities:
+    - Displays login, dashboard, admin, sales, invoices, purchase orders,
+      reports, analytics, profile, and evaluation pages.
+    - Sends form submissions and file uploads to Flask routes.
+    - Receives HTML pages or JSON responses from the backend.
+    - Uses CSS and JavaScript for layout, theme, and UI state behavior.
+
+Connection:
+    Browser connects to the deployed Render URL over HTTPS.
+
+
+2.2 Flask Application Layer
+
+Component name:
+    Flask Web App
+
+Technology:
+    Flask
+    Flask-SQLAlchemy
+    Werkzeug security
+    Gunicorn for production
+
+Main file:
+    app.py
+
+Responsibilities:
+    - Creates the Flask app instance.
+    - Configures database connection.
+    - Defines SQLAlchemy database models.
+    - Defines web page routes and JSON API routes.
+    - Handles login, registration, logout, session state, and role checks.
+    - Coordinates sales, invoice, purchase order, reports, analytics, and admin
+      workflows.
+    - Initializes database tables through db.create_all() inside app.app_context().
+
+Important production entry point:
+    gunicorn app:app
+
+Connection:
+    Render starts the Flask app through Gunicorn.
+    Browser requests are routed to Flask routes.
+    Flask uses SQLAlchemy to communicate with the configured database.
+
+
+2.3 Service Layer
+
+Component name:
+    Business Logic and Services
+
+Main files:
+    analytics_services.py
+    admin_services.py
+
+Responsibilities:
+    analytics_services.py:
+        - Builds analytics dashboard payloads.
+        - Calculates overview KPIs.
+        - Produces sales trends, client analysis, expense breakdown,
+          sales analysis, and comparative analytics.
+        - Supports Excel workbook preview for analytics uploads.
+
+    admin_services.py:
+        - Supports admin data grid operations.
+        - Supports CSV export.
+        - Provides database health and schema inspection.
+        - Provides safe SQL and maintenance helpers for the admin interface.
+
+Connection:
+    Flask route handlers call service functions.
+    Service functions query or update data through SQLAlchemy sessions.
+
+
+2.4 ORM / Data Access Layer
+
+Component name:
+    SQLAlchemy ORM
+
+Technology:
+    Flask-SQLAlchemy
+    SQLAlchemy
+
+Main file:
+    app.py
+
+Responsibilities:
+    - Maps Python model classes to database tables.
+    - Handles database sessions, queries, inserts, updates, and deletes.
+    - Protects against raw SQL injection for normal ORM operations.
+    - Allows the same application logic to work with SQLite locally and
+      PostgreSQL in production.
+
+Connection:
+    Flask app -> SQLAlchemy ORM -> SQLite or Supabase PostgreSQL
+
+
+2.5 Database Layer
+
+Component name:
+    Database Storage
+
+Local development:
+    SQLite database file:
+        database.db
+
+Production:
+    Supabase PostgreSQL
+
+Production environment variable:
+    DATABASE_URL
+
+Example production format:
+    postgresql+psycopg2://USER:PASSWORD@HOST:PORT/postgres?sslmode=require
+
+Responsibilities:
+    - Stores user accounts, roles, client records, sales orders, invoices,
+      purchase orders, analytics records, audit logs, sessions, password reset
+      requests, and evaluation responses.
+    - Provides persistent cloud storage when configured through Supabase.
+
+Connection:
+    Render provides DATABASE_URL to the Flask app.
+    Flask-SQLAlchemy uses that value to create the database engine.
+    SQLAlchemy connects to Supabase PostgreSQL through psycopg2.
+
+
+2.6 Deployment Layer
+
+Component name:
+    Render Web Service
+
+Technology:
+    Render free-tier web service
+    Gunicorn
+
+Main file:
+    render.yaml
+
+Build command:
+    pip install -r requirements.txt
+
+Start command:
+    gunicorn app:app
+
+Required Render environment variables:
+    DATABASE_URL
+    SECRET_KEY
+    DEFAULT_ADMIN_PASSWORD
+
+Optional Render environment variables:
+    DEFAULT_ADMIN_USERNAME
+    DEFAULT_MANAGER_PASSWORD
+    DEFAULT_STAFF_PASSWORD
+
+Responsibilities:
+    - Pulls the latest GitHub source code.
+    - Installs Python dependencies.
+    - Runs the Flask app using Gunicorn.
+    - Provides runtime environment variables.
+    - Serves the application over HTTPS.
+
+Connection:
+    GitHub repository -> Render build/deploy pipeline -> Gunicorn -> Flask app
+
+
+2.7 Source Control Layer
+
+Component name:
+    GitHub Repository
+
+Repository:
+    Ashby-Gwen/404Dashboard2.0
+
+Branch:
+    main
+
+Responsibilities:
+    - Stores application source code.
+    - Stores deployment configuration.
+    - Stores documentation and test scripts.
+    - Acts as the source for Render deployment.
+
+Connection:
+    Render deploys from GitHub main branch.
+
+
+3. Core Database Tables
+
+Authentication and access:
+    roles
+    users
+    session_records
+    password_resets
+    audit_logs
+
+Client and sales:
+    clients
+    client_aliases
+    sales_orders
+    sales_order_items
+    invoices
+
+Purchasing and expenses:
+    purchase_orders
+    purchase_order_debits
+
+Analytics:
+    analytics_data
+
+Evaluation:
+    evaluation_sessions
+    evaluation_questions
+    evaluation_responses
+
+
+4. Main Table Relationships
+
+roles
+    one role -> many users
+
+users
+    one user -> many session_records
+    one user -> many audit_logs
+    one user -> many password_resets
+
+clients
+    one client -> many client_aliases
+    one client -> many sales_orders
+
+sales_orders
+    one sales order -> many sales_order_items
+    one sales order -> many invoices
+
+purchase_orders
+    one purchase order -> many purchase_order_debits
+
+evaluation_sessions
+    one evaluation session -> many evaluation_responses
+
+evaluation_questions
+    one evaluation question -> many evaluation_responses
+
+analytics_data
+    stores analytics ledger records using logical source fields.
+    It does not require enforced foreign keys to source tables.
+
+
+5. Main User Roles
+
+Admin:
+    - Full system access.
+    - User and role management.
+    - Client list and database interface access.
+    - Data grid, schema, export, maintenance, audit logs, and notifications.
+
+Manager:
+    - Dashboard and analytics access.
+    - Reports and business monitoring.
+    - Client, sales, expense, and performance analysis.
+
+Staff:
+    - Sales order creation.
+    - Invoice management.
+    - Purchase order entry.
+    - Operational data entry workflows.
+
+
+6. Main Application Workflows
+
+6.1 Login Workflow
+
+Browser
+    -> POST /login
+    -> Flask validates username and password hash
+    -> Flask checks user status and role
+    -> Session data is created
+    -> Session record is inserted
+    -> User is redirected to dashboard
+
+
+6.2 Sales Order Workflow
+
+Browser
+    -> Sales order page or Excel upload
+    -> Flask parses uploaded or form data
+    -> Client matching identifies official client records
+    -> SalesOrder and SalesOrderItem records are created
+    -> Client financial totals are refreshed
+    -> Dashboard and reports can read updated records
+
+
+6.3 Invoice Workflow
+
+Browser
+    -> Invoice page or create invoice API
+    -> Flask validates invoice fields
+    -> Invoice record is created or updated
+    -> Payment status, balance, and tax fields are calculated
+    -> Client financial totals are refreshed
+
+
+6.4 Purchase Order / Expense Workflow
+
+Browser
+    -> Purchase order page or upload workflow
+    -> Flask validates expense and debit data
+    -> PurchaseOrder record is created
+    -> Related PurchaseOrderDebit records are attached
+    -> Expense reports and analytics can read updated data
+
+
+6.5 Analytics Workflow
+
+Operational records or historical uploads
+    -> Analytics generation or upload endpoints
+    -> analytics_data ledger records
+    -> analytics_services.py calculations
+    -> JSON analytics API responses
+    -> Analytics dashboard visual output
+
+
+6.6 Admin Database Interface Workflow
+
+Admin browser session
+    -> Protected admin route
+    -> Role check confirms admin access
+    -> admin_services.py handles schema, grid, export, health, or maintenance
+    -> SQLAlchemy performs database operations
+    -> Admin receives JSON or downloadable response
+
+
+7. Production Connection Flow
+
+Step 1:
+    User opens the Render application URL in the browser.
+
+Step 2:
+    Render routes the HTTPS request to Gunicorn.
+
+Step 3:
+    Gunicorn sends the request to the Flask app object in app.py.
+
+Step 4:
+    Flask route handler processes the request.
+
+Step 5:
+    If data is needed, Flask uses SQLAlchemy.
+
+Step 6:
+    SQLAlchemy uses DATABASE_URL to connect to Supabase PostgreSQL.
+
+Step 7:
+    Supabase returns query results.
+
+Step 8:
+    Flask returns an HTML page, JSON response, CSV export, or redirect.
+
+
+8. Local Development Connection Flow
+
+Step 1:
+    Developer runs:
+        python app.py
+
+Step 2:
+    If DATABASE_URL is not set, Flask uses:
+        sqlite:///database.db
+
+Step 3:
+    db.create_all() creates missing local SQLite tables.
+
+Step 4:
+    Developer opens the local Flask URL and tests the system.
+
+
+9. Important Environment Variables
+
+DATABASE_URL:
+    Production database connection string.
+    Used by Render to connect Flask to Supabase PostgreSQL.
+    Must not be committed to GitHub.
+
+SECRET_KEY:
+    Flask secret key for sessions.
+    Must be private in production.
+
+DEFAULT_ADMIN_PASSWORD:
+    Used to seed the first admin user when no admin exists.
+    Must be private.
+
+DEFAULT_ADMIN_USERNAME:
+    Optional. Defaults to admin.
+
+DEFAULT_MANAGER_PASSWORD:
+    Optional. Seeds a manager account if set.
+
+DEFAULT_STAFF_PASSWORD:
+    Optional. Seeds a staff account if set.
+
+
+10. Render Configuration
+
+Build command:
+    pip install -r requirements.txt
+
+Start command:
+    gunicorn app:app
+
+Required production setup:
+    Set DATABASE_URL in Render.
+    Set SECRET_KEY in Render.
+    Set DEFAULT_ADMIN_PASSWORD in Render.
+    Redeploy after environment variables are saved.
+
+
+11. Supabase Configuration
+
+Supabase component:
+    PostgreSQL cloud database
+
+Recommended connection:
+    Use the Supabase pooled connection string when available.
+
+Current pooler details provided:
+    host: aws-1-ap-southeast-1.pooler.supabase.com
+    port: 5432
+    database: postgres
+    user: postgres.bphnkzqgxdbdnxcudkhh
+
+Connection string pattern:
+    postgresql+psycopg2://postgres.bphnkzqgxdbdnxcudkhh:<PASSWORD>@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require
+
+Security note:
+    Replace <PASSWORD> outside the codebase.
+    URL-encode the password if it contains special characters.
+
+
+12. Key Reliability Notes
+
+SQLite:
+    Good for local development.
+    Not reliable for persistent storage on Render free tier because local files
+    can be lost across restarts or redeploys.
+
+Supabase PostgreSQL:
+    Recommended for production persistence.
+    Data remains in the cloud database across Render restarts.
+
+Render:
+    Free services may sleep after inactivity.
+    First request after sleep may be slower.
+
+db.create_all():
+    Creates missing tables from SQLAlchemy models.
+    Runs inside app.app_context().
+    Must run only after all models are declared.
+    It does not replace a full migration system for future production schema
+    changes.
+
+
+13. Role-Based Information Flow Diagram
+
+The diagram below illustrates how each user role interacts with the system,
+which functional modules they use, and how information moves from the browser
+interface into backend services and database storage.
+
+                         +----------------------+
+                         |      User Login      |
+                         |  /login authentication|
+                         +----------+-----------+
+                                    |
+                                    | creates session and role context
+                                    v
+              +---------------------+---------------------+
+              |                                           |
+              v                                           v
+      +---------------+                           +----------------+
+      | Role Checking |                           | Session Records |
+      | route guards  |                           | login tracking  |
+      +-------+-------+                           +----------------+
+              |
+              | routes user to allowed modules
+              v
+
+    +----------------+        +----------------+        +----------------+
+    |     ADMIN      |        |    MANAGER     |        |     STAFF      |
+    +----------------+        +----------------+        +----------------+
+    | User/role      |        | Dashboard      |        | Sales orders   |
+    | management     |        | Analytics      |        | Invoices       |
+    | Database tools |        | Reports        |        | Purchase orders|
+    | Audit logs     |        | Client insights|        | Data entry     |
+    | Theme/settings |        | Evaluation view|        | Upload support |
+    +-------+--------+        +-------+--------+        +-------+--------+
+            |                         |                         |
+            | admin actions           | monitoring requests     | operational input
+            v                         v                         v
+    +----------------+        +----------------+        +----------------+
+    | Admin Routes   |        | Analytics and  |        | Operations     |
+    | /admin/...     |        | Report Routes  |        | Routes         |
+    | /database-     |        | /dashboard     |        | /sales-order   |
+    | interface      |        | /analytics     |        | /invoices      |
+    | /admin/schema  |        | /reports       |        | /purchase-     |
+    | /admin/export  |        | /api/analytics |        | orders         |
+    +-------+--------+        +-------+--------+        +-------+--------+
+            |                         |                         |
+            |                         |                         |
+            v                         v                         v
+    +----------------+        +----------------+        +----------------+
+    | admin_services |        | analytics_     |        | app.py         |
+    | .py            |        | services.py    |        | business logic |
+    +-------+--------+        +-------+--------+        +-------+--------+
+            |                         |                         |
+            | schema, export,         | KPIs, trends,           | validation,
+            | maintenance,            | forecasts, client       | matching,
+            | safe SQL, health        | and expense analysis    | calculations
+            |                         |                         |
+            +------------+------------+------------+------------+
+                         |
+                         | SQLAlchemy ORM models and sessions
+                         v
+              +----------+-----------+
+              |   Data Access Layer  |
+              | Flask-SQLAlchemy ORM |
+              +----------+-----------+
+                         |
+                         | insert, update, query, delete
+                         v
+    +----------------+----------------+----------------+----------------+
+    | Authentication | Client/Sales   | Purchasing     | Analytics and  |
+    | and Audit Data | and Invoice    | and Expense    | Evaluation Data|
+    +----------------+----------------+----------------+----------------+
+    | roles          | clients        | purchase_orders| analytics_data |
+    | users          | client_aliases | purchase_order_| evaluation_    |
+    | session_records| sales_orders   | debits         | sessions       |
+    | audit_logs     | sales_order_   |                | evaluation_    |
+    | password_resets| items          |                | questions      |
+    |                | invoices       |                | evaluation_    |
+    |                |                |                | responses      |
+    +----------------+----------------+----------------+----------------+
+                         |
+                         | production DATABASE_URL
+                         v
+              +----------+-----------+
+              | Supabase PostgreSQL  |
+              | persistent cloud DB  |
+              +----------------------+
+
+Local development alternate database path:
+
+    Flask-SQLAlchemy ORM
+        |
+        | no DATABASE_URL set
+        v
+    SQLite database.db
+
+
+14. Functional Interaction Diagram
+
+This diagram focuses on how information moves through the major ERP functions.
+
+    STAFF INPUT FLOW
+
+    Staff User
+        |
+        +--> Create / upload sales order data
+        |       |
+        |       v
+        |   Client matching and alias handling
+        |       |
+        |       v
+        |   sales_orders + sales_order_items + clients
+        |
+        +--> Create or update invoices
+        |       |
+        |       v
+        |   invoice totals, payments, balances, 2307 tax fields
+        |       |
+        |       v
+        |   invoices + refreshed client financials
+        |
+        +--> Create purchase orders / expenses
+                |
+                v
+            purchase_orders + purchase_order_debits
+
+
+    MANAGER ANALYSIS FLOW
+
+    Manager User
+        |
+        +--> Opens dashboard, reports, or analytics pages
+                |
+                v
+            Flask report and analytics API routes
+                |
+                v
+            analytics_services.py calculations
+                |
+                v
+            Reads operational tables and analytics_data
+                |
+                v
+            Returns KPIs, trends, reports, client insights,
+            expense analysis, sales analysis, and comparisons
+
+
+    ADMIN CONTROL FLOW
+
+    Admin User
+        |
+        +--> Manages users, roles, clients, schema, exports, and logs
+                |
+                v
+            Flask admin routes
+                |
+                v
+            admin_services.py
+                |
+                v
+            Database grid, schema inspection, maintenance,
+            safe SQL, CSV export, audit history, and notifications
+
+
+15. Interaction Summary
+
+Admin:
+    Controls the system configuration, user access, database interface,
+    audit trail, exports, and administrative visibility.
+
+Manager:
+    Consumes business intelligence generated from operational records and
+    historical analytics data.
+
+Staff:
+    Creates and updates the operational records that feed invoices, client
+    financials, purchase tracking, reporting, and analytics.
+
+System:
+    Uses Flask route guards to enforce role permissions, service modules to
+    organize business logic, SQLAlchemy to manage data access, and Supabase
+    PostgreSQL to persist production data.
+
+
+16. How to Draw the System Architecture Diagram
+
+Use this section as a practical guide for creating the final system architecture
+diagram in PowerPoint, draw.io, Lucidchart, Canva, Figma, or any diagramming
+tool. The diagram should show both technical architecture and the flow of
+information between user roles and system modules.
+
+
+16.1 Recommended Diagram Layout
+
+Use a left-to-right architecture layout with four main vertical zones:
+
+    Zone 1: Users and Roles
+    Zone 2: Frontend / Web Interface
+    Zone 3: Backend / Application Logic
+    Zone 4: Data Storage and Deployment
+
+Recommended canvas structure:
+
+    +------------------+----------------------+----------------------------+---------------------------+
+    | Users and Roles  | Frontend Interface   | Backend Application Layer  | Data / Deployment Layer   |
+    +------------------+----------------------+----------------------------+---------------------------+
+
+Place the user roles on the far left.
+Place the browser and page modules in the second column.
+Place Flask, route groups, services, and SQLAlchemy in the third column.
+Place Supabase, SQLite, Render, GitHub, and environment variables in the fourth
+column.
+
+
+16.2 Main Diagram Groups
+
+Create these grouped containers:
+
+Group A: Users and Roles
+    Contains:
+        Admin
+        Manager
+        Staff
+
+Group B: Browser / Frontend
+    Contains:
+        Browser Client
+        HTML Templates
+        CSS Theme and Layout
+        JavaScript UI Helpers
+
+Group C: Flask Backend
+    Contains:
+        Flask App - app.py
+        Authentication and Session Handling
+        Role-Based Route Guards
+        Route Groups
+
+Group D: Service Layer
+    Contains:
+        analytics_services.py
+        admin_services.py
+        Business Logic in app.py
+
+Group E: Data Access
+    Contains:
+        Flask-SQLAlchemy
+        SQLAlchemy Models
+        SQLAlchemy Session / Queries
+
+Group F: Database Storage
+    Contains:
+        Supabase PostgreSQL - Production
+        SQLite database.db - Local Development
+
+Group G: Deployment and Source Control
+    Contains:
+        GitHub Repository
+        Render Web Service
+        Gunicorn
+        Environment Variables
+
+
+16.3 Exact Nodes to Draw
+
+Draw these nodes as boxes. Use the node names exactly so the diagram is easy to
+explain during presentation.
+
+User role nodes:
+    1. Admin User
+    2. Manager User
+    3. Staff User
+
+Frontend nodes:
+    4. Browser Client
+    5. Flask HTML Templates
+    6. Static CSS and Theme Files
+    7. JavaScript UI Helpers
+
+Backend nodes:
+    8. Flask Application - app.py
+    9. Authentication and Sessions
+    10. Role-Based Access Control
+    11. Operational Routes
+    12. Admin Routes
+    13. Analytics and Report Routes
+
+Service nodes:
+    14. Business Logic in app.py
+    15. analytics_services.py
+    16. admin_services.py
+
+Data access nodes:
+    17. Flask-SQLAlchemy
+    18. SQLAlchemy ORM Models
+    19. SQLAlchemy Session / Query Engine
+
+Database nodes:
+    20. Supabase PostgreSQL - Production Database
+    21. SQLite database.db - Local Development Database
+
+Deployment nodes:
+    22. GitHub Repository - main branch
+    23. Render Web Service
+    24. Gunicorn app:app
+    25. Render Environment Variables
+
+
+16.4 Recommended Node Descriptions
+
+Use short descriptions under each node.
+
+Admin User:
+    Manages users, roles, database tools, audit logs, exports, and admin
+    controls.
+
+Manager User:
+    Views dashboard, analytics, reports, client insights, and business
+    performance.
+
+Staff User:
+    Creates sales orders, invoices, purchase orders, and operational records.
+
+Browser Client:
+    User-facing web browser that sends HTTPS requests and receives HTML or JSON.
+
+Flask HTML Templates:
+    Server-rendered pages for login, dashboard, sales, invoices, purchase
+    orders, reports, analytics, admin, and profile screens.
+
+Static CSS and Theme Files:
+    Defines responsive layout, colors, panels, buttons, and theme overrides.
+
+JavaScript UI Helpers:
+    Supports frontend state and interactive page behavior.
+
+Flask Application - app.py:
+    Main application entry point. Defines the Flask app, routes, database
+    models, authentication, and initialization.
+
+Authentication and Sessions:
+    Validates login credentials, stores session data, and records login
+    sessions.
+
+Role-Based Access Control:
+    Restricts pages and APIs based on admin, manager, or staff role.
+
+Operational Routes:
+    Handles sales orders, invoices, purchase orders, client matching, uploads,
+    and operational form submissions.
+
+Admin Routes:
+    Handles users, roles, database grid, schema, export, audit logs,
+    notifications, and maintenance tools.
+
+Analytics and Report Routes:
+    Handles dashboard data, reports, analytics generation, historical uploads,
+    and analytics JSON APIs.
+
+Business Logic in app.py:
+    Validates form data, creates records, refreshes client financials, and
+    coordinates workflows.
+
+analytics_services.py:
+    Calculates KPIs, sales trends, client analysis, expense breakdown,
+    forecasting, recommendations, and comparative analytics.
+
+admin_services.py:
+    Supports data grid, schema inspection, database health, CSV export,
+    maintenance, and safe SQL operations.
+
+Flask-SQLAlchemy:
+    Integrates SQLAlchemy with the Flask app.
+
+SQLAlchemy ORM Models:
+    Python classes that map to database tables such as users, clients,
+    sales_orders, invoices, purchase_orders, and analytics_data.
+
+SQLAlchemy Session / Query Engine:
+    Executes inserts, updates, deletes, and queries against the configured
+    database.
+
+Supabase PostgreSQL - Production Database:
+    Cloud database used by Render production when DATABASE_URL is set.
+
+SQLite database.db - Local Development Database:
+    Local database used automatically when DATABASE_URL is not set.
+
+GitHub Repository - main branch:
+    Source code repository used by Render for deployment.
+
+Render Web Service:
+    Cloud hosting environment that builds and runs the Flask app.
+
+Gunicorn app:app:
+    Production WSGI server command that starts the Flask app on Render.
+
+Render Environment Variables:
+    Stores DATABASE_URL, SECRET_KEY, DEFAULT_ADMIN_PASSWORD, and optional seed
+    account variables.
+
+
+16.5 Main Arrows to Draw
+
+Draw these arrows in the diagram. The arrow labels explain what information
+moves between components.
+
+User access arrows:
+
+    Admin User -> Browser Client
+        Label: uses admin screens
+
+    Manager User -> Browser Client
+        Label: views dashboards and reports
+
+    Staff User -> Browser Client
+        Label: enters operational records
+
+Frontend request arrows:
+
+    Browser Client -> Flask Application - app.py
+        Label: HTTPS requests, forms, uploads, API calls
+
+    Flask Application - app.py -> Browser Client
+        Label: HTML pages, JSON responses, redirects, CSV exports
+
+Frontend asset arrows:
+
+    Flask HTML Templates -> Browser Client
+        Label: rendered pages
+
+    Static CSS and Theme Files -> Browser Client
+        Label: layout and styling
+
+    JavaScript UI Helpers -> Browser Client
+        Label: interactive page behavior
+
+Authentication arrows:
+
+    Flask Application - app.py -> Authentication and Sessions
+        Label: login validation and session creation
+
+    Authentication and Sessions -> Role-Based Access Control
+        Label: user role and session context
+
+    Role-Based Access Control -> Operational Routes
+        Label: staff/admin allowed routes
+
+    Role-Based Access Control -> Admin Routes
+        Label: admin-only routes
+
+    Role-Based Access Control -> Analytics and Report Routes
+        Label: manager/admin report access
+
+Route to service arrows:
+
+    Operational Routes -> Business Logic in app.py
+        Label: validate and process operational input
+
+    Admin Routes -> admin_services.py
+        Label: schema, grid, health, export, maintenance
+
+    Analytics and Report Routes -> analytics_services.py
+        Label: KPIs, trends, reports, forecasts
+
+Service to ORM arrows:
+
+    Business Logic in app.py -> Flask-SQLAlchemy
+        Label: create and update records
+
+    analytics_services.py -> Flask-SQLAlchemy
+        Label: read records and calculate analytics
+
+    admin_services.py -> Flask-SQLAlchemy
+        Label: inspect and manage database records
+
+ORM arrows:
+
+    Flask-SQLAlchemy -> SQLAlchemy ORM Models
+        Label: maps Python classes to tables
+
+    SQLAlchemy ORM Models -> SQLAlchemy Session / Query Engine
+        Label: table definitions and relationships
+
+Database arrows:
+
+    SQLAlchemy Session / Query Engine -> Supabase PostgreSQL - Production Database
+        Label: production queries through DATABASE_URL
+
+    SQLAlchemy Session / Query Engine -> SQLite database.db - Local Development Database
+        Label: local queries when DATABASE_URL is not set
+
+Deployment arrows:
+
+    GitHub Repository - main branch -> Render Web Service
+        Label: source code deployment
+
+    Render Web Service -> Gunicorn app:app
+        Label: production start command
+
+    Gunicorn app:app -> Flask Application - app.py
+        Label: loads Flask app object
+
+    Render Environment Variables -> Flask Application - app.py
+        Label: DATABASE_URL, SECRET_KEY, default admin password
+
+    Render Environment Variables -> Supabase PostgreSQL - Production Database
+        Label: database connection string
+
+
+16.6 Role-to-Function Mapping to Show in the Diagram
+
+Add a small table or side panel in the diagram with this mapping:
+
+    Admin
+        -> User Management
+        -> Role Management
+        -> Database Interface
+        -> Client List
+        -> Schema and Health Checks
+        -> Exports and Audit Logs
+
+    Manager
+        -> Dashboard
+        -> Analytics
+        -> Reports
+        -> Client Performance
+        -> Expense Breakdown
+        -> Sales Analysis
+
+    Staff
+        -> Sales Order Entry
+        -> Invoice Processing
+        -> Purchase Order Entry
+        -> Client Matching
+        -> Upload Workflows
+
+
+16.7 Data Store Mapping to Show in the Diagram
+
+Add another small side panel named "Data Stored" with these categories:
+
+    User and access data:
+        roles, users, session_records, password_resets, audit_logs
+
+    Client and sales data:
+        clients, client_aliases, sales_orders, sales_order_items, invoices
+
+    Expense data:
+        purchase_orders, purchase_order_debits
+
+    Analytics data:
+        analytics_data
+
+    Evaluation data:
+        evaluation_sessions, evaluation_questions, evaluation_responses
+
+
+16.8 Suggested Visual Styling
+
+Use different colors by layer:
+
+    Users and Roles:
+        Light blue
+
+    Frontend:
+        Light gray or white
+
+    Backend / Flask:
+        Light navy or medium blue
+
+    Services:
+        Light green
+
+    ORM / Data Access:
+        Light purple or neutral gray
+
+    Database:
+        Green for Supabase PostgreSQL
+        Orange or gray for local SQLite
+
+    Deployment:
+        Dark gray or blue
+
+Use solid arrows for normal request/data flow.
+Use dashed arrows for deployment/configuration flow.
+Use a thicker arrow from SQLAlchemy to Supabase to emphasize production storage.
+Use a thinner alternate arrow from SQLAlchemy to SQLite to show local
+development only.
+
+
+16.9 Recommended Final Diagram Structure
+
+Recommended final diagram layout:
+
+    [Admin]      [Browser UI]       [Flask App]        [Services]        [ORM]        [Supabase]
+    [Manager] -> [Templates]   ->   [Routes]     ->    [Business]  ->    [Models] ->  [Postgres]
+    [Staff]      [CSS/JS]           [Role Guard]       [Analytics]       [Session]    [Cloud DB]
+                                                       [Admin]
+
+    Under backend:
+        Authentication and Sessions
+        Role-Based Access Control
+        Operational Routes
+        Admin Routes
+        Analytics and Report Routes
+
+    Under data:
+        User/access tables
+        Client/sales/invoice tables
+        Expense tables
+        Analytics/evaluation tables
+
+    Under deployment:
+        GitHub main -> Render -> Gunicorn -> Flask app
+        Render Environment Variables -> Flask app
+        DATABASE_URL -> Supabase
+
+
+16.10 Short Explanation for Presentation
+
+Use this explanation when presenting the diagram:
+
+    "The system starts with three user roles: Admin, Manager, and Staff. Each
+    role accesses the application through the browser, but route guards in
+    Flask control which modules they can use. Staff users create operational
+    records such as sales orders, invoices, and purchase orders. Managers read
+    those records through dashboards, reports, and analytics services. Admins
+    manage users, database tools, exports, schema views, and audit logs. All
+    route handlers use service logic and SQLAlchemy models to query or update
+    the database. In production, the database connection comes from Render's
+    DATABASE_URL environment variable and points to Supabase PostgreSQL. In
+    local development, if DATABASE_URL is absent, the same app uses SQLite
+    database.db."
+
+
+17. Simplified System Architecture Diagram
+
+Use this simplified version if you need a clean and easy-to-present system
+architecture diagram with only the general nodes.
+
+Main nodes:
+
+    1. User
+    2. Front End
+    3. Back End
+    4. Database
+
+The three main system parts are:
+
+    Front End
+    Back End
+    Database
+
+
+17.1 Simplified Flow
+
+Draw the flow like this:
+
+    User
+      |
+      | uses the system through browser interaction
+      v
+    Front End
+      |
+      | sends requests, forms, uploads, and actions
+      v
+    Back End
+      |
+      | validates, processes, calculates, and queries data
+      v
+    Database
+      |
+      | returns stored records and query results
+      v
+    Back End
+      |
+      | prepares HTML pages, JSON data, reports, and responses
+      v
+    Front End
+      |
+      | displays updated pages, tables, dashboards, and messages
+      v
+    User
+
+
+17.2 What Each Main Node Represents
+
+User:
+    The person using the system.
+
+    User roles:
+        Admin
+        Manager
+        Staff
+
+    User actions:
+        Login
+        View dashboard
+        Create sales orders
+        Create invoices
+        Create purchase orders
+        View analytics and reports
+        Manage users and records
+
+
+Front End:
+    The visible part of the system that the user interacts with in the browser.
+
+    Includes:
+        HTML pages
+        CSS styling
+        JavaScript behavior
+        Forms
+        Tables
+        Dashboards
+        Upload screens
+        Admin screens
+        Reports and analytics screens
+
+    Project examples:
+        templates/
+        static/css/styles.css
+        static/css/theme-overrides.css
+        static/js/system-states.js
+
+    Main responsibility:
+        Collect user input and display system output.
+
+
+Back End:
+    The server-side part of the system that handles logic, validation, routing,
+    security, and communication with the database.
+
+    Includes:
+        Flask application
+        Routes and APIs
+        Authentication
+        Session handling
+        Role-based access control
+        Business logic
+        Analytics logic
+        Admin services
+        SQLAlchemy ORM
+
+    Project examples:
+        app.py
+        analytics_services.py
+        admin_services.py
+
+    Main responsibility:
+        Process user requests, apply business rules, and manage database access.
+
+
+Database:
+    The storage part of the system.
+
+    Includes:
+        Supabase PostgreSQL for Render production
+        SQLite database.db for local development
+
+    Stores:
+        Users
+        Roles
+        Sessions
+        Clients
+        Sales orders
+        Sales order items
+        Invoices
+        Purchase orders
+        Purchase order debits
+        Analytics data
+        Audit logs
+        Evaluation data
+
+    Main responsibility:
+        Store and return system data.
+
+
+17.3 Simple Diagram Labels
+
+Use these labels on the arrows:
+
+    User -> Front End
+        "User actions"
+
+    Front End -> Back End
+        "Requests, forms, uploads"
+
+    Back End -> Database
+        "Queries, inserts, updates, deletes"
+
+    Database -> Back End
+        "Stored data and query results"
+
+    Back End -> Front End
+        "HTML, JSON, reports, messages"
+
+    Front End -> User
+        "Updated pages and results"
+
+
+17.4 Very Simple Text Diagram
+
+    +--------+
+    |  User  |
+    +---+----+
+        |
+        | User actions
+        v
+    +------------+
+    | Front End  |
+    | HTML/CSS/JS|
+    +-----+------+
+          |
+          | Requests, forms, uploads
+          v
+    +------------+
+    |  Back End  |
+    | Flask APIs |
+    | Business   |
+    | Logic      |
+    +-----+------+
+          |
+          | Queries and updates
+          v
+    +------------+
+    |  Database  |
+    | Supabase   |
+    | PostgreSQL |
+    +-----+------+
+          |
+          | Stored data
+          v
+    +------------+
+    |  Back End  |
+    | Processed  |
+    | Response   |
+    +-----+------+
+          |
+          | HTML, JSON, reports
+          v
+    +------------+
+    | Front End  |
+    | Updated UI |
+    +-----+------+
+          |
+          | Displayed result
+          v
+    +--------+
+    |  User  |
+    +--------+
+
+
+17.5 Simplified Presentation Explanation
+
+Use this short explanation:
+
+    "The user interacts with the front end through the browser. The front end
+    sends requests, forms, uploads, and actions to the back end. The back end is
+    the Flask server that validates the request, checks the user's role, applies
+    business logic, and communicates with the database through SQLAlchemy. The
+    database stores records such as users, clients, sales orders, invoices,
+    purchase orders, analytics data, and audit logs. After the database returns
+    the needed data, the back end prepares the response and sends it back to the
+    front end. The front end then displays the updated page, dashboard, report,
+    or message to the user."

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syluxent - {{ error_info.title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
+    <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
+</head>
+
+<body>
+    <main class="page-shell" style="min-height: 100vh; display: grid; place-items: center;">
+        <section class="card" style="max-width: 620px; width: 100%;">
+            <div class="system-error-state system-error-{{ error_info.type }}">
+                <strong>{{ error_info.title }}</strong>
+                <p>{{ error_info.message }}</p>
+                <span>{{ error_info.action }}</span>
+                {% if error_info.details %}
+                <details class="system-error-details">
+                    <summary>Technical details</summary>
+                    <pre>{{ error_info.details }}</pre>
+                </details>
+                {% endif %}
+            </div>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem;">
+                {% if session.get('user_id') %}
+                <a class="btn btn-primary" href="{{ url_for('dashboard') }}">Go Home</a>
+                {% else %}
+                <a class="btn btn-primary" href="{{ url_for('login') }}">Sign In</a>
+                {% endif %}
+                <button type="button" class="btn btn-outline" onclick="history.back()">Back</button>
+            </div>
+        </section>
+    </main>
+</body>
+
+</html>

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Syluxent - Register</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
     <style>
         .auth-container {
@@ -222,7 +222,7 @@
                     <input type="password" id="confirm_password" name="confirm_password" required placeholder="Confirm your password">
                 </div>
                 <div class="role-info" style="display: block;">
-                    New accounts are created with Staff access by default.
+                    New accounts are created with Staff access and require administrator approval before sign in.
                 </div>
                 <button type="submit" class="btn btn-primary">Create Account</button>
             </form>

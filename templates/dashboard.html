@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Syluxent - Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
     <script async
         src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
@@ -220,7 +220,14 @@
     'staff': [
         ('sales_order', 'Sales Order'),
         ('invoices', 'Invoice'),
-        ('purchase_orders', 'Purchase Order')
+        ('expenses', 'Expense')
+    ],
+    'sales staff': [
+        ('sales_order', 'Sales Order')
+    ],
+    'accounting staff': [
+        ('invoices', 'Invoice'),
+        ('expenses', 'Expense')
     ],
     'manager': [
         ('analytics', 'Analytics'),
@@ -229,7 +236,7 @@
     'admin': [
         ('sales_order', 'Sales Order'),
         ('invoices', 'Invoice'),
-        ('purchase_orders', 'Purchase Order'),
+        ('expenses', 'Expense'),
         ('analytics', 'Analytics'),
         ('reports', 'Reports'),
         ('database_interface', 'Database Interface')
@@ -248,8 +255,9 @@
         </div>
         <div class="nav-user">
             <a class="profile-link" href="{{ url_for('profile') }}">
-                {% if current_user and current_user.profile_photo %}
-                <img class="profile-avatar" src="{{ url_for('static', filename=current_user.profile_photo) }}" alt="">
+                {% set avatar_src = profile_photo_src(current_user) %}
+                {% if avatar_src %}
+                <img class="profile-avatar" src="{{ avatar_src }}" alt="">
                 {% else %}
                 <span class="profile-avatar">{{ session.username[:1]|upper }}</span>
                 {% endif %}
@@ -349,7 +357,6 @@
             <div class="tabs">
                 <button class="tab-btn active" onclick="switchTab('sales')">Sales Orders</button>
                 <button class="tab-btn" onclick="switchTab('invoices')">Invoices</button>
-                <button class="tab-btn" onclick="switchTab('clients')">Clients</button>
             </div>
 
             <!-- Sales Orders Tab -->
@@ -395,27 +402,6 @@
                 </div>
             </div>
 
-            <!-- Clients Tab -->
-            <div class="tab-content" id="tab-clients">
-                <div class="table-wrap">
-                    <table id="clients-table">
-                        <thead>
-                            <tr>
-                                <th>Client Name</th>
-                                <th>Contact</th>
-                                <th>Total Invoices</th>
-                                <th>Client Score</th>
-                                <th>Cohort</th>
-                                <th>Balance Due</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="clients-tbody">
-                            <tr><td colspan="7" class="no-data">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
         </div>
     </main>
 
@@ -524,7 +510,7 @@
             {% if session.role in ['manager', 'admin'] %}
             const container = document.getElementById('analytics-content');
 
-            container.innerHTML = '<div class="stats-grid" style="margin-top: 1rem;"><div class="stat-card"><div class="stat-label">Invoice Payments</div><div class="stat-value ' + kpiClassFor('revenue', dashboardData.selected_year_revenue || 0) + '">' + formatCurrency(dashboardData.selected_year_revenue || 0) + '</div></div><div class="stat-card"><div class="stat-label">Purchase Order Total</div><div class="stat-value kpi-value">' + formatCurrency(dashboardData.total_expenses.total_amount || 0) + '</div></div><div class="stat-card"><div class="stat-label">Aging (0-30 days)</div><div class="stat-value ' + kpiClassFor('accounts_receivable', dashboardData.aging_0_30 || 0) + '">' + formatCurrency(dashboardData.aging_0_30 || 0) + '</div></div></div><div class="cashflow-chart-wrap"><canvas id="cashflow-chart"></canvas></div>';
+            container.innerHTML = '<div class="stats-grid" style="margin-top: 1rem;"><div class="stat-card"><div class="stat-label">Invoice Payments</div><div class="stat-value ' + kpiClassFor('revenue', dashboardData.selected_year_revenue || 0) + '">' + formatCurrency(dashboardData.selected_year_revenue || 0) + '</div></div><div class="stat-card"><div class="stat-label">Expense Total</div><div class="stat-value kpi-value">' + formatCurrency(dashboardData.total_expenses.total_amount || 0) + '</div></div><div class="stat-card"><div class="stat-label">Aging (0-30 days)</div><div class="stat-value ' + kpiClassFor('accounts_receivable', dashboardData.aging_0_30 || 0) + '">' + formatCurrency(dashboardData.aging_0_30 || 0) + '</div></div></div><div class="cashflow-chart-wrap"><canvas id="cashflow-chart"></canvas></div>';
             renderDashboardCashflowChart();
             {% endif %}
         }
@@ -550,7 +536,7 @@
                             borderRadius: 6
                         },
                         {
-                            label: 'Cash Out (Purchase Orders)',
+                            label: 'Cash Out (Expenses)',
                             data: dashboardData.monthly_cashflow.map(row => row.cash_out),
                             backgroundColor: '#F97316',
                             borderRadius: 6
@@ -606,19 +592,6 @@
                 }).join('');
             }
 
-            // Clients
-            const clientsTbody = document.getElementById('clients-tbody');
-            if (dashboardData.clients_summary.length === 0) {
-                clientsTbody.innerHTML = '<tr><td colspan="7" class="no-data">No clients found</td></tr>';
-            } else {
-                clientsTbody.innerHTML = dashboardData.clients_summary.map(client => {
-                    const status = client.balance_status || (parseFloat(client.current_balance) > 0 ? 'Unsettled Balance' : 'Settled');
-                    const statusClass = status === 'Settled' ? 'badge-paid' : 'badge-unpaid';
-                    const cohort = client.cohort || 'Low Engagement';
-                    
-                    return '<tr class="clickable" onclick="openClientSOModal(' + client.id + ')"><td data-label="Client Name">' + client.client_name + '</td><td data-label="Contact">' + (client.contact_info || '-') + '</td><td data-label="Total Invoices">' + (client.total_invoices || 0) + '</td><td data-label="Client Score">' + Number(client.client_performance_score || 0).toFixed(2) + '</td><td data-label="Cohort">' + cohort + '</td><td data-label="Balance Due"><span class="' + kpiClassFor('accounts_receivable', client.current_balance) + '">' + formatCurrency(client.current_balance) + '</span><br><small><span class="' + kpiClassFor('revenue', client.total_revenue || 0) + '">Revenue ' + formatCurrency(client.total_revenue || 0) + '</span> / <span class="' + kpiClassFor('revenue', client.total_paid || 0) + '">Paid ' + formatCurrency(client.total_paid || 0) + '</span></small></td><td data-label="Status"><span class="badge ' + statusClass + '">' + status + '</span></td></tr>';
-                }).join('');
-            }
         }
 
         // Tab switching
@@ -672,10 +645,10 @@
                 return;
             }
 
-            let tableHTML = '<div class="table-wrap"><table class="data-table" id="ar-table"><thead><tr><th>Client</th><th>Total Revenue</th><th>Total Paid</th><th>Balance</th><th>Status</th></tr></thead><tbody>';
+            let tableHTML = '<div class="table-wrap"><table class="data-table" id="ar-table"><thead><tr><th>Client</th><th>Sales Order Amount</th><th>Total Paid</th><th>Balance</th><th>Status</th></tr></thead><tbody>';
             
             clientsWithBalance.forEach(client => {
-                tableHTML += '<tr><td data-label="Client">' + client.client_name + '</td><td data-label="Total Revenue" class="' + kpiClassFor('revenue', client.total_revenue || 0) + '">' + formatCurrency(client.total_revenue || 0) + '</td><td data-label="Total Paid" class="' + kpiClassFor('revenue', client.total_paid || 0) + '">' + formatCurrency(client.total_paid || 0) + '</td><td data-label="Balance" class="' + kpiClassFor('accounts_receivable', client.current_balance || 0) + '">' + formatCurrency(client.current_balance || 0) + '</td><td data-label="Status">' + statusBadge(client.balance_status || 'Unsettled Balance') + '</td></tr>';
+                tableHTML += '<tr><td data-label="Client">' + client.client_name + '</td><td data-label="Sales Order Amount" class="' + kpiClassFor('revenue', client.total_revenue || 0) + '">' + formatCurrency(client.total_revenue || 0) + '</td><td data-label="Total Paid" class="' + kpiClassFor('revenue', client.total_paid || 0) + '">' + formatCurrency(client.total_paid || 0) + '</td><td data-label="Balance" class="' + kpiClassFor('accounts_receivable', client.current_balance || 0) + '">' + formatCurrency(client.current_balance || 0) + '</td><td data-label="Status">' + statusBadge(client.balance_status || 'Unsettled Balance') + '</td></tr>';
             });
             
             tableHTML += '</tbody></table></div>';

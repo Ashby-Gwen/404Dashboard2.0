@@ -60,7 +60,7 @@ Goal: Explain the problem and position the system.
 
 Say:
 
-"Good day. This is Syluxent ERP, a Flask and SQLite-based business management system designed to centralize sales orders, invoices, purchase orders, reports, administration, and analytics in one workflow. The goal is to reduce manual tracking across spreadsheets while preserving the familiar business data format the company already uses."
+"Good day. This is Syluxent ERP, a Flask and database-backed business management system designed to centralize sales orders, invoices, expenses, reports, administration, and analytics in one workflow. The goal is to reduce manual tracking across spreadsheets while preserving the familiar business data format the company already uses."
 
 Show:
 
@@ -75,7 +75,7 @@ Goal: Prove that users see different modules depending on role.
 Steps:
 
 1. Log in as `staff`.
-2. Show Staff navigation: Home, Sales Order, Invoice, Purchase Order.
+2. Show Staff navigation: Home, Sales Order, Invoice, Expense.
 3. Log out.
 4. Log in as `manager`.
 5. Show Manager navigation: Home and Analytics.
@@ -107,7 +107,7 @@ Say:
 
 If the dashboard has little data:
 
-"This demo database may have limited records, but these cards update from the underlying sales, invoice, and purchase order tables as data is encoded."
+"This demo database may have limited records, but these cards update from the underlying sales, invoice, and expense records as data is encoded."
 
 ### 4. Sales Order Module
 
@@ -153,22 +153,22 @@ Say:
 
 "After a sales order is created, it can be converted into an invoice. The invoice module supports sales and service invoices, downpayment or full payment tracking, tax handling, and a confirmation buffer for critical actions."
 
-### 6. Purchase Order Module
+### 6. Expense Module
 
 Goal: Show expense tracking and debit categorization.
 
 Steps:
 
-1. Open Purchase Orders.
+1. Open Expenses.
 2. Show required voucher/check/date/supplier fields.
 3. Add one or more debit entries.
 4. Show cash amount, total debit amount, and net balance calculation.
-5. Save the purchase order.
-6. Show purchase order history table.
+5. Save the expense.
+6. Show expense history table.
 
 Say:
 
-"Purchase Orders capture company expenses and categorize them across debit accounts. The system automatically compares total debits against cash amount, then marks the balance and status accordingly."
+"Expenses capture company costs and categorize them across debit accounts. The system automatically compares total debits against cash amount, then marks the balance and status accordingly."
 
 ### 7. Reports
 
@@ -193,7 +193,7 @@ Steps:
 
 1. Open Database Interface.
 2. Show Users as the default view.
-3. Show Roles, Clients, Sales Orders, Invoices, Purchase Orders, Sessions, and Client Basket views.
+3. Show Roles, Clients, Sales Orders, Invoices, Expenses, Sessions, and Client Basket views.
 4. Show database stats.
 5. Mention upload preview/commit, export, health, maintenance, safe SQL console, theme settings, audit logs, and notifications if visible.
 
@@ -230,9 +230,9 @@ Goal: Tie the demo back to the capstone value.
 
 Say:
 
-"To summarize, Syluxent ERP centralizes the company's sales orders, invoices, purchase orders, reports, user administration, and analytics. The system reduces scattered manual tracking, improves record consistency, and gives managers clearer visibility into revenue, expenses, balances, and client behavior."
+"To summarize, Syluxent ERP centralizes the company's sales orders, invoices, expenses, reports, user administration, and analytics. The system reduces scattered manual tracking, improves record consistency, and gives managers clearer visibility into revenue, expenses, balances, and client behavior."
 
-"The system check completed successfully for core routes, page rendering, upload logic, client matching, purchase order processing, dashboard client balances, analytics filters, and analytics workflows. The remaining improvement noted in testing is to fully align Sales Order Excel processing with a purely browser-side workflow if that requirement is enforced."
+"The system check completed successfully for core routes, page rendering, upload logic, client matching, expense processing, dashboard client balances, analytics filters, and analytics workflows. The remaining improvement noted in testing is to fully align Sales Order Excel processing with a purely browser-side workflow if that requirement is enforced."
 
 ## Quick Recovery Lines
 
@@ -250,7 +250,7 @@ Use these if something unexpected happens during the live demo.
 - Dashboard: 2 minutes.
 - Sales Order: 4 minutes.
 - Invoice: 3 minutes.
-- Purchase Order: 3 minutes.
+- Expense: 3 minutes.
 - Reports and Admin: 4 minutes.
 - Analytics: 4 minutes.
 - Closing: 1 minute.

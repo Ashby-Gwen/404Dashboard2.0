@@ -9,7 +9,7 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-overrides.css') }}">
+    <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
 
     <style>
@@ -327,15 +327,23 @@
         'staff': [
         ('sales_order', 'Sales Order'),
         ('invoices', 'Invoice'),
-        ('purchase_orders', 'Purchase Order')
+        ('expenses', 'Expense')
+        ],
+        'sales staff': [
+        ('sales_order', 'Sales Order')
+        ],
+        'accounting staff': [
+        ('invoices', 'Invoice'),
+        ('expenses', 'Expense')
         ],
         'manager': [
-        ('analytics', 'Analytics')
+        ('analytics', 'Analytics'),
+        ('reports', 'Reports')
         ],
         'admin': [
         ('sales_order', 'Sales Order'),
         ('invoices', 'Invoice'),
-        ('purchase_orders', 'Purchase Order'),
+        ('expenses', 'Expense'),
         ('analytics', 'Analytics'),
         ('database_interface', 'Database Interface')
         ]
@@ -353,8 +361,9 @@
         </div>
         <div class="nav-user">
             <a class="profile-link" href="{{ url_for('profile') }}">
-                {% if current_user and current_user.profile_photo %}
-                <img class="profile-avatar" src="{{ url_for('static', filename=current_user.profile_photo) }}" alt="">
+                {% set avatar_src = profile_photo_src(current_user) %}
+                {% if avatar_src %}
+                <img class="profile-avatar" src="{{ avatar_src }}" alt="">
                 {% else %}
                 <span class="profile-avatar">{{ session.username[:1]|upper }}</span>
                 {% endif %}
@@ -409,19 +418,25 @@
             <section class="tab-pane fade show active" id="gridPane">
                 <div class="admin-card">
                     <div class="grid-toolbar">
-                        <select class="form-select" id="gridTable" onchange="resetGrid()">
+                        <select class="form-select" id="gridTable" onchange="resetGridTable()">
                             <option value="users">Users</option>
                             <option value="roles">Roles</option>
                             <option value="clients">Clients</option>
                             <option value="sales_orders">Sales Orders</option>
                             <option value="invoices">Invoices</option>
-                            <option value="purchase_orders">Purchase Orders</option>
+                            <option value="purchase_orders">Expenses</option>
                             <option value="session_records">Session Records</option>
                             <option value="analytics_data">Analytics Data</option>
                         </select>
                         <input class="form-control" id="gridSearch" placeholder="Search multiple columns..."
                             oninput="debouncedLoadGrid()">
                         <input class="form-control" id="gridStatus" placeholder="Status filter">
+                        <select class="form-select" id="gridPageSize" onchange="resetGrid()" style="max-width: 130px;">
+                            <option value="25">25 rows</option>
+                            <option value="50">50 rows</option>
+                            <option value="100">100 rows</option>
+                            <option value="200">200 rows</option>
+                        </select>
                         <button class="btn btn-primary" onclick="loadGrid()">Filter</button>
                         <button class="btn btn-outline-secondary" onclick="exportGrid()">Export CSV</button>
                     </div>
@@ -429,8 +444,10 @@
                     <div class="d-flex flex-wrap gap-2 mb-3">
                         <select class="form-select" id="bulkStatus" style="max-width: 220px;">
                             <option value="">Bulk status...</option>
-                            <option value="ACTIVE">ACTIVE</option>
-                            <option value="INACTIVE">INACTIVE</option>
+                            <option value="approved">approved</option>
+                            <option value="pending">pending</option>
+                            <option value="rejected">rejected</option>
+                            <option value="disabled">disabled</option>
                             <option value="PENDING">PENDING</option>
                             <option value="PARTIAL">PARTIAL</option>
                             <option value="COMPLETED">COMPLETED</option>
@@ -448,8 +465,8 @@
                     <div class="d-flex justify-content-between align-items-center mt-3">
                         <div id="gridMeta" class="text-muted"></div>
                         <div class="btn-group">
-                            <button class="btn btn-outline-secondary btn-sm" onclick="changePage(-1)">Previous</button>
-                            <button class="btn btn-outline-secondary btn-sm" onclick="changePage(1)">Next</button>
+                            <button class="btn btn-outline-secondary btn-sm" id="gridPrevButton" onclick="changePage(-1)">Previous</button>
+                            <button class="btn btn-outline-secondary btn-sm" id="gridNextButton" onclick="changePage(1)">Next</button>
                         </div>
                     </div>
                 </div>
@@ -539,8 +556,13 @@
 
             <section class="tab-pane fade" id="notificationsPane">
                 <div class="admin-card">
-                    <h2>Password Reset Notifications</h2>
-                    <p class="text-muted">Resolve password reset requests after confirming your admin password.</p>
+                    <h2>Admin Notifications</h2>
+                    <p class="text-muted">Review pending account registrations and password reset requests.</p>
+                    <h3 class="fs-5 mt-3">Account Approvals</h3>
+                    <div class="table-responsive mb-4">
+                        <table class="table table-sm align-middle" id="accountApprovalsTable"></table>
+                    </div>
+                    <h3 class="fs-5">Password Reset Requests</h3>
                     <div class="table-responsive">
                         <table class="table table-sm align-middle" id="notificationsTable"></table>
                     </div>
@@ -650,6 +672,9 @@
         let gridPage = 1;
         let gridPages = 1;
         let gridColumns = [];
+        let gridSort = 'id';
+        let gridDirection = 'desc';
+        let gridColumnFilters = {};
         let searchTimer = null;
         let themeFields = {};
         let themeSettings = {};
@@ -762,6 +787,14 @@
             loadGrid();
         }
 
+        function resetGridTable() {
+            gridPage = 1;
+            gridSort = 'id';
+            gridDirection = 'desc';
+            gridColumnFilters = {};
+            loadGrid();
+        }
+
         function debouncedLoadGrid() {
             clearTimeout(searchTimer);
             searchTimer = setTimeout(resetGrid, 350);
@@ -771,14 +804,18 @@
             const params = new URLSearchParams({
                 table: gridTable.value,
                 page: gridPage,
-                page_size: 25,
+                page_size: gridPageSize.value || 25,
                 search: gridSearch.value,
-                status: gridStatus.value
+                status: gridStatus.value,
+                sort: gridSort,
+                direction: gridDirection,
+                filters: JSON.stringify(gridColumnFilters)
             });
             return '/admin/data-grid?' + params.toString();
         }
 
         function loadGrid() {
+            renderGridLoading();
             fetch(gridUrl())
                 .then(response => response.json())
                 .then(data => {
@@ -791,27 +828,68 @@
         function renderGrid(grid) {
             gridColumns = grid.columns;
             gridPages = grid.pages || 1;
+            gridPage = grid.page || 1;
+            gridSort = grid.sort || gridSort;
+            gridDirection = grid.direction || gridDirection;
+            gridColumnFilters = grid.filters || gridColumnFilters || {};
             const userActions = grid.table === 'users' ? '<th>Action</th>' : '';
-            const head = '<thead><tr><th><input type="checkbox" onchange="toggleAllRows(this.checked)"></th>' + grid.columns.map(col => `<th onclick="sortGrid('${col}')">${label(col)}</th>`).join('') + userActions + '</tr></thead>';
+            const sortable = new Set(grid.sortable_columns || []);
+            const filterable = new Set(grid.filterable_columns || []);
+            const headLabels = '<tr><th><input type="checkbox" onchange="toggleAllRows(this.checked)"></th>' + grid.columns.map(col => {
+                const sortMark = grid.sort === col ? (grid.direction === 'asc' ? ' ▲' : ' ▼') : '';
+                const sortAttrs = sortable.has(col) ? ` role="button" onclick="sortGrid('${col}')"` : '';
+                return `<th${sortAttrs}>${label(col)}${sortMark}</th>`;
+            }).join('') + userActions + '</tr>';
+            const filterRow = '<tr><th></th>' + grid.columns.map(col => {
+                if (!filterable.has(col)) return '<th></th>';
+                const value = gridColumnFilters[col] || '';
+                return `<th><input class="form-control form-control-sm column-filter" data-column="${escapeHtml(col)}" value="${escapeHtml(value)}" placeholder="Search ${label(col)}" oninput="updateColumnFilter(this)"></th>`;
+            }).join('') + (grid.table === 'users' ? '<th></th>' : '') + '</tr>';
+            const head = '<thead>' + headLabels + filterRow + '</thead>';
+            const emptyColspan = grid.columns.length + 1 + (grid.table === 'users' ? 1 : 0);
             const body = grid.rows.length
                 ? grid.rows.map(row => {
                     const action = grid.table === 'users'
-                        ? `<td>${row.status === 'ACTIVE' ? `<button class="btn btn-outline-danger btn-sm" onclick="deactivateUser(${row.id})">Set Inactive</button>` : '<span class="text-muted">Inactive</span>'}</td>`
+                        ? `<td>${row.status === 'pending'
+                            ? `<button class="btn btn-primary btn-sm me-1" onclick="reviewAccount(${row.id}, 'approve')">Approve</button><button class="btn btn-outline-danger btn-sm" onclick="reviewAccount(${row.id}, 'reject')">Reject</button>`
+                            : row.status === 'approved'
+                                ? `<button class="btn btn-outline-danger btn-sm" onclick="deactivateUser(${row.id})">Disable</button>`
+                                : '<span class="text-muted">No action</span>'}</td>`
                         : '';
                     return '<tr><td><input class="row-check" type="checkbox" value="' + row.id + '"></td>' + grid.columns.map(col => `<td>${escapeHtml(row[col] ?? '-')}</td>`).join('') + action + '</tr>';
                 }).join('')
-                : `<tr><td colspan="${grid.columns.length + 2}" class="text-center text-muted">No records found</td></tr>`;
+                : `<tr><td colspan="${emptyColspan}" class="text-center text-muted">No records found</td></tr>`;
             dataGridTable.innerHTML = head + '<tbody>' + body + '</tbody>';
             gridMeta.textContent = `${grid.total} rows | Page ${grid.page} of ${grid.pages || 1}`;
+            gridPrevButton.disabled = gridPage <= 1;
+            gridNextButton.disabled = gridPage >= gridPages;
+        }
+
+        function renderGridLoading() {
+            const cols = Math.max((gridColumns.length || 6) + 1, 2);
+            dataGridTable.innerHTML = `<tbody><tr><td colspan="${cols}" class="text-center text-muted">Loading records...</td></tr></tbody>`;
+            gridMeta.textContent = 'Loading...';
         }
 
         function sortGrid(column) {
-            const params = new URLSearchParams(gridUrl().split('?')[1]);
-            params.set('sort', column);
-            params.set('direction', 'asc');
-            fetch('/admin/data-grid?' + params.toString())
-                .then(response => response.json())
-                .then(data => renderGrid(data.grid));
+            if (gridSort === column) {
+                gridDirection = gridDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                gridSort = column;
+                gridDirection = 'asc';
+            }
+            resetGrid();
+        }
+
+        function updateColumnFilter(input) {
+            const column = input.dataset.column;
+            const value = input.value.trim();
+            if (value) {
+                gridColumnFilters[column] = value;
+            } else {
+                delete gridColumnFilters[column];
+            }
+            debouncedLoadGrid();
         }
 
         function changePage(delta) {
@@ -831,7 +909,10 @@
             window.location.href = '/admin/export?' + new URLSearchParams({
                 table: gridTable.value,
                 search: gridSearch.value,
-                status: gridStatus.value
+                status: gridStatus.value,
+                sort: gridSort,
+                direction: gridDirection,
+                filters: JSON.stringify(gridColumnFilters)
             }).toString();
         }
 
@@ -846,7 +927,7 @@
         }
 
         function bulkDelete() {
-            if (gridTable.value === 'users') return showToast('Users cannot be deleted. Set their status to INACTIVE.', 'error');
+            if (gridTable.value === 'users') return showToast('Users cannot be deleted. Set their status to disabled.', 'error');
             const ids = selectedIds();
             if (!ids.length || !confirm('Delete selected records?')) return;
             fetch('/admin/bulk-delete', {
@@ -1182,7 +1263,7 @@
         }
 
         function deactivateUser(userId) {
-            if (!confirm('Set this user to inactive?')) return;
+            if (!confirm('Disable this user account?')) return;
             fetch('/delete-user/' + userId, { method: 'DELETE' })
                 .then(r => r.json())
                 .then(data => {
@@ -1192,11 +1273,31 @@
                 });
         }
 
+        function reviewAccount(userId, decision) {
+            const actionLabel = decision === 'approve' ? 'approve' : 'reject';
+            if (!confirm(`Are you sure you want to ${actionLabel} this account request?`)) return;
+            fetch(`/admin/users/${userId}/approval`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ decision })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return showToast(data.error || 'Unable to review account', 'error');
+                    showToast(data.message, 'success');
+                    loadNotifications();
+                    if (gridTable?.value === 'users') loadGrid();
+                });
+        }
+
         function loadNotifications() {
             fetch('/admin/notifications').then(r => r.json()).then(data => {
                 if (!data.success) throw new Error(data.error);
+                accountApprovalsTable.innerHTML = '<thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Registered</th><th>Action</th></tr></thead><tbody>' +
+                    (data.account_approvals.length ? data.account_approvals.map(item => `<tr><td>${escapeHtml(item.username)}</td><td>${escapeHtml(item.email || '-')}</td><td>${escapeHtml(item.role_name || '-')}</td><td>${item.created_at ? new Date(item.created_at).toLocaleString() : '-'}</td><td><button class="btn btn-primary btn-sm me-1" onclick="reviewAccount(${item.id}, 'approve')">Approve</button><button class="btn btn-outline-danger btn-sm" onclick="reviewAccount(${item.id}, 'reject')">Reject</button></td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">No pending account approvals</td></tr>') +
+                    '</tbody>';
                 notificationsTable.innerHTML = '<thead><tr><th>Username</th><th>Requested</th><th>Status</th><th>Resolved By</th><th>Action</th></tr></thead><tbody>' +
-                    (data.notifications.length ? data.notifications.map(item => `<tr><td>${escapeHtml(item.username)}</td><td>${new Date(item.requested_at).toLocaleString()}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.resolved_by || '-')}</td><td>${item.status === 'PENDING' ? `<button class="btn btn-primary btn-sm" onclick="resolvePasswordReset(${item.id})">Reset</button>` : '-'}</td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">No notifications</td></tr>') +
+                    (data.password_resets.length ? data.password_resets.map(item => `<tr><td>${escapeHtml(item.username)}</td><td>${item.requested_at ? new Date(item.requested_at).toLocaleString() : '-'}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.resolved_by || '-')}</td><td>${item.status === 'PENDING' ? `<button class="btn btn-primary btn-sm" onclick="resolvePasswordReset(${item.id})">Reset</button>` : '-'}</td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">No password reset requests</td></tr>') +
                     '</tbody>';
                 updateNotificationBadges(data.pending_count);
             }).catch(error => showToast(error.message, 'error'));

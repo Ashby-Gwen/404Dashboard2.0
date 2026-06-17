@@ -390,65 +390,32 @@ def _purchase_recommendations(db: Any, SalesOrderItem: Any, pondo: float) -> lis
 # ===== NEW ANALYTICS FUNCTIONS FOR IMPROVED INTERFACE =====
 
 def calculate_customer_behavior_score(db: Any, client_id: int, Invoice: Any, SalesOrder: Any) -> float:
-    """Calculate customer behavior score (0-100) based on:
-    - Revenue volume (40%)
-    - Payment consistency (40%)
-    - Order frequency (20%)
+    """Compatibility wrapper for the old public helper name.
+
+    Client value is intentionally based on Sales Orders only. Invoice payment
+    behavior is excluded from this score.
     """
-    # Revenue volume (max: 40 points)
-    total_revenue = (
-        db.session.query(func.sum(Invoice.amount_paid))
-        .join(SalesOrder, Invoice.sales_order_id == SalesOrder.id)
-        .filter(SalesOrder.client_id == client_id, Invoice.status == "PAID")
-        .scalar() or 0
-    )
-    max_revenue = db.session.query(func.sum(Invoice.amount_paid)).filter(Invoice.status == "PAID").scalar() or 1
-    revenue_score = min(40 * (total_revenue / max_revenue), 40) if max_revenue > 0 else 0
-
-    # Payment consistency: % of invoices paid on time (40 points)
-    terms_default = 30
-    invoices = db.session.query(Invoice).join(SalesOrder, Invoice.sales_order_id == SalesOrder.id).filter(
-        SalesOrder.client_id == client_id
-    ).all()
-    
-    if invoices:
-        on_time_count = sum(
-            1 for inv in invoices
-            if inv.status == "PAID" and (datetime.now().date() - inv.invoice_date).days <= terms_default
-        )
-        payment_consistency = 40 * (on_time_count / len(invoices)) if invoices else 0
-    else:
-        payment_consistency = 0
-
-    # Order frequency: number of orders in last 90 days (20 points)
-    recent_orders = db.session.query(SalesOrder).filter(
-        SalesOrder.client_id == client_id,
-        SalesOrder.created_at >= datetime.now() - timedelta(days=90)
-    ).count()
-    max_orders = 12  # Assume 12 orders per quarter is excellent
-    order_frequency = min(20 * (recent_orders / max_orders), 20) if max_orders > 0 else 0
-
-    score = revenue_score + payment_consistency + order_frequency
-    return round(score, 2)
+    orders = db.session.query(SalesOrder).filter(SalesOrder.client_id == client_id).all()
+    total_order_amount = sum(float(order.total_amount or 0) for order in orders)
+    order_count = len(orders)
+    if not order_count:
+        return 0.0
+    average_order_value = total_order_amount / order_count
+    repeat_ratio = min(order_count / 12, 1.0)
+    amount_ratio = min(total_order_amount / max(total_order_amount, 1), 1.0)
+    average_ratio = min(average_order_value / max(average_order_value, 1), 1.0)
+    return round((amount_ratio * 40) + (repeat_ratio * 35) + (average_ratio * 25), 2)
 
 
 def get_client_status(score: float, revenue: float, total_revenue: float) -> str:
-    """Classify client status based on score and revenue contribution.
-    - Core Partners: score >= 80 AND revenue >= 20% of total
-    - At-Risk Whales: score < 60 AND revenue >= 15% of total
-    - Active Explorers: score >= 60 AND score < 80
-    - Casual Niche: score < 60 OR revenue < 15% of total
-    """
-    revenue_pct = (revenue / total_revenue * 100) if total_revenue > 0 else 0
-    
-    if score >= 80 and revenue_pct >= 20:
-        return "Core Partners"
-    elif score < 60 and revenue_pct >= 15:
-        return "At-Risk Whales"
-    elif score >= 60 and score < 80:
-        return "Active Explorers"
-    else:
-        return "Casual Niche"
+    """Classify Sales Order-based client value tier."""
+    if score >= 80:
+        return "Core Ordering Clients"
+    if score >= 60:
+        return "Growth Ordering Clients"
+    if score >= 40:
+        return "Developing Ordering Clients"
+    return "Low Order Activity"
 
 
 def get_overview_kpis(db: Any, Invoice: Any, SalesOrder: Any, filter_period: str = "month") -> dict[str, Any]:
@@ -517,15 +484,28 @@ def _apply_date_bounds(query: Any, column: Any, start_date: Any = None, end_date
     return query
 
 
+def _display_text(value: Any) -> str:
+    return " ".join(str(value or "").strip().split())
+
+
+def _store_group_key(value: Any) -> str:
+    text = _display_text(value).upper()
+    return " ".join(re_sub_non_company(text).split())
+
+
 def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None, end_date: Any = None) -> dict[str, Any]:
-    """Get formal Client Performance Score plus cohort analysis."""
-    Client = models["Client"]
+    """Get Sales Order-based client value analysis grouped by Store Name."""
     Invoice = models["Invoice"]
     SalesOrder = models["SalesOrder"]
-    AnalyticsData = models["AnalyticsData"]
+    SalesOrderItem = models["SalesOrderItem"]
 
-    clients = Client.query.order_by(Client.client_name.asc()).all()
-    if not clients:
+    order_query = db.session.query(SalesOrder).order_by(
+        SalesOrder.order_date.desc(),
+        SalesOrder.created_at.desc(),
+        SalesOrder.id.desc(),
+    )
+    orders = _apply_date_bounds(order_query, SalesOrder.order_date, start_date, end_date).all()
+    if not orders:
         return {
             "clients_table": [],
             "top_3_insights": [],
@@ -534,63 +514,95 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             "top_3": [],
             "total": 0,
         }
-    
-    analytics_query = (
-        db.session.query(
-            AnalyticsData.party_name.label("company_name"),
-            func.count(func.distinct(AnalyticsData.source_id)).label("branches"),
-            func.count(AnalyticsData.analytics_id).label("frequency"),
-            func.max(AnalyticsData.transaction_date).label("last_purchase"),
-        )
-        .filter(AnalyticsData.party_role == "CUSTOMER")
-        .filter(AnalyticsData.party_name.isnot(None))
-    )
-    analytics_rows = _apply_date_bounds(
-        analytics_query,
-        AnalyticsData.transaction_date,
-        start_date,
-        end_date,
-    ).group_by(AnalyticsData.party_name).all()
-
-    client_names = [client.client_name for client in clients]
-    activity_by_client = {
-        client.client_name: {"branches": 0, "frequency": 0, "last_purchase": None}
-        for client in clients
-    }
-    for row in analytics_rows:
-        matched_client_name = best_company_match(row.company_name, client_names)
-        if not matched_client_name:
-            continue
-        activity = activity_by_client[matched_client_name]
-        activity["branches"] += int(row.branches or 0)
-        activity["frequency"] += int(row.frequency or 0)
-        if row.last_purchase and (activity["last_purchase"] is None or row.last_purchase > activity["last_purchase"]):
-            activity["last_purchase"] = row.last_purchase
 
     today = datetime.now().date()
-    max_revenue = max([float(client.total_revenue or 0) for client in clients] or [0])
-    max_order_count = max([
-        _apply_date_bounds(
-            db.session.query(SalesOrder).filter(SalesOrder.client_id == client.id),
-            SalesOrder.order_date,
-            start_date,
-            end_date,
-        ).count()
-        for client in clients
-    ] or [0])
-    max_average_order = 0.0
-    client_order_stats = {}
-    for client in clients:
-        orders = _apply_date_bounds(
-            db.session.query(SalesOrder).filter(SalesOrder.client_id == client.id),
-            SalesOrder.order_date,
-            start_date,
-            end_date,
-        ).all()
-        order_count = len(orders)
-        average_order = sum(float(order.total_amount or 0) for order in orders) / order_count if order_count else 0
-        max_average_order = max(max_average_order, average_order)
-        client_order_stats[client.id] = {"orders": orders, "order_count": order_count, "average_order": average_order}
+    order_ids = [order.id for order in orders]
+    item_totals = {}
+    if order_ids:
+        item_rows = (
+            db.session.query(
+                SalesOrderItem.sales_order_id,
+                func.coalesce(func.sum(SalesOrderItem.total), 0).label("line_total"),
+            )
+            .filter(SalesOrderItem.sales_order_id.in_(order_ids))
+            .group_by(SalesOrderItem.sales_order_id)
+            .all()
+        )
+        item_totals = {row.sales_order_id: float(row.line_total or 0) for row in item_rows}
+
+    invoice_paid_by_order = defaultdict(float)
+    if order_ids:
+        invoice_query = (
+            db.session.query(
+                Invoice.sales_order_id,
+                func.coalesce(func.sum(Invoice.amount_paid), 0).label("amount_paid"),
+            )
+            .filter(Invoice.sales_order_id.in_(order_ids))
+        )
+        invoice_rows = (
+            _apply_date_bounds(invoice_query, Invoice.invoice_date, start_date, end_date)
+            .group_by(Invoice.sales_order_id)
+            .all()
+        )
+        invoice_paid_by_order = defaultdict(
+            float,
+            {row.sales_order_id: float(row.amount_paid or 0) for row in invoice_rows},
+        )
+
+    store_groups = {}
+    for order in orders:
+        client_name = _display_text(order.client.client_name if order.client else "")
+        company_name = _display_text(order.company_name or client_name or "Unmapped Company")
+        store_name = _display_text(order.store_name or order.company_name or client_name or "Unspecified Store").upper()
+        store_key = _store_group_key(store_name)
+        if not store_key:
+            store_key = f"STORE-{order.id}"
+        group = store_groups.setdefault(
+            store_key,
+            {
+                "store_name": store_name,
+                "store_key": store_key,
+                "company_names": set(),
+                "client_ids": set(),
+                "branches": set(),
+                "order_amounts": [],
+                "order_count": 0,
+                "total_order_amount": 0.0,
+                "total_paid": 0.0,
+                "latest_order_date": None,
+            },
+        )
+        if len(store_name) < len(group["store_name"]):
+            group["store_name"] = store_name
+        if company_name:
+            group["company_names"].add(company_name)
+        if order.client_id:
+            group["client_ids"].add(order.client_id)
+        branch_name = _display_text(order.store_branch).upper()
+        if branch_name:
+            group["branches"].add(branch_name)
+
+        order_amount = item_totals.get(order.id) or float(order.total_amount or 0)
+        group["order_amounts"].append(order_amount)
+        group["order_count"] += 1
+        group["total_order_amount"] += order_amount
+        group["total_paid"] += float(invoice_paid_by_order[order.id] or 0)
+        if order.order_date and (
+            group["latest_order_date"] is None
+            or order.order_date > group["latest_order_date"]
+        ):
+            group["latest_order_date"] = order.order_date
+
+    for group in store_groups.values():
+        order_count = group["order_count"]
+        group["average_order"] = group["total_order_amount"] / order_count if order_count else 0
+        group["repeat_frequency"] = max(order_count - 1, 0)
+        group["store_count"] = len(group["branches"])
+
+    max_revenue = max([stats["total_order_amount"] for stats in store_groups.values()] or [0])
+    max_order_count = max([stats["order_count"] for stats in store_groups.values()] or [0])
+    max_average_order = max([stats["average_order"] for stats in store_groups.values()] or [0])
+    max_repeat_frequency = max([stats["repeat_frequency"] for stats in store_groups.values()] or [0])
 
     def clamp(value: float, upper: float) -> float:
         return max(0.0, min(float(value or 0), upper))
@@ -598,95 +610,88 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
     def ratio(value: float, maximum: float) -> float:
         return clamp(float(value or 0) / float(maximum or 1), 1.0) if maximum else 0.0
 
-    def cohort_for(score: float, balance: float, revenue: float) -> str:
-        high_unpaid_exposure = balance > 0 and revenue > 0 and (balance / revenue) >= 0.30
-        if score >= 80 and not high_unpaid_exposure:
-            return "Core Partners"
-        if score >= 60 and not high_unpaid_exposure:
-            return "Growth Clients"
-        if score >= 40 or high_unpaid_exposure:
-            return "At-Risk Clients"
-        return "Low Engagement"
+    def cohort_for(score: float) -> str:
+        if score >= 80:
+            return "Core Ordering Clients"
+        if score >= 60:
+            return "Growth Ordering Clients"
+        if score >= 40:
+            return "Developing Ordering Clients"
+        return "Low Order Activity"
 
     clients_data = []
     
-    for client in clients:
-        company_name = client.client_name
-        activity = activity_by_client.get(company_name, {})
-        branches = activity.get("branches", 0) or 0
-        stats = client_order_stats.get(client.id, {"orders": [], "order_count": 0, "average_order": 0})
-        orders = stats["orders"]
+    for store_key, stats in store_groups.items():
+        company_names = sorted(stats["company_names"])
+        branch_names = sorted(stats["branches"])
+        company_name = ", ".join(company_names) if company_names else "Unmapped Company"
+        branch_display = ", ".join(branch_names) if branch_names else ""
+        branches = len(branch_names)
         order_count = stats["order_count"]
-        revenue = sum(float(order.total_amount or 0) for order in orders)
-        frequency = activity.get("frequency", 0) or 0
-        invoice_query = db.session.query(Invoice).join(SalesOrder, Invoice.sales_order_id == SalesOrder.id).filter(
-            SalesOrder.client_id == client.id
-        )
-        invoices = _apply_date_bounds(invoice_query, Invoice.invoice_date, start_date, end_date).all()
-        total_paid = sum(float(invoice.amount_paid or 0) for invoice in invoices)
+        revenue = float(stats["total_order_amount"] or 0)
+        total_paid = float(stats["total_paid"] or 0)
         balance = max(revenue - total_paid, 0)
-        if start_date is None and end_date is None:
-            revenue = float(client.total_revenue or revenue or 0)
-            total_paid = float(client.total_paid or total_paid or 0)
-            balance = float(client.total_balance or max(revenue - total_paid, 0))
-        last_purchase = activity.get("last_purchase") or client.last_invoice_date or client.last_payment_date
+        last_purchase = stats.get("latest_order_date")
         repeat_purchase_ratio = 1.0 if order_count >= 2 else 0.0
         recency_ratio = 0.0
         if last_purchase:
             days_since_purchase = max((today - last_purchase).days, 0)
             recency_ratio = max(0.0, 1 - min(days_since_purchase, 365) / 365)
-        purchasing_score = round(
-            (ratio(order_count, max_order_count) * 15)
-            + (recency_ratio * 10)
-            + (repeat_purchase_ratio * 10),
+        amount_score = round(ratio(revenue, max_revenue) * 35, 2)
+        order_count_score = round(ratio(order_count, max_order_count) * 20, 2)
+        recency_score = round(recency_ratio * 15, 2)
+        repeat_score = round(
+            (ratio(stats["repeat_frequency"], max_repeat_frequency) if max_repeat_frequency else repeat_purchase_ratio) * 15,
             2,
         )
-
-        invoice_count = len(invoices)
-        paid_count = sum(1 for invoice in invoices if str(invoice.status or "").upper() == "PAID" or float(invoice.balance or 0) <= 0)
-        paid_ratio = paid_count / invoice_count if invoice_count else (1.0 if total_paid > 0 and balance <= 0 else 0.0)
-        unpaid_ratio = (balance / revenue) if revenue > 0 else (1.0 if balance > 0 else 0.0)
-        overdue_count = 0
-        for invoice in invoices:
-            invoice_date = invoice.invoice_date
-            terms = invoice.sales_order.terms if invoice.sales_order else 30
-            if invoice_date and float(invoice.balance or 0) > 0 and (today - invoice_date).days > int(terms or 30):
-                overdue_count += 1
-        overdue_ratio = overdue_count / invoice_count if invoice_count else 0.0
-        payment_score = round((paid_ratio * 15) + ((1 - min(unpaid_ratio, 1)) * 10) + ((1 - min(overdue_ratio, 1)) * 10), 2)
-
-        business_value_score = round(
-            (ratio(revenue, max_revenue) * 18)
-            + (ratio(stats["average_order"], max_average_order) * 12),
+        average_order_score = round(ratio(stats["average_order"], max_average_order) * 15, 2)
+        client_performance_score = round(
+            clamp(amount_score, 35)
+            + clamp(order_count_score, 20)
+            + clamp(recency_score, 15)
+            + clamp(repeat_score, 15)
+            + clamp(average_order_score, 15),
             2,
         )
-        client_performance_score = round(clamp(purchasing_score, 35) + clamp(payment_score, 35) + clamp(business_value_score, 30), 2)
-        cohort = cohort_for(client_performance_score, balance, revenue)
+        cohort = cohort_for(client_performance_score)
         recommendations = []
-        if cohort == "At-Risk Clients":
-            recommendations.append("Prioritize collection or account follow-up before extending more exposure.")
+        if cohort == "Low Order Activity":
+            recommendations.append("Build ordering activity with targeted follow-up or a starter offer.")
+        if cohort == "Developing Ordering Clients":
+            recommendations.append("Encourage a repeat order cycle and grow average order value.")
         if recency_ratio < 0.35 and revenue > 0:
             recommendations.append("Re-engage client; purchasing activity is becoming stale.")
         if client_performance_score >= 80:
             recommendations.append("Protect relationship and consider priority fulfillment.")
         if not recommendations:
-            recommendations.append("Continue monitoring regular purchasing and payment behavior.")
+            recommendations.append("Continue monitoring Sales Order frequency and average order value.")
 
         client_data = {
+            "store_name": stats["store_name"],
+            "store_key": store_key,
+            "store_branch": branch_display,
+            "store_branches": branch_names,
             "company_name": company_name,
+            "parent_company_name": company_name,
+            "client_ids": sorted(stats["client_ids"]),
             "branches_count": branches,
             "total_revenue": round(revenue, 2),
             "total_paid": round(total_paid, 2),
             "balance": round(balance, 2),
-            "balance_status": client.balance_status or ("Settled" if balance <= 0 else "Unsettled Balance"),
+            "balance_status": "Settled" if balance <= 0 else "Unsettled Balance",
             "value_status": cohort,
             "cohort": cohort,
             "score": round(client_performance_score / 100, 4),
             "client_performance_score": client_performance_score,
+            "order_count": order_count,
+            "repeat_order_frequency": stats["repeat_frequency"],
+            "average_order_value": round(float(stats["average_order"] or 0), 2),
             "score_breakdown": {
-                "purchasing_behavior": purchasing_score,
-                "payment_reliability": payment_score,
-                "business_value": business_value_score,
+                "total_sales_order_amount": amount_score,
+                "sales_order_count": order_count_score,
+                "order_recency": recency_score,
+                "repeat_order_frequency": repeat_score,
+                "average_order_value": average_order_score,
             },
             "recommendations": recommendations,
             "last_purchase": last_purchase.isoformat() if last_purchase else None
@@ -697,7 +702,9 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
     
     top_3_clients = [
         {
-            "client": client["company_name"], 
+            "client": client["store_name"],
+            "company_name": client["company_name"],
+            "store_branch": client["store_branch"],
             "score": client["score"],
             "client_performance_score": client["client_performance_score"],
             "cohort": client["cohort"],
@@ -852,7 +859,7 @@ def get_sales_analysis(db: Any, models: dict[str, Any], mape_threshold: float = 
     recommendations = build_rule_based_recommendations(forecast, descriptive, clients["clients"], pondo)
     return {
         "kpis": get_sales_kpis(db, models, start_date, end_date),
-        "history": get_sales_order_history(db, SalesOrder, Invoice, start_date=start_date, end_date=end_date),
+        "history": get_sales_order_history(db, SalesOrder, Invoice, SalesOrderItem, start_date=start_date, end_date=end_date),
         "forecast": forecast["forecast"],
         "holt_winters": forecast["holt_winters"],
         "descriptive": descriptive,
@@ -951,7 +958,7 @@ def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_d
     }
 
 
-def get_sales_order_history(db: Any, SalesOrder: Any, Invoice: Any, filter_period: str = "month", start_date: Any = None, end_date: Any = None) -> dict[str, Any]:
+def get_sales_order_history(db: Any, SalesOrder: Any, Invoice: Any, SalesOrderItem: Any | None = None, filter_period: str = "month", start_date: Any = None, end_date: Any = None) -> dict[str, Any]:
     """Get sales order history graph and table data."""
     today = datetime.now().date()
     month_start = today.replace(day=1)
@@ -975,22 +982,44 @@ def get_sales_order_history(db: Any, SalesOrder: Any, Invoice: Any, filter_perio
         week_start = week_end + timedelta(days=1)
         week_num += 1
     
-    # Get latest 10 sales orders
+    if SalesOrderItem is not None:
+        item_totals = (
+            db.session.query(
+                SalesOrderItem.sales_order_id.label("sales_order_id"),
+                func.coalesce(func.sum(SalesOrderItem.total), 0).label("item_total"),
+            )
+            .group_by(SalesOrderItem.sales_order_id)
+            .subquery()
+        )
+        latest_query = (
+            db.session.query(
+                SalesOrder,
+                func.coalesce(item_totals.c.item_total, SalesOrder.total_amount, 0).label("computed_total"),
+            )
+            .outerjoin(item_totals, SalesOrder.id == item_totals.c.sales_order_id)
+        )
+    else:
+        latest_query = db.session.query(SalesOrder, SalesOrder.total_amount.label("computed_total"))
+
     latest_order_rows = _apply_date_bounds(
-        db.session.query(SalesOrder),
+        latest_query,
         SalesOrder.order_date,
         start_date,
         end_date,
-    ).order_by(SalesOrder.created_at.desc()).limit(10).all()
+    ).order_by(SalesOrder.order_date.desc(), SalesOrder.created_at.desc(), SalesOrder.id.desc()).limit(10).all()
     
     orders_list = [
         {
             "so_number": order.so_number,
+            "company_name": order.company_name,
+            "store_name": order.store_name,
+            "store_branch": order.store_branch,
+            "sales_staff": order.sales_staff,
             "date": order.order_date.isoformat() if order.order_date else None,
-            "total": round(float(sum(float(invoice.total_amount or 0) for invoice in getattr(order, "invoices", [])) or 0), 2),
-            "status": order.status
+            "total": round(float(computed_total or 0), 2),
+            "status": order.status,
         }
-        for order in latest_order_rows
+        for order, computed_total in latest_order_rows
     ]
     
     return {
@@ -1253,23 +1282,25 @@ def build_rule_based_recommendations(
                 "suggested_action": "Check recent customer orders and avoid overstocking until the pattern is clearer.",
             })
     for client in clients[:10]:
-        if client.get("cohort") == "At-Risk Clients" and float(client.get("balance") or 0) > 0:
-            balance = float(client.get("balance") or 0)
+        if client.get("cohort") == "Low Order Activity" and float(client.get("total_revenue") or 0) > 0:
+            store_name = client.get("store_name") or client.get("company_name")
             recommendations.append({
-                "type": "collections",
-                "severity": "danger",
-                "title": f"Follow up {client['company_name']}",
-                "reason": f"High-value/risk cohort with {client['balance']} outstanding balance.",
-                "trigger_condition": "Client belongs to the At-Risk cohort and has an outstanding balance.",
+                "type": "client_ordering",
+                "severity": "warning",
+                "title": f"Rebuild ordering activity for {store_name}",
+                "reason": "Client has Sales Order history but currently ranks in the lowest ordering cohort.",
+                "trigger_condition": "Sales Order-based client value cohort is Low Order Activity.",
                 "data_used": [
-                    f"Client: {client['company_name']}",
-                    f"Outstanding Balance: {balance}",
+                    f"Store: {store_name}",
+                    f"Company: {client.get('company_name')}",
+                    f"Sales Order Amount: {client.get('total_revenue')}",
+                    f"Orders: {client.get('order_count')}",
                     f"Cohort: {client.get('cohort')}",
                 ],
-                "calculation_process": "Client cohort classification was combined with the current unpaid balance.",
-                "result": f"{client['company_name']} has an outstanding balance requiring attention.",
-                "business_interpretation": "Delayed collection can reduce available cash for operations and procurement.",
-                "suggested_action": "Contact the client, confirm payment schedule, and pause new exposure if needed.",
+                "calculation_process": "Client cohort classification used Sales Order amount, order count, recency, repeat frequency, and average order value.",
+                "result": f"{store_name} has low current Sales Order value.",
+                "business_interpretation": "Ordering activity may need follow-up before the account becomes inactive.",
+                "suggested_action": "Contact the client with a reorder prompt or targeted offer.",
             })
     if descriptive.get("trend_direction") == "declining":
         months = descriptive.get("monthly_trend") or []
