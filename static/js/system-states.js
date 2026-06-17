@@ -551,13 +551,23 @@
         document.querySelectorAll('.nav-logo').forEach(logo => {
             let image = logo.querySelector('img[data-theme-nav-logo]');
             if (!image) {
-                logo.replaceChildren();
                 image = document.createElement('img');
                 image.dataset.themeNavLogo = 'true';
                 image.alt = '404 Dashboard';
                 image.decoding = 'async';
-                logo.appendChild(image);
             }
+
+            let label = logo.querySelector('[data-theme-nav-label]');
+            if (!label) {
+                label = document.createElement('span');
+                label.dataset.themeNavLabel = 'true';
+            }
+            label.textContent = '404 Dashboard';
+
+            if (logo.children.length !== 2 || logo.children[0] !== image || logo.children[1] !== label) {
+                logo.replaceChildren(image, label);
+            }
+
             if (image.getAttribute('src') !== logoSrc) {
                 image.src = logoSrc;
             }

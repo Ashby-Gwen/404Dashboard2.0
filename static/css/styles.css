@@ -3478,10 +3478,19 @@ body > nav {
 
 .nav-logo img[data-theme-nav-logo] {
     display: block !important;
-    width: auto !important;
+    flex: 0 0 auto !important;
+    width: 40px !important;
     height: 40px !important;
-    max-width: min(180px, 100%) !important;
     object-fit: contain !important;
+}
+
+.nav-logo [data-theme-nav-label] {
+    display: inline-block !important;
+    min-width: 0 !important;
+    color: inherit !important;
+    font: inherit !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
 }
 
 .nav-menu {
@@ -3659,8 +3668,12 @@ body[data-theme-mode="contrast"] [style*="background:#F8FAFC"] {
     }
 
     .nav-logo img[data-theme-nav-logo] {
+        width: 34px !important;
         height: 34px !important;
-        max-width: 132px !important;
+    }
+
+    .nav-logo [data-theme-nav-label] {
+        font-size: 0.84rem !important;
     }
 
     .profile-link {
