@@ -1395,9 +1395,9 @@ button.is-loading,
     font-size: 0.82rem;
     font-weight: 750;
     line-height: 1;
-    transition:
+    /* transition:
         max-width 0.2s ease,
-        opacity 0.15s ease;
+        opacity 0.15s ease; */
 }
 
 .evaluation-launcher:hover .evaluation-launcher-label,
