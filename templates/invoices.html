@@ -175,8 +175,10 @@
             margin-top: 0.75rem;
             border: 1px solid var(--border-color);
             border-radius: var(--radius-lg);
-            overflow: hidden;
             background: white;
+            max-height: 100px;
+            overflow-x: hidden;
+            overflow-y: auto;
         }
 
         .sales-order-result {
@@ -720,11 +722,15 @@
                             </tbody>
                         </table>
                     </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
-                        <span id="invoicePaginationMeta" style="color: var(--text-muted); font-size: 0.9rem;">Loading...</span>
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+                        <span id="invoicePaginationMeta"
+                            style="color: var(--text-muted); font-size: 0.9rem;">Loading...</span>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button id="invoicePrevBtn" class="btn btn-outline btn-sm" onclick="changeInvoicePage(-1)">Previous</button>
-                            <button id="invoiceNextBtn" class="btn btn-outline btn-sm" onclick="changeInvoicePage(1)">Next</button>
+                            <button id="invoicePrevBtn" class="btn btn-outline btn-sm"
+                                onclick="changeInvoicePage(-1)">Previous</button>
+                            <button id="invoiceNextBtn" class="btn btn-outline btn-sm"
+                                onclick="changeInvoicePage(1)">Next</button>
                         </div>
                     </div>
                 </div>
@@ -740,7 +746,8 @@
                         <div class="sales-order-search-wrap">
                             <input type="search" id="salesOrderSearch"
                                 placeholder="Search by SO number, store, company, staff, status, or date">
-                            <div id="salesOrderSearchMeta" class="sales-order-search-meta">Loading recent pending Sales Orders...</div>
+                            <div id="salesOrderSearchMeta" class="sales-order-search-meta">Loading recent pending Sales
+                                Orders...</div>
                             <div id="salesOrderSearchResults" class="sales-order-results"></div>
                         </div>
                         <select id="salesOrderSelect" class="hidden" onchange="onSalesOrderSelected()">
