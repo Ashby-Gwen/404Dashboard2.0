@@ -67,6 +67,8 @@ def main():
 
         add_order(north_owner, 'SO-N-001', 'North Store', 'Branch A', 1000)
         add_order(alt_owner, 'SO-N-002', ' north store ', 'Branch B', 2000)
+        add_order(north_owner, 'SO-N-003', 'NORTH STORE', '  branch   a  ', 500)
+        add_order(alt_owner, 'SO-N-004', 'North Store', '   ', 250)
         add_order(south_owner, 'SO-S-001', 'South Store', 'Main', 700)
         db.session.commit()
 
@@ -83,8 +85,8 @@ def main():
             assert len(payload['clients']) == 2
             north = stores['NORTH STORE']
             assert north['store_name'] == 'NORTH STORE'
-            assert north['total_revenue'] == 3000
-            assert north['order_count'] == 2
+            assert north['total_revenue'] == 3750
+            assert north['order_count'] == 4
             assert north['branches_count'] == 2
             assert north['store_branches'] == ['BRANCH A', 'BRANCH B']
             assert north['company_name'] == 'ALT RETAIL CORP, NORTH HOLDINGS INC'

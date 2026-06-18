@@ -1351,7 +1351,59 @@ button.is-loading,
     right: 1rem;
     bottom: 1rem;
     z-index: 9000;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0;
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    min-height: 48px;
+    overflow: hidden;
+    padding: 7px;
+    white-space: nowrap;
     box-shadow: var(--shadow);
+    transition:
+        width 0.2s ease,
+        gap 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.evaluation-launcher:hover,
+.evaluation-launcher:focus-visible {
+    width: 168px;
+    gap: 9px;
+}
+
+.evaluation-launcher:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--orange) 38%, transparent);
+    outline-offset: 3px;
+}
+
+.evaluation-launcher-icon {
+    flex: 0 0 auto;
+    display: block;
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+}
+
+.evaluation-launcher-label {
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    font-size: 0.82rem;
+    font-weight: 750;
+    line-height: 1;
+    transition:
+        max-width 0.2s ease,
+        opacity 0.15s ease;
+}
+
+.evaluation-launcher:hover .evaluation-launcher-label,
+.evaluation-launcher:focus-visible .evaluation-launcher-label {
+    max-width: 105px;
+    opacity: 1;
 }
 
 .evaluation-modal {
@@ -2157,8 +2209,8 @@ body[data-theme-mode="ashby"] .ashby-verse-sidebar {
 
 .ashby-verse-toggle {
     position: fixed;
-    right: 18px;
-    bottom: 18px;
+    right: 1rem;
+    bottom: 74px;
     z-index: 901;
     display: none;
     align-items: center;
@@ -2256,7 +2308,7 @@ body.ashby-sidebar-collapsed .ashby-verse-sidebar {
     .ashby-verse-sidebar {
         top: auto;
         right: 10px;
-        bottom: 70px;
+        bottom: 132px;
         width: calc(100vw - 20px);
         max-height: min(48vh, 380px);
         border-radius: var(--radius-xl);

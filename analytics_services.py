@@ -493,6 +493,10 @@ def _store_group_key(value: Any) -> str:
     return " ".join(re_sub_non_company(text).split())
 
 
+def _branch_group_key(value: Any) -> str:
+    return _display_text(value).casefold()
+
+
 def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None, end_date: Any = None) -> dict[str, Any]:
     """Get Sales Order-based client value analysis grouped by Store Name."""
     Invoice = models["Invoice"]
@@ -564,7 +568,7 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
                 "store_key": store_key,
                 "company_names": set(),
                 "client_ids": set(),
-                "branches": set(),
+                "branches": {},
                 "order_amounts": [],
                 "order_count": 0,
                 "total_order_amount": 0.0,
@@ -578,9 +582,10 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             group["company_names"].add(company_name)
         if order.client_id:
             group["client_ids"].add(order.client_id)
-        branch_name = _display_text(order.store_branch).upper()
-        if branch_name:
-            group["branches"].add(branch_name)
+        branch_display = _display_text(order.store_branch)
+        branch_key = _branch_group_key(branch_display)
+        if branch_key and branch_key not in group["branches"]:
+            group["branches"][branch_key] = branch_display.upper()
 
         order_amount = item_totals.get(order.id) or float(order.total_amount or 0)
         group["order_amounts"].append(order_amount)
@@ -623,7 +628,7 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
     
     for store_key, stats in store_groups.items():
         company_names = sorted(stats["company_names"])
-        branch_names = sorted(stats["branches"])
+        branch_names = sorted(stats["branches"].values())
         company_name = ", ".join(company_names) if company_names else "Unmapped Company"
         branch_display = ", ".join(branch_names) if branch_names else ""
         branches = len(branch_names)
@@ -705,6 +710,8 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             "client": client["store_name"],
             "company_name": client["company_name"],
             "store_branch": client["store_branch"],
+            "branches_count": client["branches_count"],
+            "total_revenue": client["total_revenue"],
             "score": client["score"],
             "client_performance_score": client["client_performance_score"],
             "cohort": client["cohort"],

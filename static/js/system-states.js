@@ -814,7 +814,10 @@
         const root = document.createElement('div');
         root.id = 'evaluationModalRoot';
         root.innerHTML = `
-            <button type="button" class="evaluation-launcher btn btn-outline btn-sm" data-evaluation-open>Evaluate System</button>
+            <button type="button" class="evaluation-launcher btn btn-outline btn-sm" aria-label="Evaluate System" data-evaluation-open>
+                <img class="evaluation-launcher-icon" src="/static/images/icons/evaluation-icon.png" alt="">
+                <span class="evaluation-launcher-label">Evaluate System</span>
+            </button>
             <div class="system-modal-backdrop evaluation-modal-backdrop" hidden data-evaluation-backdrop>
                 <section class="system-modal evaluation-modal" role="dialog" aria-modal="true" aria-labelledby="evaluationModalTitle">
                     <div class="evaluation-modal-header">

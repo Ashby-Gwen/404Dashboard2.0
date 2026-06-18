@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Syluxent - Profile</title>
+    <title>404 Dashboard - Profile</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
@@ -24,7 +24,7 @@
 </head>
 <body>
     <nav class="app-navbar">
-        <div class="nav-logo" onclick="window.location.href='{{ url_for('dashboard') }}'">Syluxent</div>
+        <div class="nav-logo" onclick="window.location.href='{{ url_for('dashboard') }}'">404 Dashboard</div>
         <div class="nav-user">
             <a href="{{ url_for('dashboard') }}" class="btn-outline">Back to Dashboard</a>
             <a href="{{ url_for('logout') }}" class="btn-outline">Logout</a>

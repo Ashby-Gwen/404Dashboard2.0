@@ -97,7 +97,18 @@ def main():
     system_states = open(os.path.join(ROOT, 'static', 'js', 'system-states.js'), encoding='utf-8').read()
     assert 'withButtonLoading' in system_states
     assert 'evaluationModalRoot' in system_states
+    assert '/static/images/icons/evaluation-icon.png' in system_states
+    assert 'class="evaluation-launcher-label">Evaluate System</span>' in system_states
+    assert 'aria-label="Evaluate System"' in system_states
     assert 'system-error-state' in system_states
+    for theme_name in ('dark', 'light', 'contrast', 'rose', 'ashby'):
+        assert f'{theme_name}:' in system_states
+
+    styles = open(os.path.join(ROOT, 'static', 'css', 'styles.css'), encoding='utf-8').read()
+    assert '.evaluation-launcher:hover' in styles
+    assert '.evaluation-launcher:focus-visible' in styles
+    assert 'bottom: 74px;' in styles
+    assert 'bottom: 132px;' in styles
 
     deployment_doc = open(os.path.join(ROOT, 'docs', 'deployment.md'), encoding='utf-8').read()
     assert 'GitHub Steps' in deployment_doc

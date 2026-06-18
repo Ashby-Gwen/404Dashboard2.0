@@ -3283,7 +3283,7 @@ def admin_upload_preview(interface):
                 'Upload: select one or more CSV/Excel files for this interface.',
                 'Cleaning: dates, amounts, names, and special characters are normalized into database fields.',
                 'Outlier Identifier: Z-score flags amount values with absolute score >= 2.5.',
-                'Excel Mapping: recognized headers are mapped into existing Syluxent model variables before saving.'
+                'Excel Mapping: recognized headers are mapped into existing 404 Dashboard model variables before saving.'
             ]
         })
     except Exception as e:
