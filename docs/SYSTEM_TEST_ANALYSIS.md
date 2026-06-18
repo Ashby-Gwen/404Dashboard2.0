@@ -19,7 +19,7 @@ Date: May 13, 2026
 | Sales Order Module | Partially Pass | Excel processing still uses backend Python paths instead of being fully browser-side. |
 | Invoice Module | Pass | Required features are implemented. |
 | Expense Module | Pass | Required features are implemented. |
-| Database Interface | Pass | Session and Client Basket views are implemented. |
+| Admin Center | Pass | Business records, client cleanup, session records, requests, and advanced database tools are implemented. |
 | Analytics Interface | Pass | Weekly cashflow, monthly cashflow, and revenue leakage/bad debt client metric are implemented. |
 | SO Details Viewer Empty State | Pass | No selected sales order displays "no sales order". |
 
@@ -32,7 +32,7 @@ Overall compliance estimate: 90%. The remaining known compliance gap is the Sale
 - Navigation bar with Syluxent logo, user's name, real-time date/time, and logout button.
 - Role-based tabs:
   - Staff: Home, Sales Order, Invoice, Expense
-  - Admin: Database Interface/User Management
+  - Admin: Admin Center/User Management
   - Manager: Home, Analytics
 - Login with username and password.
 - Registration with email, username, and password.
@@ -49,7 +49,7 @@ Implemented:
 - Registration flow using email, username, and password.
 - New registrations default to Staff role.
 - Session management and redirects.
-- Session login/logout records are stored for the Database Interface.
+- Session login/logout records are stored for the Admin Center.
 
 Missing or incomplete:
 
@@ -202,7 +202,7 @@ Implemented:
 - Add/remove debit functionality.
 - Total debits, cash amount, and net balance calculation.
 - Backend expense creation with debit items.
-- Purchase order history table.
+- Expense history table (stored in the legacy `purchase_orders` table for compatibility).
 
 Missing or incomplete:
 
@@ -210,7 +210,7 @@ Missing or incomplete:
 
 Result: Pass.
 
-## Test 6: Database Interface
+## Test 6: Admin Center
 
 ### Requirements
 

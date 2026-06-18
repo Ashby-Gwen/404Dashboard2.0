@@ -4,8 +4,10 @@
 
 ---
 
+> **Historical report:** This document preserves findings from June 9, 2026. The June 18 defense-readiness revision introduced a shared financial ledger, included standalone uploaded invoices, changed collected-revenue filters to `amount_paid > 0`, switched Sales Order trends to `order_date`, and removed SQLite-only `julianday()` from the active leakage path. See `SYSTEM_CHECK_REPORT_2026-06-18.md` and `tests/defense_readiness_check.py` for current status and verification.
+
 ## Executive Summary
-Found **6 critical data integrity issues** that could cause significant inaccuracies in financial reporting and analytics. Issues primarily affect:
+At the time of this audit, **6 data integrity issues** could cause significant inaccuracies in financial reporting and analytics. They primarily affected:
 - Revenue attribution (up to 30-50% missing if admin invoices exist)
 - Client balance calculations
 - Analytics trend analysis

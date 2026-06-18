@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 Dashboard - Admin Database</title>
+    <title>404 Dashboard - Admin Center</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -29,6 +29,46 @@
             border-radius: 8px;
             padding: 1rem;
             box-shadow: var(--shadow);
+        }
+
+        .skip-link {
+            position: fixed;
+            top: 0.75rem;
+            left: 0.75rem;
+            z-index: 10000;
+            transform: translateY(-160%);
+            padding: 0.65rem 0.9rem;
+            border-radius: 6px;
+            background: var(--brand-orange);
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .skip-link:focus {
+            transform: translateY(0);
+        }
+
+        .admin-intro {
+            max-width: 760px;
+            color: var(--text-muted);
+        }
+
+        .admin-advanced-section {
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+        }
+
+        .admin-advanced-section > summary {
+            cursor: pointer;
+            padding: 0.85rem 1rem;
+            color: var(--text-main);
+            font-weight: 700;
+        }
+
+        .admin-advanced-content {
+            padding: 0 1rem 1rem;
         }
 
         .grid-toolbar {
@@ -316,6 +356,7 @@
 </head>
 
 <body>
+    <a class="skip-link" href="#adminMain">Skip to administration content</a>
     <nav class="app-navbar">
         <div class="nav-logo" onclick="window.location.href='{{ url_for('dashboard') }}';">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -345,7 +386,7 @@
         ('invoices', 'Invoice'),
         ('expenses', 'Expense'),
         ('analytics', 'Analytics'),
-        ('database_interface', 'Database Interface')
+        ('database_interface', 'Admin Center')
         ]
         } %}
 
@@ -380,58 +421,70 @@
 
     <div id="toastContainer" style="position: fixed; top: 1rem; right: 1rem; z-index: 9999;"></div>
 
-    <main class="admin-shell page-shell">
+    <main class="admin-shell page-shell" id="adminMain" tabindex="-1">
         <div class="section-header">
             <div class="page-title">
-                <h1>Admin Database Interface</h1>
+                <h1>Admin Center</h1>
+                <p class="admin-intro mb-0">Manage users, business records, requests, and system appearance. Technical database tools are available under Advanced tools.</p>
             </div>
             <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createUserModal" onclick="loadCreateUserRoles()">
                 Create User
             </button>
         </div>
 
-        <div class="alert alert-secondary">
-            Developer note: reusable admin data-grid, schema, SQL safety, and maintenance logic lives in
-            <strong>admin_services.py</strong>. Add a table to <strong>TABLE_CONFIG</strong> to expose it here.
-        </div>
-
-        <ul class="nav nav-tabs mb-3" role="tablist">
-            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#gridPane"
-                    type="button">Data Grid</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#clientListPane"
-                    type="button" onclick="loadAdminClientList()">Client List</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#maintenancePane"
-                    type="button" onclick="loadHealth()">System Maintenance</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#schemaPane"
-                    type="button" onclick="loadSchema()">Schema Browser</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#auditPane" type="button"
-                    onclick="loadAuditLogs()">Audit Logs</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#notificationsPane" type="button"
-                    onclick="loadNotifications()">Notifications
+        <ul class="nav nav-tabs mb-3" id="adminTabs" role="tablist" aria-label="Admin sections">
+            <li class="nav-item" role="presentation"><button class="nav-link active" id="recordsTab" role="tab"
+                    aria-controls="gridPane" aria-selected="true" data-bs-toggle="tab" data-bs-target="#gridPane"
+                    type="button">Records</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" id="clientsTab" role="tab"
+                    aria-controls="clientListPane" aria-selected="false" data-bs-toggle="tab" data-bs-target="#clientListPane"
+                    type="button" onclick="loadAdminClientList()">Clients</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" id="notificationsTab" role="tab"
+                    aria-controls="notificationsPane" aria-selected="false" data-bs-toggle="tab" data-bs-target="#notificationsPane"
+                    type="button" onclick="loadNotifications()">Requests
                     {% if pending_notification_count %}<span class="notification-badge" id="tabNotificationCount">{{ pending_notification_count }}</span>{% endif %}
                 </button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#themePane" type="button"
-                    onclick="loadThemeEditor()">Theme Editor</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" id="auditTab" role="tab"
+                    aria-controls="auditPane" aria-selected="false" data-bs-toggle="tab" data-bs-target="#auditPane"
+                    type="button" onclick="loadAuditLogs()">Audit Trail</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" id="themeTab" role="tab"
+                    aria-controls="themePane" aria-selected="false" data-bs-toggle="tab" data-bs-target="#themePane"
+                    type="button" onclick="loadThemeEditor()">Appearance</button></li>
         </ul>
 
+        <details class="admin-advanced-section">
+            <summary>Advanced technical tools</summary>
+            <div class="admin-advanced-content">
+                <p class="text-muted">For trained administrators only. Review backups and deployment guidance before running maintenance or SQL operations.</p>
+                <div class="d-flex flex-wrap gap-2" role="group" aria-label="Advanced admin sections">
+                    <button class="btn btn-outline-secondary" id="maintenanceTab" role="tab"
+                        aria-controls="maintenancePane" aria-selected="false" data-bs-toggle="tab"
+                        data-bs-target="#maintenancePane" type="button" onclick="loadHealth()">Database Maintenance</button>
+                    <button class="btn btn-outline-secondary" id="schemaTab" role="tab"
+                        aria-controls="schemaPane" aria-selected="false" data-bs-toggle="tab"
+                        data-bs-target="#schemaPane" type="button" onclick="loadSchema()">Schema and SQL Tools</button>
+                </div>
+            </div>
+        </details>
+
         <div class="tab-content">
-            <section class="tab-pane fade show active" id="gridPane">
+            <section class="tab-pane fade show active" id="gridPane" role="tabpanel" aria-labelledby="recordsTab" tabindex="0">
                 <div class="admin-card">
                     <div class="grid-toolbar">
-                        <select class="form-select" id="gridTable" onchange="resetGridTable()">
+                        <select class="form-select" id="gridTable" aria-label="Record type" onchange="resetGridTable()">
                             <option value="users">Users</option>
                             <option value="roles">Roles</option>
                             <option value="clients">Clients</option>
                             <option value="sales_orders">Sales Orders</option>
                             <option value="invoices">Invoices</option>
-                            <option value="purchase_orders">Expenses</option>
+                            <option value="purchase_orders">Expense Records</option>
                             <option value="session_records">Session Records</option>
                             <option value="analytics_data">Analytics Data</option>
                         </select>
-                        <input class="form-control" id="gridSearch" placeholder="Search multiple columns..."
+                        <input class="form-control" id="gridSearch" aria-label="Search records" placeholder="Search records..."
                             oninput="debouncedLoadGrid()">
-                        <input class="form-control" id="gridStatus" placeholder="Status filter">
-                        <select class="form-select" id="gridPageSize" onchange="resetGrid()" style="max-width: 130px;">
+                        <input class="form-control" id="gridStatus" aria-label="Filter by status" placeholder="Status">
+                        <select class="form-select" id="gridPageSize" aria-label="Rows per page" onchange="resetGrid()" style="max-width: 130px;">
                             <option value="25">25 rows</option>
                             <option value="50">50 rows</option>
                             <option value="100">100 rows</option>
@@ -441,9 +494,16 @@
                         <button class="btn btn-outline-secondary" onclick="exportGrid()">Export CSV</button>
                     </div>
 
-                    <div class="d-flex flex-wrap gap-2 mb-3">
-                        <select class="form-select" id="bulkStatus" style="max-width: 220px;">
-                            <option value="">Bulk status...</option>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" role="switch" id="gridTechnicalView" onchange="renderLastGrid()">
+                        <label class="form-check-label" for="gridTechnicalView">Show technical columns</label>
+                    </div>
+
+                    <details class="admin-advanced-section">
+                        <summary>Bulk record actions</summary>
+                        <div class="admin-advanced-content d-flex flex-wrap gap-2">
+                        <select class="form-select" id="bulkStatus" aria-label="Bulk status" style="max-width: 220px;">
+                            <option value="">Choose status...</option>
                             <option value="approved">approved</option>
                             <option value="pending">pending</option>
                             <option value="rejected">rejected</option>
@@ -454,13 +514,13 @@
                             <option value="PAID">PAID</option>
                             <option value="UNPAID">UNPAID</option>
                         </select>
-                        <button class="btn btn-outline-primary" onclick="bulkUpdateStatus()">Batch Update
-                            Status</button>
-                        <button class="btn btn-outline-danger" onclick="bulkDelete()">Batch Delete</button>
-                    </div>
+                        <button class="btn btn-outline-primary" type="button" onclick="bulkUpdateStatus()">Update selected status</button>
+                        <button class="btn btn-outline-danger" type="button" onclick="bulkDelete()">Delete selected records</button>
+                        </div>
+                    </details>
 
                     <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle" id="dataGridTable"></table>
+                        <table class="table table-sm table-hover align-middle" id="dataGridTable" aria-label="Administrative records"></table>
                     </div>
                     <div class="d-flex justify-content-between align-items-center mt-3">
                         <div id="gridMeta" class="text-muted"></div>
@@ -472,7 +532,7 @@
                 </div>
             </section>
 
-            <section class="tab-pane fade" id="clientListPane">
+            <section class="tab-pane fade" id="clientListPane" role="tabpanel" aria-labelledby="clientsTab" tabindex="0">
                 <div class="client-list-layout">
                     <div class="admin-card client-list-panel">
                         <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
@@ -501,7 +561,7 @@
                 </div>
             </section>
 
-            <section class="tab-pane fade" id="maintenancePane">
+            <section class="tab-pane fade" id="maintenancePane" role="tabpanel" aria-labelledby="maintenanceTab" tabindex="0">
                 <div class="admin-card">
                     <h2>Database Health Suite</h2>
                     <div class="row g-3 my-2">
@@ -517,7 +577,7 @@
                 </div>
             </section>
 
-            <section class="tab-pane fade" id="schemaPane">
+            <section class="tab-pane fade" id="schemaPane" role="tabpanel" aria-labelledby="schemaTab" tabindex="0">
                 <div class="admin-card mb-3">
                     <h2>Schema Browser</h2>
                     <div id="schemaBrowser" class="schema-box"></div>
@@ -527,15 +587,18 @@
                     <textarea class="form-control mb-2" id="sqlText" rows="5"
                         placeholder="SELECT * FROM invoices LIMIT 10"></textarea>
                     <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="sqlDryRun" checked>
-                        <label class="form-check-label" for="sqlDryRun">Dry Run / Rollback</label>
+                        <input class="form-check-input" type="checkbox" id="sqlDryRun" checked
+                            {% if production_mode %}disabled{% endif %}>
+                        <label class="form-check-label" for="sqlDryRun">
+                            {% if production_mode %}Production read-only mode{% else %}Dry Run / Rollback{% endif %}
+                        </label>
                     </div>
                     <button class="btn btn-primary" onclick="runSql()">Run SQL</button>
                     <div id="sqlResult" class="sql-result mt-3"></div>
                 </div>
             </section>
 
-            <section class="tab-pane fade" id="auditPane">
+            <section class="tab-pane fade" id="auditPane" role="tabpanel" aria-labelledby="auditTab" tabindex="0">
                 <div class="admin-card">
                     <h2>Audit Logs</h2>
                     <div class="d-flex flex-wrap gap-2 mb-3">
@@ -554,7 +617,7 @@
                 </div>
             </section>
 
-            <section class="tab-pane fade" id="notificationsPane">
+            <section class="tab-pane fade" id="notificationsPane" role="tabpanel" aria-labelledby="notificationsTab" tabindex="0">
                 <div class="admin-card">
                     <h2>Admin Notifications</h2>
                     <p class="text-muted">Review pending account registrations and password reset requests.</p>
@@ -569,7 +632,7 @@
                 </div>
             </section>
 
-            <section class="tab-pane fade" id="themePane">
+            <section class="tab-pane fade" id="themePane" role="tabpanel" aria-labelledby="themeTab" tabindex="0">
                 <div class="admin-card">
                     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
                         <div>
@@ -675,12 +738,23 @@
         let gridSort = 'id';
         let gridDirection = 'desc';
         let gridColumnFilters = {};
+        let lastGridPayload = null;
         let searchTimer = null;
         let themeFields = {};
         let themeSettings = {};
         let adminClients = [];
         let selectedAdminClientId = null;
         let clientMatchTimers = {};
+        const businessColumns = {
+            users: ['id', 'username', 'email', 'role_id', 'status', 'created_at'],
+            roles: ['id', 'role_name', 'description'],
+            clients: ['id', 'client_name', 'contact_info', 'status', 'total_revenue', 'total_balance'],
+            sales_orders: ['id', 'so_number', 'company_name', 'store_name', 'order_date', 'sales_staff', 'total_amount', 'status'],
+            invoices: ['id', 'invoice_number', 'invoice_type', 'invoice_date', 'total_amount', 'amount_paid', 'balance', 'status'],
+            purchase_orders: ['id', 'check_voucher_number', 'check_number', 'date', 'supplier_payee', 'cash_amount', 'net_balance', 'status'],
+            session_records: ['id', 'username', 'role_name', 'login_at', 'logout_at', 'status'],
+            analytics_data: ['analytics_id', 'transaction_date', 'party_name', 'financial_stage', 'flow_direction', 'amount', 'balance_amount', 'status']
+        };
         const themePresets = {
             dark: {
                 bg: '#0F1115',
@@ -779,7 +853,10 @@
             }
         };
 
-        document.addEventListener('DOMContentLoaded', loadGrid);
+        document.addEventListener('DOMContentLoaded', () => {
+            loadGrid();
+            enableAdminTabKeyboardNavigation();
+        });
         setInterval(() => document.getElementById('datetime').textContent = new Date().toLocaleString(), 1000);
 
         function resetGrid() {
@@ -826,7 +903,12 @@
         }
 
         function renderGrid(grid) {
-            gridColumns = grid.columns;
+            lastGridPayload = grid;
+            const preferredColumns = businessColumns[grid.table] || grid.columns;
+            const visibleColumns = gridTechnicalView.checked
+                ? grid.columns
+                : preferredColumns.filter(column => grid.columns.includes(column));
+            gridColumns = visibleColumns;
             gridPages = grid.pages || 1;
             gridPage = grid.page || 1;
             gridSort = grid.sort || gridSort;
@@ -835,18 +917,18 @@
             const userActions = grid.table === 'users' ? '<th>Action</th>' : '';
             const sortable = new Set(grid.sortable_columns || []);
             const filterable = new Set(grid.filterable_columns || []);
-            const headLabels = '<tr><th><input type="checkbox" onchange="toggleAllRows(this.checked)"></th>' + grid.columns.map(col => {
+            const headLabels = '<tr><th><input type="checkbox" aria-label="Select all visible records" onchange="toggleAllRows(this.checked)"></th>' + visibleColumns.map(col => {
                 const sortMark = grid.sort === col ? (grid.direction === 'asc' ? ' ▲' : ' ▼') : '';
-                const sortAttrs = sortable.has(col) ? ` role="button" onclick="sortGrid('${col}')"` : '';
+                const sortAttrs = sortable.has(col) ? ` role="button" tabindex="0" onclick="sortGrid('${col}')" onkeydown="activateSortKey(event, '${col}')"` : '';
                 return `<th${sortAttrs}>${label(col)}${sortMark}</th>`;
             }).join('') + userActions + '</tr>';
-            const filterRow = '<tr><th></th>' + grid.columns.map(col => {
+            const filterRow = '<tr><th></th>' + visibleColumns.map(col => {
                 if (!filterable.has(col)) return '<th></th>';
                 const value = gridColumnFilters[col] || '';
-                return `<th><input class="form-control form-control-sm column-filter" data-column="${escapeHtml(col)}" value="${escapeHtml(value)}" placeholder="Search ${label(col)}" oninput="updateColumnFilter(this)"></th>`;
+                return `<th><input class="form-control form-control-sm column-filter" aria-label="Filter ${label(col)}" data-column="${escapeHtml(col)}" value="${escapeHtml(value)}" placeholder="Filter" oninput="updateColumnFilter(this)"></th>`;
             }).join('') + (grid.table === 'users' ? '<th></th>' : '') + '</tr>';
             const head = '<thead>' + headLabels + filterRow + '</thead>';
-            const emptyColspan = grid.columns.length + 1 + (grid.table === 'users' ? 1 : 0);
+            const emptyColspan = visibleColumns.length + 1 + (grid.table === 'users' ? 1 : 0);
             const body = grid.rows.length
                 ? grid.rows.map(row => {
                     const action = grid.table === 'users'
@@ -856,13 +938,42 @@
                                 ? `<button class="btn btn-outline-danger btn-sm" onclick="deactivateUser(${row.id})">Disable</button>`
                                 : '<span class="text-muted">No action</span>'}</td>`
                         : '';
-                    return '<tr><td><input class="row-check" type="checkbox" value="' + row.id + '"></td>' + grid.columns.map(col => `<td>${escapeHtml(row[col] ?? '-')}</td>`).join('') + action + '</tr>';
+                    const recordId = row.id ?? row.analytics_id;
+                    return '<tr><td><input class="row-check" aria-label="Select record ' + escapeHtml(recordId) + '" type="checkbox" value="' + recordId + '"></td>' + visibleColumns.map(col => `<td>${escapeHtml(row[col] ?? '-')}</td>`).join('') + action + '</tr>';
                 }).join('')
                 : `<tr><td colspan="${emptyColspan}" class="text-center text-muted">No records found</td></tr>`;
             dataGridTable.innerHTML = head + '<tbody>' + body + '</tbody>';
             gridMeta.textContent = `${grid.total} rows | Page ${grid.page} of ${grid.pages || 1}`;
             gridPrevButton.disabled = gridPage <= 1;
             gridNextButton.disabled = gridPage >= gridPages;
+        }
+
+        function renderLastGrid() {
+            if (lastGridPayload) renderGrid(lastGridPayload);
+        }
+
+        function activateSortKey(event, column) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                sortGrid(column);
+            }
+        }
+
+        function enableAdminTabKeyboardNavigation() {
+            const tabs = Array.from(document.querySelectorAll('#adminTabs [role="tab"]'));
+            tabs.forEach((tab, index) => {
+                tab.addEventListener('keydown', event => {
+                    let nextIndex = null;
+                    if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+                    if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+                    if (event.key === 'Home') nextIndex = 0;
+                    if (event.key === 'End') nextIndex = tabs.length - 1;
+                    if (nextIndex === null) return;
+                    event.preventDefault();
+                    tabs[nextIndex].focus();
+                    bootstrap.Tab.getOrCreateInstance(tabs[nextIndex]).show();
+                });
+            });
         }
 
         function renderGridLoading() {

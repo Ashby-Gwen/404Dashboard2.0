@@ -89,7 +89,7 @@
         'sales staff': [('sales_order', 'Sales Order')],
         'accounting staff': [('invoices', 'Invoice'), ('expenses', 'Expense')],
         'manager': [('analytics', 'Analytics'), ('reports', 'Reports')],
-        'admin': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('expenses', 'Expense'), ('analytics', 'Analytics'), ('reports', 'Reports'), ('database_interface', 'Database Interface')]
+        'admin': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('expenses', 'Expense'), ('analytics', 'Analytics'), ('reports', 'Reports'), ('database_interface', 'Admin Center')]
         } %}
         <div class="nav-menu">
             <a href="{{ url_for('dashboard') }}" class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}">Home</a>

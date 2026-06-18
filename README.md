@@ -1,260 +1,118 @@
-# Syluxent ERP System - Flask Version
+# 404 Analytical Dashboard System
 
-A comprehensive Enterprise Resource Planning system built with Flask and SQLite database, converted from the original Firebase-based implementation.
+A Flask and SQLAlchemy business analytics system for Sales Orders, invoices, expenses, reporting, client analysis, forecasting, recommendations, evaluation, and role-based administration.
 
-## Features
+## Current Architecture
 
-### Core Functionality
-- **User Authentication**: Role-based login system (Admin, Manager, Staff)
-- **Sales Order Management**: Excel upload with auto-identification of fields
-- **Invoice Processing**: Sales and Service invoices with 2307 tax checker
-- **Expense Management**: Expense tracking with 16 debit account types
-- **Analytics Dashboard**: Revenue tracking, cashflow analysis, and leakage detection
-- **Database Interface**: Complete admin control over all data tables
+- Flask application served by Gunicorn in production
+- SQLAlchemy ORM
+- Supabase PostgreSQL for production
+- SQLite fallback for local development and automated checks
+- Server-rendered HTML with Bootstrap, Chart.js, SheetJS, and shared theme styles
+- Admin, Manager, Sales Staff, Accounting Staff, and compatibility Staff roles
 
-### Technical Features
-- **Flask Backend**: RESTful API with SQLAlchemy ORM
-- **SQLite Database**: Local data storage with full schema
-- **Excel Integration**: Client-side processing with field auto-identification
-- **Real-time Updates**: Live dashboard with current date/time
-- **Responsive Design**: Mobile-friendly interface with modern UI
-- **Safety Features**: 5-second confirmation buffer for critical actions
+The runtime path is:
+
+`User -> Front End -> Flask Back End -> SQLAlchemy -> Database -> Flask Back End -> Front End -> User`
+
+GitHub and Render belong to the deployment flow. They are not part of the live user-to-database request path.
+
+## Main Modules
+
+- Authentication, registration approval, profile, and password-reset requests
+- Sales Order entry, Excel processing, client resolution, store/branch grouping, and printable forms
+- Invoice entry with `UNPAID`, `PARTIAL`, and `PAID` balance-based status
+- Expense entry, debit allocation, import preview, editing, and reporting
+- Dashboard KPIs and client balances
+- Descriptive, predictive, comparative, and prescriptive analytics
+- Reports and evaluation results
+- Admin Center for users, records, client cleanup, requests, audit history, and appearance
+
+Advanced database maintenance, schema inspection, and SQL tools are collapsed under **Advanced technical tools** in the Admin Center. Production SQL execution is forced into read-only/dry-run behavior. The generic developer JSON viewer is unavailable in production.
+
+## Expense Terminology
+
+**Expense** is the canonical user-facing module name.
+
+The physical database tables remain named `purchase_orders` and `purchase_order_debits` for backward compatibility. The Flask routes `/purchase-orders`, `/get-purchase-orders`, and `/create-purchase-order` are compatibility aliases; new integrations should use:
+
+- `GET /expenses`
+- `GET /get-expenses`
+- `POST /create-expense`
+- `PUT /expenses/<expense_id>`
+
+## Database and Migrations
+
+The SQLAlchemy models define 17 runtime tables, including `system_settings`. Local SQLite startup runs the defense-readiness compatibility migration in `defense_migrations.py`, creates a timestamped backup before altering an existing database, and adds required indexes.
+
+For Supabase, review and apply:
+
+- `docs/supabase_defense_readiness_migration.sql`
+- Other dated migration files under `docs/` when upgrading an older deployment
+
+Always back up the target database before applying a migration.
+
+## Local Setup
+
+Requirements:
+
+- Python 3.10 or newer
+- Packages from `requirements.txt`
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python app.py
+```
+
+The local application defaults to `http://localhost:5000`.
+
+Default demo accounts are not created unless the corresponding password environment variables are supplied. For local-only insecure demo seeding, `SYLUXENT_ALLOW_INSECURE_DEMO_PASSWORDS=true` must be explicitly enabled.
+
+## Environment Variables
+
+- `SECRET_KEY`: required in production
+- `DATABASE_URL`: required on Render/production; use the Supabase PostgreSQL URL
+- `MAX_UPLOAD_BYTES`: optional upload limit; defaults to 10 MB
+- `SESSION_COOKIE_SECURE=true`: optional local override; enabled automatically in production
+- `FLASK_DEBUG=true`: optional local debugging only
+- `DEFAULT_ADMIN_PASSWORD`, `DEFAULT_MANAGER_PASSWORD`, `DEFAULT_STAFF_PASSWORD`: optional initial account seeding
+
+## Production Deployment
+
+`render.yaml` defines the Render service and Gunicorn start command. Follow [docs/deployment.md](docs/deployment.md) for GitHub, Render, Supabase, rollback, and post-deployment checks.
+
+Do not deploy production with SQLite. Render local files are not durable business storage.
+
+## Verification
+
+Run all repository checks:
+
+```powershell
+Get-ChildItem tests -Filter '*_check.py' | Sort-Object Name | ForEach-Object { python $_.FullName }
+```
+
+Important focused checks include:
+
+- `tests/defense_readiness_check.py`
+- `tests/expense_module_terminology_check.py`
+- `tests/accessibility_keyboard_check.py`
+- `tests/render_multi_user_check.py`
+- `tests/analytics_objectives_check.py`
+
+See [SYSTEM_CHECK_REPORT_2026-06-18.md](SYSTEM_CHECK_REPORT_2026-06-18.md) for the latest audit and revision status.
+
+## Security and Remaining Work
+
+Implemented safeguards include password hashing, server-side role checks, approval-state enforcement, secure production cookies, production secret/database requirements, upload-size limits, masked password hashes, safer production error messages, and read-only production SQL behavior.
+
+CSRF protection and login throttling remain release-hardening work. Database-level uniqueness/check constraints and a versioned Alembic/Flask-Migrate workflow are also recommended after existing data is reviewed.
 
 ## Documentation
 
-- [System Test Analysis](docs/SYSTEM_TEST_ANALYSIS.md): Current compliance status, known gaps, and verification checklist for the documented ERP requirements.
-- [Deployment Suggestions](docs/DEPLOYMENT_SUGGESTIONS.md): Practical deployment options for the Flask, SQLite, pandas, and Chart.js stack used by this project.
-- [Redeployment Guide](docs/deployment.md): GitHub, Render, Supabase, migration, rollback, and post-deploy testing steps.
-
-## Installation & Setup
-
-(for dev): python -m venv venv
-
-### Prerequisites
-- Python 3.8+
-- pip package manager
-
-### Installation Steps
-1. **Clone/Download the project**
-   ```bash
-   cd Syluxent-Copy
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Initialize database**
-   ```bash
-   python app.py
-   ```
-   The app will automatically create the SQLite database and default admin user.
-
-### Default Login
-- **Username**: admin
-- **Password**: admin123
-- **Role**: Administrator
-
-## Project Structure
-
-```
-Syluxent-Copy/
-├── app.py                 # Main Flask application
-├── requirements.txt         # Python dependencies
-├── templates/             # HTML templates
-│   ├── landing.html       # Landing page
-│   ├── login.html         # Login/Register page
-│   ├── dashboard.html     # Main dashboard
-│   ├── sales_orders.html  # Sales order management
-│   ├── invoices.html      # Invoice processing
-│   ├── purchase_orders.html # Purchase order management
-│   ├── admin.html         # Database interface
-│   └── manager.html      # Analytics dashboard
-└── static/
-    └── css/
-        └── styles.css     # Styling
-```
-
-## Database Schema
-
-The system uses SQLite with the following main tables:
-
-- **users**: User accounts with role assignments
-- **roles**: User role definitions (admin, manager, staff)
-- **clients**: Client information and contact details
-- **sales_orders**: Sales order headers and details
-- **sales_order_items**: Line items for sales orders
-- **invoices**: Invoice records with payment tracking
-- **purchase_orders**: Expense records; legacy table name retained for compatibility
-- **purchase_order_debits**: Debit account assignments
-
-## User Roles & Permissions
-
-### Administrator
-- Full access to all modules
-- User management and role assignments
-- Database interface access
-- Complete data manipulation
-
-### Manager
-- Dashboard access with analytics
-- View all business reports
-- Revenue and performance tracking
-- No data modification capabilities
-
-### Staff
-- Sales order creation and management
-- Invoice processing and payment tracking
-- Expense entry
-- Operational task management
-
-## Key Features
-
-### Excel Processing (Sales Orders)
-- **Drag & Drop Upload**: Intuitive file upload interface
-- **Auto-Identification**: Automatic field detection for:
-  - SO Numbers
-  - Company Names
-  - Store Names/Branches
-  - Order Dates
-- **Manual Override**: Edit identified fields directly in spreadsheet
-- **Data Validation**: Ensures data integrity before processing
-
-### Invoice Management
-- **Dual Invoice Types**: Sales Invoice (SI-) and Service Invoice (SVI-)
-- **2307 Tax Checker**: Toggle for tax inclusion in calculations
-- **Safety Buffer**: 5-second countdown for critical confirmations
-- **Entry Duplication**: Quick reuse of previous invoice data
-- **Payment Tracking**: Downpayment and full payment options
-
-### Expenses
-- **16 Debit Types**: Comprehensive expense categorization
-- **Automatic Calculations**: Net balance computation
-- **Required Field Validation**: Ensures complete data entry
-- **Multiple Debits**: Support for complex expense allocations
-
-### Analytics & Reporting
-- **Revenue Leakage Detection**: Identifies high-impact clients
-- **Cash Flow Analysis**: Weekly and monthly tracking
-- **Performance Metrics**: Sales and invoice analytics
-- **Client Insights**: Revenue breakdown by client
-- **Period Selection**: Week, month, quarter, year views
-
-## Deployment
-
-### Development Server
-```bash
-python app.py
-```
-Access at: http://localhost:5000
-
-### Production Deployment
-For production deployment, use a WSGI server like Gunicorn:
-
-```bash
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:8000 app:app
-```
-
-### Environment Variables
-- `SECRET_KEY`: Flask secret key for sessions
-- `DATABASE_URL`: SQLite database path (optional, defaults to `syluxent.db`)
-
-## Security Features
-
-- **Session Management**: Secure user sessions
-- **Role-Based Access**: Permission enforcement by user role
-- **Input Validation**: Server-side data validation
-- **SQL Injection Protection**: SQLAlchemy ORM prevents SQL injection
-- **CSRF Protection**: Flask-WTF integration (if implemented)
-
-## Browser Compatibility
-
-- **Modern Browsers**: Chrome, Firefox, Safari, Edge (latest versions)
-- **Mobile Responsive**: Works on tablets and smartphones
-- **JavaScript Required**: Modern features need JavaScript enabled
-
-## Data Backup & Recovery
-
-### SQLite Database
-- **Location**: `syluxent.db` in project root
-- **Backup**: Simply copy the database file
-- **Recovery**: Replace the database file with backup
-
-### Recommended Backup Schedule
-- **Daily**: Automated database file copy
-- **Weekly**: Full system backup
-- **Monthly**: Archive to external storage
-
-## Troubleshooting
-
-### Common Issues
-1. **Database Lock**: Restart the application
-2. **Excel Upload Failures**: Check file format (.xlsx required)
-3. **Login Issues**: Verify default admin credentials
-4. **Analytics Not Loading**: Check data exists in system
-
-### Debug Mode
-Development mode includes:
-- Detailed error messages
-- Debug toolbar
-- Auto-reload on code changes
-
-## API Endpoints
-
-### Authentication
-- `POST /login` - User login
-- `POST /register` - User registration
-- `GET /logout` - User logout
-
-### Sales Orders
-- `GET /sales-orders` - Sales order page
-- `POST /upload-excel` - Excel file processing
-- `POST /auto-identify-fields` - Field auto-detection
-- `POST /create-sales-order` - Create new sales order
-
-### Invoices
-- `GET /invoices` - Invoice management page
-- `GET /get-invoices` - Fetch invoice data
-- `POST /create-invoice` - Create new invoice
-
-### Expenses
-- `GET /expenses` - Expense page
-- `GET /get-expenses` - Fetch expense data
-- `POST /create-expense` - Create new expense
-- Legacy compatibility routes remain available: `/purchase-orders`, `/get-purchase-orders`, `/create-purchase-order`
-
-### Admin Interface
-- `GET /database-interface` - Admin dashboard
-- `GET /get-users` - User management data
-- `GET /get-roles` - Role management data
-- `GET /get-clients` - Client management data
-
-### Analytics
-- `GET /analytics` - Analytics dashboard
-- `GET /get-analytics` - Analytics data API
-
-## Support & Maintenance
-
-### Performance Optimization
-- **Database Indexing**: Automatic on frequently accessed fields
-- **Query Optimization**: Efficient SQLAlchemy queries
-- **Asset Caching**: Static file optimization
-
-### Scaling Considerations
-- **Database Size**: Monitor SQLite file size
-- **User Load**: Consider connection pooling for high traffic
-- **Backup Strategy**: Implement automated backup system
-
-## License
-
-This project maintains the original business logic and interface design while modernizing the technology stack from Firebase to Flask with SQLite.
-
-## Future Enhancements
-
-- **API Documentation**: Swagger/OpenAPI integration
-- **Advanced Analytics**: Machine learning for predictions
-- **Mobile App**: Native mobile application
-- **Cloud Deployment**: Docker containerization
-- **Email Notifications**: Automated alerts and reports
+- [System ERD](SYSTEM_ERD.md)
+- [Latest System Check](SYSTEM_CHECK_REPORT_2026-06-18.md)
+- [System Test Analysis](docs/SYSTEM_TEST_ANALYSIS.md)
+- [Demo Outline and Script](docs/DEMO_OUTLINE_AND_SCRIPT.md)
+- [Deployment Guide](docs/deployment.md)

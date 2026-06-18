@@ -10,7 +10,7 @@ Use this opening summary if asked whether the system is ready for demonstration.
 - App import check passed with 76 registered Flask routes.
 - Existing system checks passed:
   - Client matching and client alias learning.
-  - Purchase order upload normalization and admin upload commit.
+  - Expense upload normalization and admin upload commit.
   - Analytics upload, outlier confirmation, analytics APIs, and evaluation flow.
 - Authenticated page/API smoke check passed:
   - Public: `/`, `/login`, `/register`.
@@ -81,7 +81,7 @@ Steps:
 5. Show Manager navigation: Home and Analytics.
 6. Log out.
 7. Log in as `admin`.
-8. Show Admin access to Database Interface and Reports.
+8. Show Admin access to the Admin Center and Reports.
 
 Say:
 
@@ -185,13 +185,13 @@ Say:
 
 "The Reports page gives structured views of operational and financial records. This supports review, audit preparation, and management reporting without manually rebuilding summaries from raw spreadsheets."
 
-### 8. Admin Database Interface
+### 8. Admin Center
 
 Goal: Show administrative control and data governance.
 
 Steps:
 
-1. Open Database Interface.
+1. Open Admin Center.
 2. Show Users as the default view.
 3. Show Roles, Clients, Sales Orders, Invoices, Expenses, Sessions, and Client Basket views.
 4. Show database stats.
@@ -199,7 +199,7 @@ Steps:
 
 Say:
 
-"The Database Interface is the administrator's control center. It allows user management, client management, table viewing, upload workflows, database health checks, audit logs, and controlled maintenance actions."
+"The Admin Center provides business-friendly user, record, client, request, audit, and appearance management. Database maintenance, schema inspection, and SQL tools remain available under the collapsed Advanced technical tools section for trained administrators."
 
 ### 9. Analytics
 

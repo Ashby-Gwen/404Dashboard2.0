@@ -4,6 +4,8 @@ __pycache__/
 .pytest_cache/
 .env
 instance/*.db
+instance/backups/
+.defense-migration-test.db
 database.db
 *.sqlite
 *.sqlite3

@@ -57,16 +57,22 @@ from admin_services import (
     run_maintenance,
     run_safe_sql,
 )
+from defense_migrations import ensure_defense_schema
 
 load_dotenv()
 
 app = Flask(__name__)
 os.makedirs(app.instance_path, exist_ok=True)
 
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+IS_PRODUCTION = bool(os.environ.get("RENDER") or os.environ.get("FLASK_ENV") == "production")
+configured_secret_key = os.environ.get('SECRET_KEY')
+if IS_PRODUCTION and not configured_secret_key:
+    raise RuntimeError("SECRET_KEY is required in production.")
+app.config['SECRET_KEY'] = configured_secret_key or 'dev-secret-key'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = bool(os.environ.get('RENDER') or os.environ.get('SESSION_COOKIE_SECURE') == 'true')
+app.config['SESSION_COOKIE_SECURE'] = bool(IS_PRODUCTION or os.environ.get('SESSION_COOKIE_SECURE') == 'true')
+app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_UPLOAD_BYTES', 10 * 1024 * 1024))
 basedir = os.path.abspath(os.path.dirname(__file__))
 database_url = os.environ.get("DATABASE_URL")
 if database_url and database_url.startswith("postgres://"):
@@ -74,7 +80,7 @@ if database_url and database_url.startswith("postgres://"):
 
 if database_url:
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-elif os.environ.get("RENDER") or os.environ.get("FLASK_ENV") == "production":
+elif IS_PRODUCTION:
     raise RuntimeError("DATABASE_URL is required on Render/production so permanent data stays in Supabase.")
 else:
     # SQLite on Render free tier is suitable only for demo/prototype use because
@@ -398,6 +404,12 @@ def render_error_interface(error_type='server', status_code=500, details=None):
             response['details'] = payload['details']
         return jsonify(response), status_code
     return render_template('error_interface.html', error_info=payload), status_code
+
+def public_error_message(error, fallback='The request could not be completed. Please review the information and try again.'):
+    if not IS_PRODUCTION or app.config.get('TESTING'):
+        return str(error)
+    app.logger.exception('Production request failed: %s', error)
+    return fallback
 
 def normalize_user_status(status):
     value = (status or USER_STATUS_PENDING).strip()
@@ -1975,6 +1987,65 @@ def parse_amount(value):
     except ValueError:
         return 0.0
 
+MONEY_TOLERANCE = 0.01
+
+def parse_nonnegative_amount(value, field_label):
+    if value is None or value == '':
+        return 0.0
+    cleaned = re.sub(r'[^0-9.\-]', '', str(value).replace(',', ''))
+    try:
+        amount = float(Decimal(cleaned))
+    except (InvalidOperation, ValueError):
+        raise ValueError(f'{field_label} must be a valid amount.')
+    if amount < 0:
+        raise ValueError(f'{field_label} cannot be negative.')
+    return round(amount, 2)
+
+def payment_state(total_amount, amount_paid):
+    total = max(float(total_amount or 0), 0)
+    paid = max(float(amount_paid or 0), 0)
+    balance = max(round(total - paid, 2), 0)
+    if paid <= MONEY_TOLERANCE:
+        status = 'UNPAID'
+    elif balance <= MONEY_TOLERANCE:
+        status = 'PAID'
+        balance = 0.0
+    else:
+        status = 'PARTIAL'
+    return status, balance
+
+def collected_payment_amount(cr_number, payment_amount, tax_amount_paid, is_2307_checked):
+    payment = parse_nonnegative_amount(payment_amount, 'Payment amount')
+    tax = parse_nonnegative_amount(tax_amount_paid, 'Tax amount paid')
+    collected = round(payment + (tax if is_2307_checked else 0), 2)
+    if collected > MONEY_TOLERANCE and not (cr_number or '').strip():
+        raise ValueError('CR number is required when recording a payment.')
+    return payment, tax, collected
+
+def sales_order_total(sales_order):
+    line_total = sum(float(item.total or 0) for item in getattr(sales_order, 'items', []) or [])
+    return round(line_total if line_total > 0 else float(sales_order.total_amount or 0), 2)
+
+def synchronize_sales_order_payment_state(sales_order):
+    total = sales_order_total(sales_order)
+    paid = round(sum(float(invoice.amount_paid or 0) for invoice in sales_order.invoices), 2)
+    if paid > total + MONEY_TOLERANCE:
+        raise ValueError(f'Payment exceeds the Sales Order balance by {paid - total:.2f}.')
+    status, balance = payment_state(total, paid)
+    sales_order.total_amount = total
+    sales_order.status = 'COMPLETED' if status == 'PAID' else status
+    for invoice in sales_order.invoices:
+        invoice.total_amount = total
+        invoice.balance = balance
+        invoice.status = status
+    return {
+        'total_amount': total,
+        'amount_paid': paid,
+        'balance': balance,
+        'invoice_status': status,
+        'sales_order_status': sales_order.status,
+    }
+
 def parse_date_value(value, default_today=True, dayfirst=False):
     if not value:
         return datetime.now().date() if default_today else None
@@ -2302,6 +2373,12 @@ def seed_evaluation_questions():
 def init_db():
     with app.app_context():
         db.create_all()
+        schema_status = ensure_defense_schema(db)
+        if schema_status.get('backup_path'):
+            app.logger.warning(
+                'SQLite database backed up before defense migration: %s',
+                schema_status['backup_path'],
+            )
         
         # Create default roles if they don't exist
         if not Role.query.first():
@@ -2377,6 +2454,14 @@ def not_found_error(error):
 @app.errorhandler(500)
 def internal_server_error(error):
     return render_error_interface('server', 500, error)
+
+@app.errorhandler(413)
+def upload_too_large_error(error):
+    return render_error_interface(
+        'validation',
+        413,
+        f"Upload exceeds the {app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)} MB limit.",
+    )
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -2853,7 +2938,7 @@ def dashboard():
     aging_0_30 = (
         db.session.query(db.func.coalesce(db.func.sum(Invoice.balance), 0))
         .filter(
-            Invoice.status != 'PAID',
+            Invoice.balance > MONEY_TOLERANCE,
             Invoice.invoice_date >= max(year_start, thirty_days_ago.date()),
             Invoice.invoice_date < next_year_start
         )
@@ -2871,7 +2956,7 @@ def dashboard():
     invoice_cash_rows = (
         db.session.query(
             extract('month', Invoice.invoice_date).label('month'),
-            func.coalesce(func.sum(Invoice.payment_amount), 0).label('total')
+            func.coalesce(func.sum(Invoice.amount_paid), 0).label('total')
         )
         .filter(
             Invoice.invoice_date >= year_start,
@@ -3919,106 +4004,154 @@ def generate_invoice_number():
 @role_required(*ACCOUNTING_ROLES)
 def create_invoice():
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         warnings = future_date_warnings({'Invoice date': data.get('invoice_date')})
-        
-        # Get sales order
-        sales_order = db.session.get(SalesOrder, data['sales_order_id'])
+
+        invoice_number = clean_code(data.get('invoice_number'))
+        invoice_type = clean_code(data.get('invoice_type')).upper()
+        invoice_date = parse_date_value(data.get('invoice_date'), default_today=False)
+        if not invoice_number:
+            return jsonify({'success': False, 'error': 'Invoice number is required'}), 400
+        if Invoice.query.filter(func.lower(Invoice.invoice_number) == invoice_number.lower()).first():
+            return jsonify({'success': False, 'error': 'Invoice number already exists'}), 409
+        if invoice_type not in {'SALES', 'SERVICE'}:
+            return jsonify({'success': False, 'error': 'Invoice type must be SALES or SERVICE'}), 400
+        if not invoice_date:
+            return jsonify({'success': False, 'error': 'Invoice date is required'}), 400
+
+        sales_order = db.session.get(SalesOrder, data.get('sales_order_id'))
         if not sales_order:
-            return jsonify({'success': False, 'error': 'Sales order not found'})
+            return jsonify({'success': False, 'error': 'Sales order not found'}), 404
 
         cr_number = (data.get('cr_number') or '').strip()
-        payment_amount = float(data.get('payment_amount') or 0)
-        tax_amount_paid = float(data.get('tax_amount_paid') or 0)
         is_2307_checked = bool(data.get('is_2307_checked'))
-        total_amount = float(data.get('total_amount') or sales_order.total_amount or 0)
-        total_paid_now = payment_amount + (tax_amount_paid if is_2307_checked else 0) if cr_number else 0
-        previous_paid = sum(inv.amount_paid or 0 for inv in sales_order.invoices)
-        cumulative_paid = previous_paid + total_paid_now
-        balance = max(total_amount - cumulative_paid, 0)
-        invoice_status = 'PAID' if cr_number else 'UNPAID'
+        payment_amount, tax_amount_paid, total_paid_now = collected_payment_amount(
+            cr_number,
+            data.get('payment_amount'),
+            data.get('tax_amount_paid'),
+            is_2307_checked,
+        )
+        order_total = sales_order_total(sales_order)
+        previous_paid = round(sum(float(inv.amount_paid or 0) for inv in sales_order.invoices), 2)
+        if previous_paid + total_paid_now > order_total + MONEY_TOLERANCE:
+            return jsonify({
+                'success': False,
+                'error': f'Payment exceeds the remaining Sales Order balance of {max(order_total - previous_paid, 0):.2f}.'
+            }), 400
         
-        # Create invoice
         invoice = Invoice(
-            invoice_number=data['invoice_number'],
-            sales_order_id=data['sales_order_id'],
-            invoice_type=data['invoice_type'],
-            invoice_date=datetime.strptime(data['invoice_date'], '%Y-%m-%d').date(),
+            invoice_number=invoice_number,
+            sales_order=sales_order,
+            invoice_type=invoice_type,
+            invoice_date=invoice_date,
             summary=data.get('summary', ''),
             payment_type=data.get('payment_type', ''),
             cr_number=cr_number,
             payment_amount=payment_amount,
             tax_amount_paid=tax_amount_paid,
             is_2307_checked=is_2307_checked,
-            total_amount=total_amount,
+            total_amount=order_total,
             amount_paid=total_paid_now,
-            balance=balance,
-            status=invoice_status
+            balance=order_total,
+            status='UNPAID'
         )
         
         db.session.add(invoice)
         db.session.flush()
-        
-        # Update sales order status from cumulative invoice payments.
-        if balance <= 0.01:
-            sales_order.status = 'COMPLETED'
-        elif cumulative_paid > 0:
-            sales_order.status = 'PARTIAL'
-        else:
-            sales_order.status = 'PENDING'
+        payment_summary = synchronize_sales_order_payment_state(sales_order)
         
         refresh_client_financials(sales_order.client)
-        log_audit('CREATE', 'invoices', invoice.id, None, {'invoice_number': invoice.invoice_number, 'total_amount': invoice.total_amount})
+        log_audit('CREATE', 'invoices', invoice.id, None, {
+            'invoice_number': invoice.invoice_number,
+            'total_amount': invoice.total_amount,
+            'amount_paid': invoice.amount_paid,
+            'balance': invoice.balance,
+            'status': invoice.status,
+        })
         db.session.commit()
         
-        return json_success({'message': 'Invoice created successfully'}, warnings)
+        return json_success({
+            'message': 'Invoice created successfully',
+            'invoice_id': invoice.id,
+            'invoice_status': invoice.status,
+            'sales_order_status': sales_order.status,
+            'amount_paid': payment_summary['amount_paid'],
+            'balance': payment_summary['balance'],
+        }, warnings)
     
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)})
+        app.logger.exception('Invoice creation failed')
+        return jsonify({'success': False, 'error': 'The invoice could not be created. Please review the information and try again.'}), 500
 
 @app.route('/update-invoice-payment/<int:invoice_id>', methods=['POST'])
 @login_required
 @role_required(*ACCOUNTING_ROLES)
 def update_invoice_payment(invoice_id):
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         invoice = db.session.get(Invoice, invoice_id)
         if not invoice:
-            return jsonify({'success': False, 'error': 'Invoice not found'})
+            return jsonify({'success': False, 'error': 'Invoice not found'}), 404
 
         invoice.payment_type = data.get('payment_type', invoice.payment_type) or ''
         invoice.cr_number = (data.get('cr_number') or '').strip()
-        invoice.payment_amount = float(data.get('payment_amount') or 0)
-        invoice.tax_amount_paid = float(data.get('tax_amount_paid') or 0)
         invoice.is_2307_checked = bool(data.get('is_2307_checked'))
-
-        invoice.amount_paid = (
-            invoice.payment_amount + (invoice.tax_amount_paid if invoice.is_2307_checked else 0)
-            if invoice.cr_number else 0
+        invoice.payment_amount, invoice.tax_amount_paid, new_amount_paid = collected_payment_amount(
+            invoice.cr_number,
+            data.get('payment_amount'),
+            data.get('tax_amount_paid'),
+            invoice.is_2307_checked,
         )
-        invoice.balance = max((invoice.total_amount or 0) - (invoice.amount_paid or 0), 0) if invoice.total_amount is not None else None
-        invoice.status = 'Admin Upload' if invoice.sales_order_id is None else ('PAID' if invoice.cr_number else 'UNPAID')
 
         sales_order = invoice.sales_order
         if sales_order:
-            total_paid = sum(inv.amount_paid or 0 for inv in sales_order.invoices)
-            sales_order_balance = max((sales_order.total_amount or 0) - total_paid, 0)
-            if sales_order_balance <= 0.01:
-                sales_order.status = 'COMPLETED'
-            elif total_paid > 0:
-                sales_order.status = 'PARTIAL'
-            else:
-                sales_order.status = 'PENDING'
+            other_paid = round(sum(
+                float(item.amount_paid or 0)
+                for item in sales_order.invoices
+                if item.id != invoice.id
+            ), 2)
+            order_total = sales_order_total(sales_order)
+            if other_paid + new_amount_paid > order_total + MONEY_TOLERANCE:
+                db.session.rollback()
+                return jsonify({
+                    'success': False,
+                    'error': f'Payment exceeds the remaining Sales Order balance of {max(order_total - other_paid, 0):.2f}.'
+                }), 400
+            invoice.amount_paid = new_amount_paid
+            payment_summary = synchronize_sales_order_payment_state(sales_order)
+        else:
+            invoice.amount_paid = new_amount_paid
+            invoice.status, invoice.balance = payment_state(invoice.total_amount, invoice.amount_paid)
+            payment_summary = {
+                'amount_paid': invoice.amount_paid,
+                'balance': invoice.balance,
+                'invoice_status': invoice.status,
+                'sales_order_status': None,
+            }
 
         refresh_client_financials(sales_order.client if sales_order else None)
         log_audit('UPDATE_PAYMENT', 'invoices', invoice.id, None, {'invoice_number': invoice.invoice_number, 'amount_paid': invoice.amount_paid, 'balance': invoice.balance})
         db.session.commit()
-        return jsonify({'success': True, 'message': 'Invoice payment updated successfully'})
+        return jsonify({
+            'success': True,
+            'message': 'Invoice payment updated successfully',
+            'invoice_status': invoice.status,
+            'sales_order_status': sales_order.status if sales_order else None,
+            'amount_paid': payment_summary['amount_paid'],
+            'balance': payment_summary['balance'],
+        })
 
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)})
+        app.logger.exception('Invoice payment update failed')
+        return jsonify({'success': False, 'error': 'The payment could not be updated. Please review the information and try again.'}), 500
 
 def expense_history_payload(limit=None):
     query = PurchaseOrder.query.order_by(PurchaseOrder.created_at.desc())
@@ -4282,7 +4415,7 @@ def update_expense(expense_id):
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': public_error_message(e, 'Analytics generation failed.')}), 500
 
 @app.route('/update-expense/<int:expense_id>', methods=['POST', 'PUT'])
 @login_required
@@ -4294,7 +4427,7 @@ def update_expense_compat(expense_id):
 @login_required
 @role_required('admin')
 def database_interface():
-    return render_template('admin.html')
+    return render_template('admin.html', production_mode=IS_PRODUCTION)
 
 @app.route('/get-database-stats')
 @login_required
@@ -4837,13 +4970,16 @@ def admin_schema():
 def admin_sql_console():
     try:
         data = request.get_json() or {}
-        result = run_safe_sql(db, data.get('sql', ''), bool(data.get('dry_run', True)))
+        requested_dry_run = bool(data.get('dry_run', True))
+        dry_run = True if IS_PRODUCTION else requested_dry_run
+        result = run_safe_sql(db, data.get('sql', ''), dry_run)
         log_audit('SQL_DRY_RUN' if result['dry_run'] else 'SQL_EXECUTE', 'database', None, None, {'sql': data.get('sql', '')})
         db.session.commit()
         return jsonify({'success': True, 'result': result})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)})
+        app.logger.exception('Admin SQL console failed')
+        return jsonify({'success': False, 'error': 'The SQL request was rejected or could not be completed.'}), 400
 
 @app.route('/admin/theme', methods=['GET'])
 @login_required
@@ -5240,7 +5376,7 @@ def get_overview():
         })
     
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": public_error_message(e, 'Analytics overview could not be loaded.')}), 500
 
 def upload_distribution(values):
     clean = [float(value or 0) for value in values]
@@ -5769,7 +5905,7 @@ def upload_csv():
         
     except Exception as e:
         db.session.rollback() # Good practice to roll back if an insert crashes midway
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": public_error_message(e, 'Historical data upload failed. Check the file format and content.')}), 500
 
 @app.route('/api/analytics/clients')
 @login_required
@@ -5787,7 +5923,7 @@ def api_analytics_clients():
             'label': filters['label'],
         }, **clients_data})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return jsonify({'success': False, 'error': public_error_message(e, 'Client analytics could not be loaded.')}), 400
 
 @app.route('/api/analytics/expenses')
 @login_required
@@ -5806,7 +5942,7 @@ def api_analytics_expenses():
             'pie_data': expenses['pie_data']
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return jsonify({'success': False, 'error': public_error_message(e, 'Expense analytics could not be loaded.')}), 400
 
 @app.route('/api/analytics/sales')
 @login_required
@@ -5824,7 +5960,7 @@ def api_analytics_sales():
             'label': filters['label'],
         }, **get_sales_analysis(db, app_models(), threshold, filters['start_date'], filters['end_date'])})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return jsonify({'success': False, 'error': public_error_message(e, 'Sales analytics could not be loaded.')}), 400
 
 def likert_interpretation(mean_score):
     if mean_score >= 3.50:
@@ -5980,7 +6116,7 @@ def api_analytics_comparative():
             'comparison': comparison
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return jsonify({'success': False, 'error': public_error_message(e, 'Comparative analytics could not be loaded.')}), 400
 
 @app.route('/get-analytics')
 @login_required
@@ -5991,7 +6127,7 @@ def get_analytics():
         return jsonify({'success': True, 'analytics': analytics_data})
     
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': public_error_message(e, 'Analytics could not be loaded.')}), 500
 
 @app.route('/analytics/excel-preview', methods=['POST'])
 @login_required
@@ -6000,19 +6136,24 @@ def analytics_excel_preview():
     try:
         upload = request.files.get('excel_file')
         if not upload:
-            return jsonify({'success': False, 'error': 'Excel file is required'})
+            return jsonify({'success': False, 'error': 'Excel file is required'}), 400
+        filename = secure_filename(upload.filename or '').lower()
+        if not filename.endswith(('.xlsx', '.xls')):
+            return jsonify({'success': False, 'error': 'Upload must be an Excel workbook.'}), 400
         return jsonify({'success': True, 'workbook': preview_excel_workbook(upload)})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': public_error_message(e, 'The workbook could not be read.')}), 400
 
 @app.route('/dev/viewer')
 @login_required
 @role_required('manager', 'admin')  # Keeping same permissions as your analytics route
 def dev_json_viewer():
     """Render the generic HTML page to inspect and test returned JSON data."""
+    if IS_PRODUCTION:
+        return render_error_interface('empty', 404)
     return render_template('json.html')
 
 init_db()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=os.environ.get('FLASK_DEBUG', '').lower() == 'true')

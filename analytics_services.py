@@ -10,7 +10,7 @@ Maintenance guide:
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from difflib import SequenceMatcher
 from typing import Any
 # add numpy, scikit-learn
@@ -27,6 +27,7 @@ from sqlalchemy import extract, func
 
 
 MAPE_DEFAULT_THRESHOLD = 20.0
+MONEY_TOLERANCE = 0.01
 
 
 def db_is_postgres(db: Any) -> bool:
@@ -98,19 +99,129 @@ def best_company_match(name: Any, candidates: list[str], threshold: float = 85) 
     return best if best_score >= threshold else None
 
 
+def _canonical_client_lookup(models: dict[str, Any]) -> dict[str, str]:
+    Client = models["Client"]
+    ClientAlias = models.get("ClientAlias")
+    lookup = {
+        normalize_company_match_key(client.client_name): client.client_name
+        for client in Client.query.all()
+        if client.client_name
+    }
+    if ClientAlias is not None:
+        for alias in ClientAlias.query.all():
+            if alias.client and alias.alias_name:
+                lookup[normalize_company_match_key(alias.alias_name)] = alias.client.client_name
+    return lookup
+
+
+def _invoice_client_name(invoice: Any, lookup: dict[str, str]) -> str:
+    if invoice.sales_order and invoice.sales_order.client:
+        return invoice.sales_order.client.client_name
+    uploaded = str(invoice.uploaded_client_name or "").strip()
+    return lookup.get(normalize_company_match_key(uploaded), uploaded or "Admin Upload")
+
+
+def build_canonical_financials(db: Any, models: dict[str, Any]) -> dict[str, Any]:
+    """Return the shared collected-revenue and one-balance-per-order ledger."""
+    Invoice = models["Invoice"]
+    SalesOrder = models["SalesOrder"]
+    lookup = _canonical_client_lookup(models)
+    client_revenue: dict[str, float] = defaultdict(float)
+    receivables = []
+
+    invoices = Invoice.query.order_by(Invoice.invoice_date.asc(), Invoice.id.asc()).all()
+    for invoice in invoices:
+        paid = max(float(invoice.amount_paid or 0), 0)
+        if paid > MONEY_TOLERANCE:
+            client_revenue[_invoice_client_name(invoice, lookup)] += paid
+
+    for order in SalesOrder.query.order_by(SalesOrder.order_date.asc(), SalesOrder.id.asc()).all():
+        line_total = sum(float(item.total or 0) for item in order.items)
+        total = line_total if line_total > 0 else float(order.total_amount or 0)
+        linked = list(order.invoices)
+        paid = sum(max(float(invoice.amount_paid or 0), 0) for invoice in linked)
+        balance = max(round(total - paid, 2), 0)
+        if balance <= MONEY_TOLERANCE:
+            continue
+        latest_invoice = max(
+            linked,
+            key=lambda item: (item.invoice_date or date.min, item.id or 0),
+            default=None,
+        )
+        receivables.append({
+            "sales_order_id": order.id,
+            "so_number": order.so_number,
+            "client_name": order.client.client_name if order.client else (order.company_name or "Unknown Client"),
+            "invoice_number": latest_invoice.invoice_number if latest_invoice else None,
+            "invoice_date": latest_invoice.invoice_date if latest_invoice else order.order_date,
+            "total_amount": total,
+            "amount_paid": paid,
+            "balance": balance,
+            "status": "PARTIAL" if paid > MONEY_TOLERANCE else "UNPAID",
+        })
+
+    standalone = Invoice.query.filter(Invoice.sales_order_id.is_(None)).all()
+    for invoice in standalone:
+        total = float(invoice.total_amount if invoice.total_amount is not None else invoice.amount_paid or 0)
+        paid = max(float(invoice.amount_paid or 0), 0)
+        balance = max(float(invoice.balance if invoice.balance is not None else total - paid), 0)
+        if balance <= MONEY_TOLERANCE:
+            continue
+        receivables.append({
+            "sales_order_id": None,
+            "so_number": None,
+            "client_name": _invoice_client_name(invoice, lookup),
+            "invoice_number": invoice.invoice_number,
+            "invoice_date": invoice.invoice_date,
+            "total_amount": total,
+            "amount_paid": paid,
+            "balance": balance,
+            "status": "PARTIAL" if paid > MONEY_TOLERANCE else "UNPAID",
+        })
+
+    return {
+        "collected_revenue": round(sum(client_revenue.values()), 2),
+        "revenue_by_client": [
+            {"client_name": name, "revenue": round(amount, 2)}
+            for name, amount in sorted(client_revenue.items(), key=lambda item: item[1], reverse=True)
+        ],
+        "receivables": receivables,
+        "accounts_receivable": round(sum(item["balance"] for item in receivables), 2),
+    }
+
+
 def build_analytics_payload(db: Any, models: dict[str, Any]) -> dict[str, Any]:
     """Build the complete manager analytics payload from current system data."""
-    Client = models["Client"]
     Invoice = models["Invoice"]
     PurchaseOrder = models["PurchaseOrder"]
     SalesOrder = models["SalesOrder"]
     SalesOrderItem = models["SalesOrderItem"]
 
     today = datetime.now().date()
-    paid_revenue = db.session.query(func.sum(Invoice.amount_paid)).filter(Invoice.status == "PAID").scalar() or 0
-    unpaid_receivable = db.session.query(func.sum(Invoice.balance)).filter(Invoice.status != "PAID").scalar() or 0
+    financials = build_canonical_financials(db, models)
+    paid_revenue = financials["collected_revenue"]
+    unpaid_receivable = financials["accounts_receivable"]
     total_expenses = db.session.query(func.sum(PurchaseOrder.cash_amount)).scalar() or 0
     pondo = max(paid_revenue - total_expenses, 0)
+    client_balances: dict[str, float] = defaultdict(float)
+    for item in financials["receivables"]:
+        client_balances[item["client_name"]] += item["balance"]
+    receivables = financials["receivables"]
+    leakage = None
+    if receivables:
+        highest = max(receivables, key=lambda item: item["balance"])
+        invoice_date = highest["invoice_date"]
+        days_outstanding = (today - invoice_date).days if invoice_date else 0
+        leakage = {
+            "client_name": highest["client_name"],
+            "unpaid_amount": round(highest["balance"], 2),
+            "days_outstanding": max(days_outstanding, 0),
+            "impact_amount": round(highest["balance"], 2),
+            "percentage_of_total": round(
+                highest["balance"] / unpaid_receivable * 100, 2
+            ) if unpaid_receivable else 0,
+            "analysis": f"{highest['client_name']} has the highest outstanding balance and should be prioritized for collection.",
+        }
 
     return {
         "summary": {
@@ -122,11 +233,20 @@ def build_analytics_payload(db: Any, models: dict[str, Any]) -> dict[str, Any]:
         },
         "weekly_cashflow": _weekly_cashflow(db, Invoice, PurchaseOrder, today),
         "monthly_cashflow": _monthly_cashflow(db, Invoice, PurchaseOrder, today),
-        "revenue_by_client": _revenue_by_client(db, Client, SalesOrder, Invoice),
+        "revenue_by_client": financials["revenue_by_client"][:10],
         "sales_performance": _sales_performance(SalesOrder, Invoice),
-        "revenue_leakage": _revenue_leakage(db, Client, SalesOrder, Invoice),
-        "accounts_receivable": _accounts_receivable(db, Client, SalesOrder, Invoice),
-        "client_balances": _client_balances(db, Client, SalesOrder, Invoice),
+        "revenue_leakage": leakage,
+        "accounts_receivable": [
+            {
+                **item,
+                "invoice_date": item["invoice_date"].isoformat() if item["invoice_date"] else None,
+            }
+            for item in receivables
+        ],
+        "client_balances": [
+            {"client_name": name, "balance": round(balance, 2)}
+            for name, balance in sorted(client_balances.items(), key=lambda item: item[1], reverse=True)
+        ],
         "top_items": _top_items(db, SalesOrderItem),
         "demand_predictions": _demand_predictions(db, SalesOrderItem),
         "purchase_recommendations": _purchase_recommendations(db, SalesOrderItem, pondo),
@@ -191,7 +311,7 @@ def _monthly_cashflow(db: Any, Invoice: Any, PurchaseOrder: Any, today: Any) -> 
 def _invoice_revenue(db: Any, Invoice: Any, start: Any, end: Any) -> float:
     return numeric(
         db.session.query(func.sum(Invoice.amount_paid))
-        .filter(Invoice.status == "PAID", Invoice.invoice_date >= start, Invoice.invoice_date <= end)
+        .filter(Invoice.amount_paid > 0, Invoice.invoice_date >= start, Invoice.invoice_date <= end)
         .scalar()
     )
 
@@ -210,7 +330,7 @@ def _revenue_by_client(db: Any, Client: Any, SalesOrder: Any, Invoice: Any) -> l
         .select_from(Client)
         .join(SalesOrder, Client.id == SalesOrder.client_id)
         .join(Invoice, SalesOrder.id == Invoice.sales_order_id)
-        .filter(Invoice.status == "PAID")
+        .filter(Invoice.amount_paid > 0)
         .group_by(Client.id)
         .order_by(func.sum(Invoice.amount_paid).desc())
         .limit(10)
@@ -221,46 +341,54 @@ def _revenue_by_client(db: Any, Client: Any, SalesOrder: Any, Invoice: Any) -> l
 
 def _sales_performance(SalesOrder: Any, Invoice: Any) -> list[dict[str, Any]]:
     rows = []
-    now = datetime.now()
-    for i in range(6):
-        start = now - timedelta(days=i * 30)
-        end = start + timedelta(days=30)
+    today = datetime.now().date()
+    month_cursor = today.replace(day=1)
+    for offset in range(5, -1, -1):
+        month_index = month_cursor.month - 1 - offset
+        year = month_cursor.year + month_index // 12
+        month = month_index % 12 + 1
+        start = date(year, month, 1)
+        end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
         rows.append(
             {
                 "period": start.strftime("%b %Y"),
-                "sales_count": SalesOrder.query.filter(SalesOrder.created_at >= start, SalesOrder.created_at < end).count(),
-                "invoice_count": Invoice.query.filter(Invoice.created_at >= start, Invoice.created_at < end).count(),
+                "sales_count": SalesOrder.query.filter(SalesOrder.order_date >= start, SalesOrder.order_date < end).count(),
+                "invoice_count": Invoice.query.filter(Invoice.invoice_date >= start, Invoice.invoice_date < end).count(),
             }
         )
-    return list(reversed(rows))
+    return rows
 
 
 def _revenue_leakage(db: Any, Client: Any, SalesOrder: Any, Invoice: Any) -> dict[str, Any] | None:
-    rows = (
-        db.session.query(
-            Client.client_name,
-            func.sum(Invoice.balance).label("unpaid_amount"),
-            func.avg(func.julianday(func.current_date()) - func.julianday(Invoice.invoice_date)).label("days_outstanding"),
+    rows = []
+    today = datetime.now().date()
+    for order in SalesOrder.query.all():
+        total = sum(float(item.total or 0) for item in order.items) or float(order.total_amount or 0)
+        paid = sum(float(invoice.amount_paid or 0) for invoice in order.invoices)
+        balance = max(total - paid, 0)
+        if balance <= MONEY_TOLERANCE:
+            continue
+        latest_date = max(
+            (invoice.invoice_date for invoice in order.invoices if invoice.invoice_date),
+            default=order.order_date,
         )
-        .select_from(Client)
-        .join(SalesOrder, Client.id == SalesOrder.client_id)
-        .join(Invoice, SalesOrder.id == Invoice.sales_order_id)
-        .filter(Invoice.status != "PAID")
-        .group_by(Client.id)
-        .all()
-    )
+        rows.append({
+            "client_name": order.client.client_name if order.client else (order.company_name or "Unknown Client"),
+            "unpaid_amount": balance,
+            "days_outstanding": max((today - latest_date).days, 0) if latest_date else 0,
+        })
     if not rows:
         return None
-    highest = max(rows, key=lambda row: row.unpaid_amount or 0)
-    total_unpaid = sum(row.unpaid_amount or 0 for row in rows)
-    percent = round((highest.unpaid_amount or 0) / total_unpaid * 100, 2) if total_unpaid else 0
+    highest = max(rows, key=lambda row: row["unpaid_amount"])
+    total_unpaid = sum(row["unpaid_amount"] for row in rows)
+    percent = round(highest["unpaid_amount"] / total_unpaid * 100, 2) if total_unpaid else 0
     return {
-        "client_name": highest.client_name,
-        "unpaid_amount": numeric(highest.unpaid_amount, 2),
-        "days_outstanding": int(highest.days_outstanding or 0),
-        "impact_amount": numeric(highest.unpaid_amount, 2),
+        "client_name": highest["client_name"],
+        "unpaid_amount": numeric(highest["unpaid_amount"], 2),
+        "days_outstanding": highest["days_outstanding"],
+        "impact_amount": numeric(highest["unpaid_amount"], 2),
         "percentage_of_total": percent,
-        "analysis": f"{highest.client_name} has the highest outstanding balance and should be prioritized for collection.",
+        "analysis": f"{highest['client_name']} has the highest outstanding balance and should be prioritized for collection.",
     }
 
 
@@ -278,7 +406,7 @@ def _accounts_receivable(db: Any, Client: Any, SalesOrder: Any, Invoice: Any) ->
         .select_from(SalesOrder)
         .join(Client, SalesOrder.client_id == Client.id)
         .join(Invoice, SalesOrder.id == Invoice.sales_order_id)
-        .filter(Invoice.status != "PAID")
+        .filter(Invoice.balance > MONEY_TOLERANCE)
         .order_by(Invoice.invoice_date.asc())
         .all()
     )
@@ -434,13 +562,13 @@ def get_overview_kpis(db: Any, Invoice: Any, SalesOrder: Any, filter_period: str
     
     gross_revenue = (
         db.session.query(func.sum(Invoice.amount_paid))
-        .filter(Invoice.status == "PAID", Invoice.invoice_date >= start_date)
+        .filter(Invoice.amount_paid > 0, Invoice.invoice_date >= start_date)
         .scalar() or 0
     )
     
     accounts_receivable = (
         db.session.query(func.sum(Invoice.balance))
-        .filter(Invoice.status != "PAID", Invoice.invoice_date >= start_date)
+        .filter(Invoice.balance > MONEY_TOLERANCE, Invoice.invoice_date >= start_date)
         .scalar() or 0
     )
     
@@ -464,7 +592,7 @@ def get_sales_trend_graph(db: Any, Invoice: Any, filter_period: str = "month", y
         week_end = min(week_start + timedelta(days=6), year_end)
         revenue = (
             db.session.query(func.sum(Invoice.amount_paid))
-            .filter(Invoice.status == "PAID", Invoice.invoice_date >= week_start, Invoice.invoice_date <= week_end)
+            .filter(Invoice.amount_paid > 0, Invoice.invoice_date >= week_start, Invoice.invoice_date <= week_end)
             .scalar() or 0
         )
         data.append({
@@ -860,7 +988,7 @@ def get_sales_analysis(db: Any, models: dict[str, Any], mape_threshold: float = 
     clients = get_clients_analysis(db, models, start_date, end_date)
     pondo = 0.0
     if PurchaseOrder is not None:
-        paid_revenue = _apply_date_bounds(db.session.query(func.sum(Invoice.amount_paid)).filter(Invoice.status == "PAID"), Invoice.invoice_date, start_date, end_date).scalar() or 0
+        paid_revenue = _apply_date_bounds(db.session.query(func.sum(Invoice.amount_paid)).filter(Invoice.amount_paid > 0), Invoice.invoice_date, start_date, end_date).scalar() or 0
         total_expenses = _apply_date_bounds(db.session.query(func.sum(PurchaseOrder.cash_amount)), PurchaseOrder.date, start_date, end_date).scalar() or 0
         pondo = max(float(paid_revenue or 0) - float(total_expenses or 0), 0)
     recommendations = build_rule_based_recommendations(forecast, descriptive, clients["clients"], pondo)
@@ -977,8 +1105,8 @@ def get_sales_order_history(db: Any, SalesOrder: Any, Invoice: Any, SalesOrderIt
     while week_start <= today:
         week_end = min(week_start + timedelta(days=6), today)
         week_query = db.session.query(SalesOrder).filter(
-            SalesOrder.created_at >= datetime.combine(week_start, datetime.min.time()),
-            SalesOrder.created_at <= datetime.combine(week_end, datetime.max.time())
+            SalesOrder.order_date >= week_start,
+            SalesOrder.order_date <= week_end
         )
         count = _apply_date_bounds(week_query, SalesOrder.order_date, start_date, end_date).count()
         weekly_data.append({
@@ -1357,7 +1485,7 @@ def get_comparative_analysis(db: Any, Invoice: Any, year1: int, year2: int) -> d
             .filter(
                 db_year(Invoice.invoice_date) == year1,
                 db_month_number(Invoice.invoice_date) == month,
-                Invoice.status == "PAID"
+                Invoice.amount_paid > 0
             )
             .scalar() or 0
         )
@@ -1367,7 +1495,7 @@ def get_comparative_analysis(db: Any, Invoice: Any, year1: int, year2: int) -> d
             .filter(
                 db_year(Invoice.invoice_date) == year2,
                 db_month_number(Invoice.invoice_date) == month,
-                Invoice.status == "PAID"
+                Invoice.amount_paid > 0
             )
             .scalar() or 0
         )

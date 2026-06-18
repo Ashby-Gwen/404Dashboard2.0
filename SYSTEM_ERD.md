@@ -5,7 +5,8 @@ Text-based entity relationship documentation for the live Syluxent runtime schem
 Verified against:
 
 - `app.py` SQLAlchemy models
-- `instance/syluxent.db` live SQLite schema
+- Defense-readiness migration requirements in `defense_migrations.py`
+- Supabase migration in `docs/supabase_defense_readiness_migration.sql`
 
 Scope:
 
@@ -20,6 +21,7 @@ users 1 --< session_records
 users 1 --< audit_logs
 users 1 --< password_resets.user_id
 users 1 --< password_resets.resolved_by_user_id
+users 1 --< evaluation_sessions
 
 clients 1 --< client_aliases
 clients 1 --< sales_orders
@@ -215,9 +217,11 @@ Relationship:
 - One `sales_orders` record can have many `invoices`.
 - `sales_order_id` is nullable, so uploaded or service invoices can exist without a linked sales order.
 
-## Purchasing
+## Expenses
 
-### purchase_orders (actual use is 'expenses' not just purhcase orders)
+Expense is the canonical module and API terminology. The physical table names below are retained from an older purchase-order implementation for database and route compatibility.
+
+### purchase_orders (legacy physical name for expense records)
 
 - id INTEGER [PK, NOT NULL]
 - check_voucher_number VARCHAR(50) [NOT NULL]
@@ -237,7 +241,7 @@ Relationship:
 - category VARCHAR(20)
 - created_at DATETIME
 
-### purchase_order_debits (actual name in usage is 'expenses_debits'.)
+### purchase_order_debits (legacy physical name for expense debit allocations)
 
 - id INTEGER [PK, NOT NULL]
 - purchase_order_id INTEGER [FK -> purchase_orders.id, NOT NULL]
@@ -246,7 +250,7 @@ Relationship:
 
 Relationship:
 
-- One `purchase_orders` record can have many `purchase_order_debits`.
+- One expense record in `purchase_orders` can have many debit allocations in `purchase_order_debits`.
 
 ## Analytics Ledger
 
@@ -283,6 +287,7 @@ Notes:
 ### evaluation_sessions
 
 - id INTEGER [PK, NOT NULL]
+- user_id INTEGER [FK -> users.id, NULLABLE FK]
 - evaluator_name VARCHAR(120) [NOT NULL]
 - evaluator_role VARCHAR(80)
 - overall_comment TEXT
@@ -309,12 +314,13 @@ Notes:
 
 Relationships:
 
+- One `users` record can have many `evaluation_sessions`; `user_id` remains nullable for compatibility with earlier anonymous or imported evaluations.
 - One `evaluation_sessions` record can have many `evaluation_responses`.
 - One `evaluation_questions` record can have many `evaluation_responses`.
 
 ## Live Runtime Table Checklist
 
-The ERD includes all 16 live runtime tables:
+The ERD includes all 17 runtime tables defined by the current models:
 
 1. `analytics_data`
 2. `audit_logs`
@@ -331,6 +337,7 @@ The ERD includes all 16 live runtime tables:
 13. `sales_order_items`
 14. `sales_orders`
 15. `session_records`
-16. `users`
+16. `system_settings`
+17. `users`
 
-Note: The implementation plan referred to 15 tables, but the live schema currently contains 16 runtime tables. Both `evaluation_sessions` and `evaluation_questions` are independent live tables, and `evaluation_responses` links them, so all 16 are documented.
+`system_settings` stores shared theme/runtime configuration. Older databases may require the defense-readiness migration before all listed columns and indexes are available.

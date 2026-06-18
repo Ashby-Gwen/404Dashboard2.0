@@ -150,6 +150,7 @@
     </style>
 </head>
 <body>
+    <a class="skip-link" href="#expenseMain">Skip to expense content</a>
     <nav class="app-navbar">
         <div class="nav-logo" onclick="window.location.href='{{ url_for('dashboard') }}';">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -180,7 +181,7 @@
         ('expenses', 'Expense'),
         ('analytics', 'Analytics'),
         ('reports', 'Reports'),
-        ('database_interface', 'Database Interface')
+        ('database_interface', 'Admin Center')
     ]
 } %}
 
@@ -211,7 +212,7 @@
 
     <div id="toastContainer" style="position: fixed; top: 1rem; right: 1rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;"></div>
 
-    <main class="page-shell">
+    <main class="page-shell" id="expenseMain" tabindex="-1">
         <div class="section-header">
             <div class="page-title">
                 <h1>Expenses</h1>
@@ -237,64 +238,64 @@
             <form id="purchaseOrderForm">
                 <div class="form-grid">
                     <div class="form-group required-field">
-                        <label>Check/Cash Voucher Number *</label>
+                        <label for="checkVoucherNumber">Check/Cash Voucher Number *</label>
                         <input type="text" id="checkVoucherNumber" required>
                     </div>
                     
                     <div class="form-group required-field">
-                        <label>Check Number *</label>
+                        <label for="checkNumber">Check Number *</label>
                         <input type="text" id="checkNumber" required>
                     </div>
                     
                     <div class="form-group required-field">
-                        <label>Check Date *</label>
+                        <label for="checkDate">Check Date *</label>
                         <input type="date" id="checkDate" required>
                     </div>
                     
                     <div class="form-group required-field">
-                        <label>Date *</label>
+                        <label for="poDate">Expense Date *</label>
                         <input type="date" id="poDate" required>
                     </div>
                     
                     <div class="form-group">
-                        <label>OR Date</label>
+                        <label for="orDate">OR Date</label>
                         <input type="date" id="orDate">
                     </div>
                     
                     <div class="form-group">
-                        <label>AR/CR/OR Number</label>
+                        <label for="arCrOrNumber">AR/CR/OR Number</label>
                         <input type="text" id="arCrOrNumber">
                     </div>
                     
                     <div class="form-group">
-                        <label>Reference/PO Number</label>
+                        <label for="poNumber">Reference Number</label>
                         <input type="text" id="poNumber">
                     </div>
                     
                     <div class="form-group">
-                        <label>LF No.</label>
+                        <label for="lfNo">LF No.</label>
                         <input type="text" id="lfNo">
                     </div>
                 </div>
 
                 <div class="form-grid">
                     <div class="form-group required-field">
-                        <label>Particulars *</label>
+                        <label for="particulars">Particulars *</label>
                         <textarea id="particulars" rows="3" required></textarea>
                     </div>
                     
                     <div class="form-group required-field">
-                        <label>Supplier/Payee *</label>
+                        <label for="supplierPayee">Supplier/Payee *</label>
                         <input type="text" id="supplierPayee" required>
                     </div>
                     
                     <div class="form-group">
-                        <label>TIN Number</label>
+                        <label for="tinNumber">TIN Number</label>
                         <input type="text" id="tinNumber">
                     </div>
                     
                     <div class="form-group required-field">
-                        <label>Cash Amount *</label>
+                        <label for="cashAmount">Cash Amount *</label>
                         <input type="number" id="cashAmount" min="0" step="0.01" required>
                     </div>
                 </div>
@@ -323,7 +324,7 @@
                                 <option value="Various Expenses">Various Expenses</option>
                             </select>
                             <input type="number" placeholder="Amount" class="debit-amount" min="0" step="0.01" required>
-                            <button type="button" class="btn-remove-debit" onclick="removeDebit(this)">×</button>
+                            <button type="button" class="btn-remove-debit" aria-label="Remove debit account" onclick="removeDebit(this)">×</button>
                         </div>
                     </div>
                     <button type="button" class="btn btn-outline" onclick="addDebit()">Add Debit Account</button>
@@ -354,7 +355,7 @@
         <div class="card" style="margin-top: 2rem;">
             <h2>Expense History</h2>
             <div class="table-wrap">
-                <table id="purchase-orders-table">
+                <table id="purchase-orders-table" aria-label="Expense history">
                     <thead>
                         <tr>
                             <th>Voucher #</th>
@@ -376,64 +377,65 @@
         </div>
     </main>
 
-    <div id="editExpenseModal" class="expense-modal-overlay hidden">
-        <div class="expense-modal">
+    <div id="editExpenseModal" class="expense-modal-overlay hidden" role="dialog" aria-modal="true"
+        aria-labelledby="editExpenseTitle" aria-hidden="true">
+        <div class="expense-modal" tabindex="-1">
             <div class="expense-modal-header">
-                <h2 style="margin: 0;">Edit Expense</h2>
+                <h2 id="editExpenseTitle" style="margin: 0;">Edit Expense</h2>
                 <button type="button" class="btn btn-outline btn-sm" onclick="closeEditExpenseModal()">Close</button>
             </div>
             <form id="editExpenseForm">
                 <input type="hidden" id="editExpenseId">
                 <div class="form-grid">
                     <div class="form-group required-field">
-                        <label>Check/Cash Voucher Number *</label>
+                        <label for="editCheckVoucherNumber">Check/Cash Voucher Number *</label>
                         <input type="text" id="editCheckVoucherNumber" required>
                     </div>
                     <div class="form-group required-field">
-                        <label>Check Number *</label>
+                        <label for="editCheckNumber">Check Number *</label>
                         <input type="text" id="editCheckNumber" required>
                     </div>
                     <div class="form-group required-field">
-                        <label>Check Date *</label>
+                        <label for="editCheckDate">Check Date *</label>
                         <input type="date" id="editCheckDate" required>
                     </div>
                     <div class="form-group required-field">
-                        <label>Date *</label>
+                        <label for="editPoDate">Expense Date *</label>
                         <input type="date" id="editPoDate" required>
                     </div>
                     <div class="form-group">
-                        <label>OR Date</label>
+                        <label for="editOrDate">OR Date</label>
                         <input type="date" id="editOrDate">
                     </div>
                     <div class="form-group">
-                        <label>AR/CR/OR Number</label>
+                        <label for="editArCrOrNumber">AR/CR/OR Number</label>
                         <input type="text" id="editArCrOrNumber">
                     </div>
                     <div class="form-group">
-                        <label>Reference/PO Number</label>
+                        <label for="editPoNumber">Reference Number</label>
                         <input type="text" id="editPoNumber">
                     </div>
                     <div class="form-group">
-                        <label>LF No.</label>
+                        <label for="editLfNo">LF No.</label>
                         <input type="text" id="editLfNo">
                     </div>
                 </div>
 
                 <div class="form-grid">
                     <div class="form-group required-field">
-                        <label>Particulars *</label>
+                        <label for="editParticulars">Particulars *</label>
                         <textarea id="editParticulars" rows="3" required></textarea>
                     </div>
                     <div class="form-group required-field">
-                        <label>Supplier/Payee *</label>
+                        <label for="editSupplierPayee">Supplier/Payee *</label>
                         <input type="text" id="editSupplierPayee" required>
                     </div>
                     <div class="form-group">
-                        <label>TIN Number</label>
+                        <label for="editTinNumber">TIN Number</label>
                         <input type="text" id="editTinNumber">
                     </div>
                     <div class="form-group required-field">
-                        <label>Cash Amount *</label>
+                        <label for="editCashAmount">Cash Amount *</label>
                         <input type="number" id="editCashAmount" min="0" step="0.01" required>
                     </div>
                 </div>
@@ -469,6 +471,7 @@
 
     <script>
         let purchaseOrders = [];
+        let expenseModalReturnFocus = null;
         const debitTypeOptions = [
             'Input VAT',
             'Cost of Goods Sold',
@@ -571,7 +574,7 @@
                     <option value="Various Expenses">Various Expenses</option>
                 </select>
                 <input type="number" placeholder="Amount" class="debit-amount" min="0" step="0.01" required>
-                <button type="button" class="btn-remove-debit" onclick="removeDebit(this)">×</button>
+                <button type="button" class="btn-remove-debit" aria-label="Remove debit account" onclick="removeDebit(this)">×</button>
             `;
             debitsList.appendChild(debitItem);
             attachDebitListeners(debitItem);
@@ -596,6 +599,27 @@
         document.getElementById('editExpenseModal').addEventListener('click', function(event) {
             if (event.target === this) closeEditExpenseModal();
         });
+        document.getElementById('editExpenseModal').addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeEditExpenseModal();
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = Array.from(this.querySelectorAll(
+                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            )).filter(element => element.offsetParent !== null);
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
 
         function debitOptions(selectedValue = '') {
             return '<option value="">Select Debit Type</option>' + debitTypeOptions.map(type => {
@@ -609,7 +633,7 @@
             debitItem.innerHTML = `
                 <select class="debit-select edit-debit-select" required>${debitOptions(debit.debit_type || '')}</select>
                 <input type="number" placeholder="Amount" class="debit-amount edit-debit-amount" min="0" step="0.01" value="${Number(debit.amount || 0)}" required>
-                <button type="button" class="btn-remove-debit" onclick="removeEditDebit(this)">×</button>
+                <button type="button" class="btn-remove-debit" aria-label="Remove debit account" onclick="removeEditDebit(this)">×</button>
             `;
             attachEditDebitListeners(debitItem);
             return debitItem;
@@ -699,13 +723,22 @@
             const debits = expense.debits && expense.debits.length ? expense.debits : [{ debit_type: '', amount: '' }];
             debits.forEach(debit => debitsList.appendChild(editDebitRow(debit)));
             calculateEditTotals();
-            document.getElementById('editExpenseModal').classList.remove('hidden');
+            expenseModalReturnFocus = document.activeElement;
+            const modal = document.getElementById('editExpenseModal');
+            modal.classList.remove('hidden');
+            modal.setAttribute('aria-hidden', 'false');
+            document.getElementById('editCheckVoucherNumber').focus();
         }
 
         function closeEditExpenseModal() {
-            document.getElementById('editExpenseModal').classList.add('hidden');
+            const modal = document.getElementById('editExpenseModal');
+            modal.classList.add('hidden');
+            modal.setAttribute('aria-hidden', 'true');
             document.getElementById('editExpenseForm').reset();
             document.getElementById('editDebitsList').innerHTML = '';
+            if (expenseModalReturnFocus && document.contains(expenseModalReturnFocus)) {
+                expenseModalReturnFocus.focus();
+            }
         }
 
         // Form submission
@@ -794,7 +827,7 @@
                                 <option value="Various Expenses">Various Expenses</option>
                             </select>
                             <input type="number" placeholder="Amount" class="debit-amount" min="0" step="0.01" required>
-                            <button type="button" class="btn-remove-debit" onclick="removeDebit(this)">×</button>
+                            <button type="button" class="btn-remove-debit" aria-label="Remove debit account" onclick="removeDebit(this)">×</button>
                         </div>
                     `;
                     

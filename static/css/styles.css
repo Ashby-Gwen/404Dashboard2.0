@@ -101,6 +101,28 @@ body {
     overflow-x: hidden;
 }
 
+.skip-link {
+    position: fixed;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 10000;
+    transform: translateY(-160%);
+    padding: 0.65rem 0.9rem;
+    border-radius: var(--radius-lg);
+    background: var(--brand-orange);
+    color: #fff;
+    font-weight: 700;
+}
+
+.skip-link:focus {
+    transform: translateY(0);
+}
+
+:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--brand-orange) 70%, white);
+    outline-offset: 3px;
+}
+
 body::before {
     content: "";
     position: fixed;
