@@ -88,6 +88,14 @@ def main():
             dashboard_html = manager_client.get('/dashboard').get_data(as_text=True)
             assert "switchTab('clients')" not in dashboard_html
             assert 'id="tab-clients"' not in dashboard_html
+            assert 'container-type: inline-size' in dashboard_html
+            assert 'overflow-wrap: anywhere' in dashboard_html
+            assert 'font-variant-numeric: tabular-nums' in dashboard_html
+            assert 'letter-spacing: 0 !important' in dashboard_html
+            assert 'font-size: clamp(0.92rem, 1.2vw, 1.15rem) !important' in dashboard_html
+            assert '@container (min-width: 300px)' in dashboard_html
+            assert 'grid-template-columns: repeat(4, minmax(250px, 1fr))' in dashboard_html
+            assert 'overflow: hidden' not in dashboard_html.split('.stat-card {', 1)[1].split('}', 1)[0]
 
             reports_html = manager_client.get('/reports').get_data(as_text=True)
             assert 'report-color-legend' in reports_html
@@ -105,8 +113,14 @@ def main():
         assert f'{theme_name}:' in system_states
 
     styles = open(os.path.join(ROOT, 'static', 'css', 'styles.css'), encoding='utf-8').read()
-    assert '.evaluation-launcher:hover' in styles
-    assert '.evaluation-launcher:focus-visible' in styles
+    assert '.evaluation-launcher.btn-outline:hover' in styles
+    assert '.evaluation-launcher.btn-outline:focus-visible' in styles
+    assert 'background: var(--card-bg) !important;' in styles
+    assert 'background: var(--accent-muted) !important;' in styles
+    assert 'width 180ms ease' in styles
+    assert 'box-shadow 180ms ease !important' in styles
+    assert 'max-width 180ms ease' in styles
+    assert 'opacity 120ms ease' in styles
     assert 'bottom: 74px;' in styles
     assert 'bottom: 132px;' in styles
 

@@ -1346,7 +1346,7 @@ button.is-loading,
     white-space: pre-wrap;
 }
 
-.evaluation-launcher {
+.evaluation-launcher.btn-outline {
     position: fixed;
     right: 1rem;
     bottom: 1rem;
@@ -1361,21 +1361,30 @@ button.is-loading,
     min-height: 48px;
     overflow: hidden;
     padding: 7px;
+    background: var(--card-bg) !important;
+    border: var(--border-width, 1px) solid var(--border-color) !important;
+    color: var(--text-main) !important;
     white-space: nowrap;
     box-shadow: var(--shadow);
     transition:
-        width 0.2s ease,
-        gap 0.2s ease,
-        box-shadow 0.2s ease;
+        width 180ms ease,
+        gap 180ms ease,
+        background-color 180ms ease,
+        border-color 180ms ease,
+        color 180ms ease,
+        box-shadow 180ms ease !important;
 }
 
-.evaluation-launcher:hover,
-.evaluation-launcher:focus-visible {
+.evaluation-launcher.btn-outline:hover,
+.evaluation-launcher.btn-outline:focus-visible {
     width: 168px;
     gap: 9px;
+    background: var(--accent-muted) !important;
+    border-color: var(--accent-main) !important;
+    color: var(--accent-main) !important;
 }
 
-.evaluation-launcher:focus-visible {
+.evaluation-launcher.btn-outline:focus-visible {
     outline: 3px solid color-mix(in srgb, var(--orange) 38%, transparent);
     outline-offset: 3px;
 }
@@ -1395,9 +1404,9 @@ button.is-loading,
     font-size: 0.82rem;
     font-weight: 750;
     line-height: 1;
-    /* transition:
-        max-width 0.2s ease,
-        opacity 0.15s ease; */
+    transition:
+        max-width 180ms ease,
+        opacity 120ms ease;
 }
 
 .evaluation-launcher:hover .evaluation-launcher-label,

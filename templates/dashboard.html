@@ -13,35 +13,52 @@
     <style>
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: minmax(0, 1fr);
             gap: 1rem;
             margin-bottom: 2rem;
         }
 
         .stat-card {
             min-width: 0;
-            overflow: hidden;
+            height: auto;
+            overflow: visible;
+            container-type: inline-size;
         }
 
         .stat-card .stat-value {
             max-width: 100%;
-            line-height: 1.1;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: clip;
-            font-size: clamp(0.9rem, 2vw, 1.8rem);
+            line-height: 1.15;
+            white-space: normal;
+            overflow: visible;
+            overflow-wrap: anywhere;
+            word-break: normal;
+            font-size: clamp(1.2rem, 2vw, 1.8rem) !important;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0 !important;
         }
 
         .stat-card .stat-value.value-long {
-            font-size: clamp(0.68rem, 1.25vw, 1.05rem);
+            font-size: clamp(1.05rem, 1.7vw, 1.5rem) !important;
         }
 
         .stat-card .stat-value.value-xl {
-            font-size: clamp(0.56rem, 1vw, 0.82rem);
+            font-size: clamp(0.98rem, 1.45vw, 1.3rem) !important;
         }
 
         .stat-card .stat-value.value-xxl {
-            font-size: clamp(0.48rem, 0.82vw, 0.68rem);
+            font-size: clamp(0.92rem, 1.2vw, 1.15rem) !important;
+        }
+
+        @media (min-width: 640px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, minmax(250px, 1fr));
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(4, minmax(250px, 1fr));
+            }
         }
 
         .stat-card.clickable {
@@ -182,7 +199,7 @@
 
         .kpi-pair {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: minmax(0, 1fr);
             gap: 0.85rem;
             margin-top: 0.35rem;
         }
@@ -203,8 +220,20 @@
         }
 
         .kpi-pair .stat-value {
-            font-size: clamp(0.64rem, 1.15vw, 0.95rem);
-            line-height: 1.1;
+            font-size: clamp(1rem, 1.35vw, 1.2rem) !important;
+            line-height: 1.15;
+        }
+
+        @container (min-width: 300px) {
+            .kpi-pair {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 639px) {
+            .kpi-pair {
+                grid-template-columns: minmax(0, 1fr);
+            }
         }
     </style>
 </head>
