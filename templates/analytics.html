@@ -251,8 +251,8 @@
             flex-direction: column;
             overflow: hidden;
             background: var(--bg-card, #fff);
-            border-radius: var(--radius-lg);
-            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+            border-radius: 0;
+            box-shadow: none;
         }
 
         .analytics-preview-toolbar {
@@ -274,7 +274,7 @@
             flex: 1;
             overflow: auto;
             padding: 1.5rem;
-            background: #E2E8F0;
+            background: #fff;
         }
 
         .analytics-paper {
@@ -286,7 +286,42 @@
             background: #fff;
             color: #1F2937;
             font: 10.5pt Arial, Helvetica, sans-serif;
-            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
+            box-shadow: none;
+        }
+
+        .analytics-paper *,
+        .analytics-paper .card,
+        .analytics-paper .surface-card,
+        .analytics-paper .surface-panel {
+            box-shadow: none !important;
+        }
+
+        .analytics-paper img.analytics-print-chart {
+            display: block;
+            width: 100%;
+            max-height: 95mm;
+            object-fit: contain;
+            margin: 8pt auto;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .analytics-paper table,
+        .analytics-paper .card,
+        .analytics-paper .surface-card,
+        .analytics-paper .surface-panel,
+        .analytics-paper h1,
+        .analytics-paper h2,
+        .analytics-paper h3 {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .analytics-print-error {
+            border: 1px solid #DC2626;
+            color: #991B1B;
+            padding: 10pt;
+            margin: 8pt 0;
         }
 
         .analytics-paper h1,
@@ -1631,7 +1666,7 @@
                                         <thead><tr><th>Item</th><th>Qty</th><th>SO Value</th><th>Cost</th><th>Margin</th></tr></thead>
                                         <tbody>${itemRows.map(item => `<tr>
                                             <td>${escapeHtml(item.item)}</td>
-                                            <td>${Number(item.quantity || 0).toFixed(2)}</td>
+                                            <td>${Math.trunc(Number(item.quantity || 0))}</td>
                                             <td>${formatCurrency(item.sales_order_value || 0)}</td>
                                             <td>${item.cost_data_complete ? formatCurrency(item.cost || 0) : 'Incomplete'}</td>
                                             <td>${item.cost_data_complete ? Number(item.profit_margin || 0).toFixed(2) + '%' : 'Unavailable'}</td>
@@ -1848,18 +1883,36 @@
             URL.revokeObjectURL(link.href);
         }
 
-        function previewAnalyticsReport() {
+        async function waitForAnalyticsPrintReady() {
+            if (document.fonts?.ready) await document.fonts.ready;
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        }
+
+        async function previewAnalyticsReport() {
             const source = document.getElementById('analytics-content');
             const paper = document.getElementById('analyticsPrintPaper');
+            const modal = document.getElementById('analyticsPrintModal');
+            await waitForAnalyticsPrintReady();
             const clone = source.cloneNode(true);
             clone.querySelectorAll('button, input, select, textarea, form, .analytics-tools-panel').forEach(node => node.remove());
-            clone.querySelectorAll('canvas').forEach(canvas => {
-                const replacement = document.createElement('div');
-                replacement.style.border = '1px solid #CBD5E1';
-                replacement.style.padding = '12pt';
-                replacement.style.margin = '8pt 0';
-                replacement.textContent = 'Chart preview is available on-screen before printing.';
-                canvas.replaceWith(replacement);
+            const sourceCanvases = Array.from(source.querySelectorAll('canvas'));
+            clone.querySelectorAll('canvas').forEach((canvas, index) => {
+                const sourceCanvas = sourceCanvases[index];
+                try {
+                    if (!sourceCanvas || !sourceCanvas.width || !sourceCanvas.height) {
+                        throw new Error('Chart has not finished rendering.');
+                    }
+                    const image = document.createElement('img');
+                    image.className = 'analytics-print-chart';
+                    image.alt = sourceCanvas.getAttribute('aria-label') || `Analytics chart ${index + 1}`;
+                    image.src = sourceCanvas.toDataURL('image/png', 1);
+                    canvas.replaceWith(image);
+                } catch (error) {
+                    const replacement = document.createElement('div');
+                    replacement.className = 'analytics-print-error';
+                    replacement.textContent = `Chart ${index + 1} could not be prepared: ${error.message}`;
+                    canvas.replaceWith(replacement);
+                }
             });
             paper.innerHTML = `
                 <h1>404 Dashboard</h1>
@@ -1867,7 +1920,7 @@
                 <p>Reporting Period: ${activeAnalyticsFilterLabel || 'Current filter'}</p>
                 <p>Generated: ${new Date().toLocaleString('en-PH')}</p>
                 <div style="margin-top:16pt;">${clone.innerHTML}</div>`;
-            document.getElementById('analyticsPrintModal').hidden = false;
+            modal.hidden = false;
         }
 
         function closeAnalyticsPreview() {

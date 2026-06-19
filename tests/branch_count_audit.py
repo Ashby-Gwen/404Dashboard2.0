@@ -3,6 +3,7 @@ import csv
 import os
 import sys
 from collections import defaultdict
+from datetime import datetime
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -10,7 +11,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from analytics_services import _branch_group_key, _display_text, _store_group_key  # noqa: E402
-from app import SalesOrder, app  # noqa: E402
+from app import SalesOrder, app, db  # noqa: E402
 
 
 def order_store_name(order):
@@ -18,7 +19,11 @@ def order_store_name(order):
     return _display_text(order.store_name or order.company_name or client_name or 'Unspecified Store').upper()
 
 
-def audit_store(search_text, year=None):
+def parse_date(value):
+    return datetime.strptime(value, '%Y-%m-%d').date() if value else None
+
+
+def audit_store(search_text, year=None, start_date=None, end_date=None):
     search_key = _store_group_key(search_text)
     query = SalesOrder.query
     if year:
@@ -26,6 +31,11 @@ def audit_store(search_text, year=None):
             SalesOrder.order_date >= f'{year}-01-01',
             SalesOrder.order_date < f'{year + 1}-01-01',
         )
+    else:
+        if start_date:
+            query = query.filter(SalesOrder.order_date >= start_date)
+        if end_date:
+            query = query.filter(SalesOrder.order_date <= end_date)
 
     matching_orders = [
         order for order in query.order_by(SalesOrder.order_date.asc(), SalesOrder.id.asc()).all()
@@ -44,10 +54,10 @@ def audit_store(search_text, year=None):
     return matching_orders, branch_groups, excluded_orders
 
 
-def print_summary(search_text, year, matching_orders, branch_groups, excluded_orders):
+def print_summary(search_text, period_label, matching_orders, branch_groups, excluded_orders):
     store_names = sorted({order_store_name(order) for order in matching_orders})
     print(f'Search: {search_text}')
-    print(f'Year: {year or "all"}')
+    print(f'Period: {period_label}')
     print(f'Matching Sales Orders: {len(matching_orders)}')
     print(f'Unique Valid Branches: {len(branch_groups)}')
     print(f'Excluded Blank/Placeholder Orders: {len(excluded_orders)}')
@@ -113,14 +123,34 @@ def main():
     )
     parser.add_argument('store', help='Store name or part of its normalized name, such as "Goncha".')
     parser.add_argument('--year', type=int, help='Limit the audit to one calendar year.')
+    parser.add_argument('--start-date', help='Optional inclusive start date in YYYY-MM-DD format.')
+    parser.add_argument('--end-date', help='Optional inclusive end date in YYYY-MM-DD format.')
     parser.add_argument('--csv', dest='csv_path', help='Optional CSV output path.')
     args = parser.parse_args()
 
     with app.app_context():
-        matching_orders, branch_groups, excluded_orders = audit_store(args.store, args.year)
-        print_summary(
+        host = db.engine.url.host
+        if host not in (None, '', 'localhost', '127.0.0.1', '::1'):
+            raise SystemExit(
+                f'Refusing to audit non-local database host: {host}. '
+                'Point DATABASE_URL to a local database first.'
+            )
+        start_date = parse_date(args.start_date)
+        end_date = parse_date(args.end_date)
+        matching_orders, branch_groups, excluded_orders = audit_store(
             args.store,
             args.year,
+            start_date,
+            end_date,
+        )
+        period_label = (
+            str(args.year)
+            if args.year
+            else f'{args.start_date or "beginning"} to {args.end_date or "latest"}'
+        )
+        print_summary(
+            args.store,
+            period_label,
             matching_orders,
             branch_groups,
             excluded_orders,

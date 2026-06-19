@@ -265,7 +265,7 @@
                 {% set ns.grand_total = ns.grand_total + (item.total or 0) %}
                 <tr>
                     <td>{{ item.particular }}</td>
-                    <td class="num">{{ "%.2f"|format(item.quantity or 0) }}</td>
+                    <td class="num">{{ (item.quantity or 0)|int }}</td>
                     <td class="num">PHP {{ "{:,.2f}".format(item.unit_cost or 0) }}</td>
                     <td class="num">PHP {{ "{:,.2f}".format(item.selling_price or 0) }}</td>
                     <td class="num">PHP {{ "{:,.2f}".format(item.total or 0) }}</td>

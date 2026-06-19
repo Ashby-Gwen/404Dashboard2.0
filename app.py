@@ -1045,6 +1045,25 @@ def clean_code(value):
     value = '' if value is None else str(value).strip()
     return re.sub(r'\s+', ' ', re.sub(r'[^A-Za-z0-9\s#./_-]', '', value)).strip()
 
+def canonical_invoice_type(invoice_number, stored_type=''):
+    normalized_number = clean_code(invoice_number).upper()
+    if normalized_number.startswith('SVI-'):
+        return 'SERVICE'
+    if normalized_number.startswith('SI-'):
+        return 'SALES'
+    return clean_code(stored_type).upper()
+
+def parse_positive_whole_quantity(value, field_label='Quantity'):
+    try:
+        quantity = Decimal(str(value).strip())
+    except (InvalidOperation, AttributeError, TypeError, ValueError):
+        raise ValueError(f'{field_label} must be a valid whole number.')
+    if not quantity.is_finite() or quantity <= 0:
+        raise ValueError(f'{field_label} must be greater than zero.')
+    if quantity != quantity.to_integral_value():
+        raise ValueError(f'{field_label} must be a whole number.')
+    return int(quantity)
+
 def normalize_client_name(value):
     value = '' if value is None else str(value).upper()
     value = value.replace('&', ' AND ')
@@ -1747,10 +1766,10 @@ def revenue_report_rows(filters=None):
     return [
         {
             'invoice_date': invoice.invoice_date.isoformat() if invoice.invoice_date else None,
-            'invoice_number': invoice.invoice_number,
+            'invoice_number': clean_code(invoice.invoice_number).upper(),
             'so_number': order.so_number if order else '',
             'client_name': client.client_name if client else (invoice.uploaded_client_name or 'Admin Upload'),
-            'invoice_type': invoice.invoice_type,
+            'invoice_type': canonical_invoice_type(invoice.invoice_number, invoice.invoice_type),
             'payment_type': invoice.payment_type,
             'cr_number': invoice.cr_number,
             'total_amount': float(invoice.total_amount or 0),
@@ -1780,7 +1799,7 @@ def sales_report_itemized_rows(filters=None):
             'store_branch': order.store_branch,
             'sales_staff': order.sales_staff,
             'particular': item.particular,
-            'quantity': float(item.quantity or 0),
+            'quantity': int(item.quantity or 0),
             'unit_cost': float(item.unit_cost or 0),
             'selling_price': float(item.selling_price or 0),
             'total': float(item.total or 0),
@@ -2231,7 +2250,9 @@ def normalize_upload_row(interface, row):
             'order_date': parse_date_value(lower.get('order_date') or lower.get('date')).isoformat(),
             'sales_staff': clean_text(lower.get('sales_staff') or lower.get('staff')),
             'particular': clean_text(lower.get('particular') or lower.get('particulars') or lower.get('item')),
-            'quantity': parse_amount(lower.get('quantity') or lower.get('qty')),
+            'quantity': parse_positive_whole_quantity(
+                lower.get('quantity') or lower.get('qty') or 1
+            ),
             'unit_cost': parse_amount(lower.get('unit_cost') or lower.get('cost')),
             'selling_price': parse_amount(lower.get('selling_price') or lower.get('price')),
             'total_amount': parse_amount(lower.get('total_amount') or lower.get('total')),
@@ -2287,11 +2308,15 @@ def normalize_upload_row(interface, row):
     is_admin_upload = bool(uploaded_client_name and not so_number)
     raw_total = lower.get('total_amount') if lower.get('total_amount') not in (None, '') else lower.get('amount')
     raw_balance = lower.get('balance')
+    invoice_number = clean_code(lower.get('invoice_number') or lower.get('invoice_no')).upper()
+    supplied_invoice_type = 'ADMIN UPLOAD' if is_admin_upload else (
+        clean_text(lower.get('invoice_type') or 'SALES') or 'SALES'
+    ).upper()
     return {
-        'invoice_number': clean_code(lower.get('invoice_number') or lower.get('invoice_no')),
+        'invoice_number': invoice_number,
         'uploaded_client_name': uploaded_client_name,
         'so_number': so_number,
-        'invoice_type': 'ADMIN UPLOAD' if is_admin_upload else (clean_text(lower.get('invoice_type') or 'SALES') or 'SALES').upper(),
+        'invoice_type': canonical_invoice_type(invoice_number, supplied_invoice_type),
         'invoice_date': parse_date_value(lower.get('invoice_date') or lower.get('date')).isoformat(),
         'summary': clean_text(lower.get('summary') or lower.get('description')) or ('Admin Upload' if is_admin_upload else ''),
         'payment_type': 'Admin Upload' if is_admin_upload else clean_text(lower.get('payment_type')),
@@ -3488,8 +3513,14 @@ def admin_upload_preview(interface):
                 df = pd.read_excel(upload)
             else:
                 return jsonify({'success': False, 'error': f'Unsupported file type: {upload.filename}'}), 400
-            for row in df.fillna('').to_dict('records'):
-                normalized = normalize_upload_row(interface, row)
+            for row_index, row in enumerate(df.fillna('').to_dict('records'), start=2):
+                try:
+                    normalized = normalize_upload_row(interface, row)
+                except ValueError as validation_error:
+                    return jsonify({
+                        'success': False,
+                        'error': f'{upload.filename}, row {row_index}: {validation_error}'
+                    }), 400
                 normalized['_source_file'] = upload.filename
                 rows.append(normalized)
 
@@ -3586,6 +3617,11 @@ def admin_upload_commit(interface):
         for row in rows:
             if interface == 'sales_order':
                 original_company_name = row.get('company_name') or row.get('client_name') or 'UNMAPPED CLIENT'
+                try:
+                    qty = parse_positive_whole_quantity(row.get('quantity') or 1)
+                except ValueError as quantity_error:
+                    db.session.rollback()
+                    return jsonify({'success': False, 'error': str(quantity_error)}), 400
                 resolution = resolve_client_name(
                     original_company_name,
                     resolutions,
@@ -3613,7 +3649,6 @@ def admin_upload_commit(interface):
                 )
                 db.session.add(order)
                 db.session.flush()
-                qty = float(row.get('quantity') or 1)
                 price = float(row.get('selling_price') or row.get('total_amount') or 0)
                 db.session.add(SalesOrderItem(
                     sales_order_id=order.id,
@@ -3694,8 +3729,20 @@ def admin_upload_commit(interface):
                 invoice_type = row.get('invoice_type') or 'SALES'
                 if sales_order and str(invoice_type).upper() == 'ADMIN UPLOAD':
                     invoice_type = 'SALES'
-                existing_invoice = Invoice.query.filter_by(invoice_number=row.get('invoice_number')).first() if row.get('invoice_number') else None
+                invoice_number = clean_code(row.get('invoice_number')).upper()
+                invoice_type = canonical_invoice_type(
+                    invoice_number,
+                    'ADMIN UPLOAD' if is_admin_upload else invoice_type
+                )
+                existing_invoice = Invoice.query.filter(
+                    func.lower(Invoice.invoice_number) == invoice_number.lower()
+                ).first() if invoice_number else None
                 if existing_invoice:
+                    existing_invoice.invoice_number = invoice_number
+                    existing_invoice.invoice_type = canonical_invoice_type(
+                        invoice_number,
+                        existing_invoice.invoice_type
+                    )
                     existing_invoice.payment_amount = float(existing_invoice.payment_amount or 0) + float(row.get('payment_amount') or paid)
                     existing_invoice.amount_paid = float(existing_invoice.amount_paid or 0) + paid
                     if existing_invoice.total_amount is not None:
@@ -3718,9 +3765,9 @@ def admin_upload_commit(interface):
                     updated += 1
                     continue
                 invoice = Invoice(
-                    invoice_number=row.get('invoice_number') or f"INV-{Invoice.query.count() + created + 1:06d}",
+                    invoice_number=invoice_number or f"INV-{Invoice.query.count() + created + 1:06d}",
                     sales_order_id=sales_order.id if sales_order else None,
-                    invoice_type='ADMIN UPLOAD' if is_admin_upload else invoice_type,
+                    invoice_type=invoice_type,
                     invoice_date=parse_date_value(row.get('invoice_date')),
                     summary=row.get('summary') or ('Admin Upload' if is_admin_upload else None),
                     payment_type='Admin Upload' if is_admin_upload else row.get('payment_type'),
@@ -3834,9 +3881,15 @@ def create_sales_order():
             return jsonify({'success': False, 'error': 'Order date is required'}), 400
 
         valid_items = []
-        for item in data.get('items') or []:
+        for item_index, item in enumerate(data.get('items') or [], start=1):
             particular = clean_text(item.get('particular', ''), keep_period=True, keep_ampersand=True).upper()
-            quantity = parse_amount(item.get('quantity') or item.get('qty'))
+            try:
+                quantity = parse_positive_whole_quantity(
+                    item.get('quantity') or item.get('qty'),
+                    f'Item {item_index} quantity'
+                )
+            except ValueError as quantity_error:
+                return jsonify({'success': False, 'error': str(quantity_error)}), 400
             unit_cost = parse_amount(item.get('unit_cost') or item.get('cost'))
             selling_price = parse_amount(item.get('selling_price') or item.get('item_price') or item.get('price'))
             calculated_total = selling_price * quantity
@@ -4040,8 +4093,21 @@ def get_invoices():
             Client, SalesOrder.client_id == Client.id
             , isouter=True
         )
-        if invoice_type in {'SALES', 'SERVICE'}:
-            invoice_query = invoice_query.filter(Invoice.invoice_type == invoice_type)
+        normalized_number = func.upper(func.trim(Invoice.invoice_number))
+        known_prefix = or_(
+            normalized_number.like('SI-%'),
+            normalized_number.like('SVI-%'),
+        )
+        if invoice_type == 'SALES':
+            invoice_query = invoice_query.filter(or_(
+                normalized_number.like('SI-%'),
+                and_(~known_prefix, func.upper(Invoice.invoice_type) == 'SALES'),
+            ))
+        elif invoice_type == 'SERVICE':
+            invoice_query = invoice_query.filter(or_(
+                normalized_number.like('SVI-%'),
+                and_(~known_prefix, func.upper(Invoice.invoice_type) == 'SERVICE'),
+            ))
 
         invoice_count = invoice_query.count()
         invoices_list = (
@@ -4061,10 +4127,10 @@ def get_invoices():
             'invoices': [
                 {
                     'id': inv.id,
-                    'invoice_number': inv.invoice_number,
+                    'invoice_number': clean_code(inv.invoice_number).upper(),
                     'sales_order_id': inv.sales_order_id,
                     'so_number': inv.so_number,
-                    'invoice_type': inv.invoice_type,
+                    'invoice_type': canonical_invoice_type(inv.invoice_number, inv.invoice_type),
                     'client_name': inv.client_name or inv.uploaded_client_name or 'Admin Upload',
                     'invoice_date': inv.invoice_date.isoformat() if inv.invoice_date else None,
                     'total_amount': inv.total_amount,
@@ -4152,7 +4218,7 @@ def get_sales_order_details(so_id):
 @role_required(*ACCOUNTING_ROLES)
 def generate_invoice_number():
     try:
-        invoice_type = request.args.get('type', 'SALES')
+        invoice_type = clean_code(request.args.get('type', 'SALES')).upper()
         prefix = 'SVI-' if invoice_type == 'SERVICE' else 'SI-'
         
         last_invoice = Invoice.query.filter(
@@ -4182,8 +4248,8 @@ def create_invoice():
         data = request.get_json(silent=True) or {}
         warnings = future_date_warnings({'Invoice date': data.get('invoice_date')})
 
-        invoice_number = clean_code(data.get('invoice_number'))
-        invoice_type = clean_code(data.get('invoice_type')).upper()
+        invoice_number = clean_code(data.get('invoice_number')).upper()
+        invoice_type = canonical_invoice_type(invoice_number, data.get('invoice_type'))
         invoice_date = parse_date_value(data.get('invoice_date'), default_today=False)
         if not invoice_number:
             return jsonify({'success': False, 'error': 'Invoice number is required'}), 400
@@ -4716,7 +4782,7 @@ def get_client_basket():
                     'so_number': item.so_number,
                     'order_date': item.order_date.isoformat() if item.order_date else None,
                     'particular': item.particular,
-                    'quantity': item.quantity,
+                    'quantity': int(item.quantity or 0),
                     'selling_price': item.selling_price,
                     'total': item.total
                 } for item in basket_items
@@ -4765,8 +4831,8 @@ def get_invoices_admin():
             'invoices': [
                 {
                     'id': inv.id,
-                    'invoice_number': inv.invoice_number,
-                    'invoice_type': inv.invoice_type,
+                    'invoice_number': clean_code(inv.invoice_number).upper(),
+                    'invoice_type': canonical_invoice_type(inv.invoice_number, inv.invoice_type),
                     'client_name': inv.client_name or inv.uploaded_client_name or 'Admin Upload',
                     'invoice_date': inv.invoice_date.isoformat() if inv.invoice_date else None,
                     'total_amount': inv.total_amount,
@@ -5607,7 +5673,7 @@ def build_historical_upload_eda(rows, validated_records, validation_errors, dupl
         )
     numeric_values = {
         "cost": [float(record.get("cost") or 0) for record in validated_records],
-        "quantity": [float(record.get("qty") or 0) for record in validated_records],
+        "quantity": [int(record.get("qty") or 0) for record in validated_records],
         "selling_price": [float(record.get("selling_price") or 0) for record in validated_records],
         "total_sales": [float(record.get("total_sales") or 0) for record in validated_records],
     }

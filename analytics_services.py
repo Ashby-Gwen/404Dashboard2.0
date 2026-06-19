@@ -515,7 +515,7 @@ def _top_items(db: Any, SalesOrderItem: Any) -> list[dict[str, Any]]:
     return [
         {
             "item": row.particular,
-            "quantity_sold": numeric(row.quantity_sold),
+            "quantity_sold": int(row.quantity_sold or 0),
             "sales_total": numeric(row.sales_total, 2),
             "avg_unit_cost": numeric(row.avg_unit_cost, 2),
         }
@@ -543,7 +543,7 @@ def _demand_predictions(db: Any, SalesOrderItem: Any) -> list[dict[str, Any]]:
         predictions.append(
             {
                 "item": row.particular,
-                "predicted_next_month_qty": numeric(monthly_quantity * 1.15, 2),
+                "predicted_next_month_qty": max(int(round(monthly_quantity * 1.15)), 0),
                 "confidence": confidence,
                 "avg_unit_cost": numeric(row.avg_unit_cost, 2),
             }
@@ -889,7 +889,7 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             item_margin = (item_profit / item_sales * 100) if item_sales > 0 else 0
             item_metrics.append({
                 "item": item_name,
-                "quantity": round(float(item["quantity"] or 0), 2),
+                "quantity": int(item["quantity"] or 0),
                 "sales_order_value": round(item_sales, 2),
                 "cost": round(item_cost, 2),
                 "gross_profit": round(item_profit, 2),
@@ -1111,7 +1111,7 @@ def get_sales_kpis(db: Any, models: dict[str, Any], start_date: Any = None, end_
     
     return {
         "top_3_clients": [{"name": row.client_name, "amount": round(float(row.total or 0), 2)} for row in top_clients],
-        "top_3_items": [{"item": row.particular, "quantity": float(row.qty or 0)} for row in top_items],
+        "top_3_items": [{"item": row.particular, "quantity": int(row.qty or 0)} for row in top_items],
         "total_sales": total_sales
     }
 
@@ -1171,7 +1171,7 @@ def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_d
         .all()
     )
     monthly_trend = [
-        {"period": row.month, "revenue": numeric(row.revenue, 2), "quantity": numeric(row.quantity, 2)}
+        {"period": row.month, "revenue": numeric(row.revenue, 2), "quantity": int(row.quantity or 0)}
         for row in monthly_rows if row.month
     ]
     item_query = (
@@ -1189,7 +1189,7 @@ def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_d
         .all()
     )
     product_distribution = [
-        {"item": row.particular, "quantity": numeric(row.quantity, 2), "revenue": numeric(row.revenue, 2)}
+        {"item": row.particular, "quantity": int(row.quantity or 0), "revenue": numeric(row.revenue, 2)}
         for row in item_rows
     ]
     weekday_number = db_weekday(db, SalesOrder.order_date).label('weekday')
@@ -1417,11 +1417,12 @@ def get_sales_forecast(
             method = "fallback_average"
         accepted = backtest["mape"] is not None and backtest["mape"] <= float(mape_threshold)
         confidence = "High" if accepted else "Needs Review" if backtest["mape"] is not None else "Insufficient Data"
+        forecast_quantity = max(int(round(float(predicted_qty or 0))), 0)
         forecast_data.append({
             "item": item.particular,
-            "predicted_qty": round(float(predicted_qty or 0), 2),
-            "predicted_revenue": round(predicted_qty * avg_price, 2),
-            "predicted_profit": round(predicted_qty * (avg_price - avg_cost), 2),
+            "predicted_qty": forecast_quantity,
+            "predicted_revenue": round(forecast_quantity * avg_price, 2),
+            "predicted_profit": round(forecast_quantity * (avg_price - avg_cost), 2),
             "confidence": confidence,
             "method": method,
             "mape": backtest["mape"],
