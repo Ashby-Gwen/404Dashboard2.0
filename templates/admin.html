@@ -456,7 +456,7 @@
             <summary>Advanced technical tools</summary>
             <div class="admin-advanced-content">
                 <p class="text-muted">For trained administrators only. Review backups and deployment guidance before running maintenance or SQL operations.</p>
-                <div class="d-flex flex-wrap gap-2" role="group" aria-label="Advanced admin sections">
+                <div class="d-flex flex-wrap gap-2" role="tablist" aria-label="Advanced admin sections">
                     <button class="btn btn-outline-secondary" id="maintenanceTab" role="tab"
                         aria-controls="maintenancePane" aria-selected="false" data-bs-toggle="tab"
                         data-bs-target="#maintenancePane" type="button" onclick="loadHealth()">Database Maintenance</button>
@@ -1296,7 +1296,7 @@
                 if (!data.success) return showToast(data.error, 'error');
                 showToast(data.message, 'success');
                 loadHealth();
-            });
+            }).catch(error => showToast(error.message || 'Database maintenance failed.', 'error'));
         }
 
         function loadSchema() {
@@ -1321,7 +1321,7 @@
             }).then(r => r.json()).then(data => {
                 if (!data.success) return showToast(data.error, 'error');
                 renderSqlResult(data.result);
-            });
+            }).catch(error => showToast(error.message || 'SQL request failed.', 'error'));
         }
 
         function renderSqlResult(result) {
