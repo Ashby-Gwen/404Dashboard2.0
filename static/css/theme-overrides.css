@@ -116,6 +116,53 @@ button,
     border-radius: 6px !important;
 }
 
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+    min-height: 44px !important;
+    padding: 0.7rem 0.85rem !important;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    width: 20px !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    margin: 0 !important;
+    accent-color: var(--orange);
+}
+
+.btn,
+button:not(.recommendation-card),
+.filter-btn,
+.view-toggle button {
+    min-height: 44px !important;
+}
+
+.btn-sm,
+button.btn-sm {
+    min-height: 38px !important;
+}
+
+.checkbox-group {
+    min-height: 44px !important;
+    align-items: center !important;
+    gap: 12px !important;
+}
+
+@media (max-width: 760px) {
+    .card,
+    .report-card,
+    .form-card,
+    .form-section,
+    .table-card,
+    .profile-card,
+    .admin-card,
+    .analytics-section .card {
+        padding: 16px !important;
+    }
+}
+
 nav,
 nav.app-navbar,
 body > nav {

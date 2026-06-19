@@ -70,18 +70,138 @@
         }
 
         .recommendation-card {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
             text-align: left;
             width: 100%;
             border: 1px solid var(--border-color);
             border-left: 4px solid #F59E0B;
-            border-radius: var(--radius-md);
-            padding: 1rem;
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
             background: var(--bg-card, #fff);
             cursor: pointer;
+            min-height: 100%;
+            transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
         }
 
         .recommendation-card:hover {
             border-color: var(--brand-orange);
+            transform: translateY(-2px);
+        }
+
+        .recommendation-intro {
+            margin-bottom: 1.25rem;
+        }
+
+        .recommendation-intro h3,
+        .recommendation-intro p {
+            margin-top: 0;
+        }
+
+        .recommendation-intro p:last-child {
+            margin-bottom: 0;
+        }
+
+        .recommendation-system-notice {
+            margin-bottom: 1.25rem;
+            padding: 1.25rem;
+            border-color: #F59E0B !important;
+        }
+
+        .recommendation-system-notice .recommendation-card {
+            min-height: auto;
+            margin-top: 0.75rem;
+        }
+
+        .recommendation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+            gap: 1rem;
+            align-items: stretch;
+        }
+
+        .recommendation-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+
+        .recommendation-store-name {
+            color: var(--text-main);
+            font-size: 1rem;
+            line-height: 1.35;
+        }
+
+        .recommendation-severity {
+            flex: 0 0 auto;
+            width: 10px;
+            height: 10px;
+            margin-top: 0.28rem;
+            border-radius: 999px;
+            background: currentColor;
+        }
+
+        .recommendation-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+
+        .recommendation-metric {
+            min-width: 0;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--bg-canvas);
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            line-height: 1.35;
+        }
+
+        .recommendation-metric strong {
+            display: block;
+            margin-top: 0.2rem;
+            overflow-wrap: anywhere;
+            color: var(--text-main);
+            font-size: 0.92rem;
+        }
+
+        .recommendation-evidence {
+            display: grid;
+            gap: 0.5rem;
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.86rem;
+            line-height: 1.5;
+        }
+
+        .recommendation-action {
+            margin: auto 0 0;
+            padding-top: 0.85rem;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-main);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .recommendation-link {
+            display: inline-flex;
+            align-items: center;
+            min-height: 32px;
+            color: var(--brand-orange);
+            font-weight: 750;
+        }
+
+        @media (max-width: 560px) {
+            .recommendation-card {
+                padding: 1rem;
+            }
+
+            .recommendation-metrics {
+                grid-template-columns: 1fr;
+            }
         }
 
         .recommendation-modal-backdrop {
@@ -1576,38 +1696,43 @@
             updateRecommendationBadge('recommendations');
             return `
                 <div class="analytics-section recommendations">
-                    <div class="card" style="margin-bottom:1.5rem;">
+                    <div class="card recommendation-intro">
                         <h3>Per-Store Recommendations</h3>
                         <p style="color:var(--text-muted); font-size:0.95rem;">Each store receives one consolidated “What can I do?” result. Item performance appears only as evidence inside its store, so the page does not produce a long global item-recommendation list.</p>
                         <p style="color:var(--text-muted); font-size:0.82rem; margin-bottom:0;">Rules: high Sales Order value ≥ ${formatCurrency(thresholds.high_sales_value || 0)}; low activity ≤ ${Number(thresholds.low_activity_order_count || 0).toFixed(2)} orders; low margin &lt; ${thresholds.low_margin_percent || 15}%; high margin ≥ ${thresholds.high_margin_percent || 30}%.</p>
                     </div>
                     ${systemWarnings.length ? `
-                        <div class="surface-panel" style="margin-bottom:1.5rem; padding:1rem; border-color:#F59E0B !important;">
+                        <div class="surface-panel recommendation-system-notice">
                             <strong>System Notice</strong>
                             ${systemWarnings.map((warning, warningIndex) => `
-                                <button type="button" class="recommendation-card" style="display:block; width:100%; margin-top:0.75rem; border-left-color:${recommendationColor(warning)};" onclick="openRecommendationDetails(${storeRecommendations.length + warningIndex})">
-                                    <strong>${escapeHtml(warning.title)}</strong>
-                                    <p style="margin:0.35rem 0 0; color:var(--text-muted);">${escapeHtml(warning.reason)}</p>
+                                <button type="button" class="recommendation-card" style="border-left-color:${recommendationColor(warning)};" onclick="openRecommendationDetails(${storeRecommendations.length + warningIndex})">
+                                    <span class="recommendation-card-header">
+                                        <strong class="recommendation-store-name">${escapeHtml(warning.title)}</strong>
+                                    </span>
+                                    <span class="recommendation-evidence">${escapeHtml(warning.reason)}</span>
                                 </button>
                             `).join('')}
                         </div>
                     ` : ''}
-                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;">
+                    <div class="recommendation-grid">
                         ${storeRecommendations.map((rec, index) => {
                             const metrics = rec.store_metrics || {};
                             const topItem = metrics.top_item || {};
                             return `
                             <button type="button" class="recommendation-card" style="border-left-color:${recommendationColor(rec)};" onclick="openRecommendationDetails(${index})">
-                                <strong>${escapeHtml(rec.store_name || rec.title)}</strong>
-                                <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.45rem; margin-top:0.75rem; text-align:left; font-size:0.82rem; color:var(--text-muted);">
-                                    <span>SO Value<br><b style="color:var(--text-main);">${formatCurrency(metrics.sales_order_value || 0)}</b></span>
-                                    <span>Gross Profit<br><b style="color:var(--text-main);">${metrics.cost_data_status === 'complete' ? formatCurrency(metrics.gross_profit || 0) : 'Needs cost data'}</b></span>
-                                    <span>Margin<br><b style="color:var(--text-main);">${metrics.cost_data_status === 'complete' ? Number(metrics.profit_margin || 0).toFixed(2) + '%' : 'Unavailable'}</b></span>
-                                    <span>Orders / Branches<br><b style="color:var(--text-main);">${Number(metrics.order_count || 0)} / ${Number(metrics.branches_count || 0)}</b></span>
-                                </div>
-                                <p style="margin:0.75rem 0 0; color:var(--text-muted); font-size:0.85rem; text-align:left;"><b>Top item:</b> ${escapeHtml(topItem.item || 'No item data')}</p>
-                                <p style="margin:0.45rem 0 0; color:var(--text-muted); font-size:0.88rem; text-align:left;">${escapeHtml((rec.actions || [rec.suggested_action])[0] || '')}</p>
-                                <span style="display:inline-block; margin-top:0.75rem; color:var(--brand-orange); font-weight:700;">View Details</span>
+                                <span class="recommendation-card-header">
+                                    <strong class="recommendation-store-name">${escapeHtml(rec.store_name || rec.title)}</strong>
+                                    <span class="recommendation-severity" style="color:${recommendationColor(rec)};" aria-hidden="true"></span>
+                                </span>
+                                <span class="recommendation-metrics">
+                                    <span class="recommendation-metric">SO Value<strong>${formatCurrency(metrics.sales_order_value || 0)}</strong></span>
+                                    <span class="recommendation-metric">Gross Profit<strong>${metrics.cost_data_status === 'complete' ? formatCurrency(metrics.gross_profit || 0) : 'Needs cost data'}</strong></span>
+                                    <span class="recommendation-metric">Margin<strong>${metrics.cost_data_status === 'complete' ? Number(metrics.profit_margin || 0).toFixed(2) + '%' : 'Unavailable'}</strong></span>
+                                    <span class="recommendation-metric">Orders / Branches<strong>${Number(metrics.order_count || 0)} / ${Number(metrics.branches_count || 0)}</strong></span>
+                                </span>
+                                <span class="recommendation-evidence"><b>Top item:</b> ${escapeHtml(topItem.item || 'No item data')}</span>
+                                <span class="recommendation-action">${escapeHtml((rec.actions || [rec.suggested_action])[0] || '')}</span>
+                                <span class="recommendation-link">View details →</span>
                             </button>
                         `}).join('') || '<p style="color: var(--text-muted);">No store recommendations are available for this period.</p>'}
                     </div>
