@@ -1445,6 +1445,54 @@ def sales_order_row_payload(row):
         'created_at': row.created_at.isoformat() if row.created_at else None,
     }
 
+def resolve_uploaded_invoice_client(uploaded_client_name, registry=None):
+    candidate = clean_text(
+        uploaded_client_name,
+        keep_period=True,
+        keep_ampersand=True
+    ).upper()
+    if not candidate:
+        return None
+    registry = registry or build_client_registry()
+    exact_entry = registry['lookup'].get(normalize_client_match_key(candidate))
+    if exact_entry:
+        return db.session.get(Client, exact_entry['client_id'])
+    fuzzy_match = find_client_match(candidate, registry)
+    if (
+        fuzzy_match
+        and float(fuzzy_match.get('match_percent') or 0) >= CLIENT_REVIEW_MATCH_PERCENT
+        and not is_client_fuzzy_exception(candidate, fuzzy_match.get('client_name'))
+    ):
+        return db.session.get(Client, fuzzy_match['client_id'])
+    return None
+
+def match_sales_order_for_uploaded_invoice(uploaded_client_name, so_number=None, registry=None):
+    normalized_so_number = clean_code(so_number)
+    if normalized_so_number:
+        exact_order = SalesOrder.query.filter(
+            func.lower(SalesOrder.so_number) == normalized_so_number.lower()
+        ).first()
+        if exact_order:
+            return exact_order
+
+    client = resolve_uploaded_invoice_client(uploaded_client_name, registry)
+    if not client:
+        return None
+
+    outstanding_orders = []
+    orders = (
+        SalesOrder.query
+        .options(selectinload(SalesOrder.items), selectinload(SalesOrder.invoices))
+        .filter(SalesOrder.client_id == client.id)
+        .order_by(SalesOrder.order_date.desc(), SalesOrder.id.desc())
+        .all()
+    )
+    for order in orders:
+        paid = sum(float(invoice.amount_paid or 0) for invoice in order.invoices)
+        if sales_order_total(order) - paid > MONEY_TOLERANCE:
+            outstanding_orders.append(order)
+    return outstanding_orders[0] if len(outstanding_orders) == 1 else None
+
 
 def sales_order_admin_payload(order):
     line_total = sum(float(item.total or 0) for item in getattr(order, 'items', []) or [])
@@ -2164,10 +2212,20 @@ def normalize_purchase_order_debits(lower):
 def normalize_upload_row(interface, row):
     lower = {normalize_upload_header(k): v for k, v in row.items()}
     if interface == 'sales_order':
+        uploaded_client_name = (
+            lower.get('uploaded_client_name')
+            or lower.get('client_name')
+            or lower.get('company_name')
+            or lower.get('company')
+        )
         return {
             'so_number': clean_text(lower.get('so_number') or lower.get('s.o_no') or lower.get('order_number')),
-            'client_name': clean_text(lower.get('client_name') or lower.get('company_name') or lower.get('company'), keep_period=True),
-            'company_name': clean_text(lower.get('company_name') or lower.get('company'), keep_period=True),
+            'client_name': clean_text(uploaded_client_name, keep_period=True, keep_ampersand=True),
+            'company_name': clean_text(
+                lower.get('company_name') or lower.get('company') or uploaded_client_name,
+                keep_period=True,
+                keep_ampersand=True
+            ),
             'store_name': clean_text(lower.get('store_name') or lower.get('store')),
             'store_branch': clean_text(lower.get('store_branch') or lower.get('branch')),
             'order_date': parse_date_value(lower.get('order_date') or lower.get('date')).isoformat(),
@@ -2217,7 +2275,11 @@ def normalize_upload_row(interface, row):
             'debits': debits,
         }
     uploaded_client_name = clean_text(
-        lower.get('client') or lower.get('client_name') or lower.get('company_name') or lower.get('company'),
+        lower.get('uploaded_client_name')
+        or lower.get('client')
+        or lower.get('client_name')
+        or lower.get('company_name')
+        or lower.get('company'),
         keep_period=True,
         keep_ampersand=True
     )
@@ -3507,6 +3569,7 @@ def admin_upload_commit(interface):
 
         created = 0
         updated = 0
+        client_registry = build_client_registry() if interface == 'invoice' else None
         upload_warning_fields = []
         for index, row in enumerate(rows, start=1):
             if interface == 'sales_order':
@@ -3613,13 +3676,24 @@ def admin_upload_commit(interface):
                         amount=debit['amount'],
                     ))
             elif interface == 'invoice':
-                sales_order = SalesOrder.query.filter_by(so_number=row.get('so_number')).first()
+                uploaded_client_name = clean_text(
+                    row.get('uploaded_client_name'),
+                    keep_period=True,
+                    keep_ampersand=True
+                ).upper()
+                sales_order = match_sales_order_for_uploaded_invoice(
+                    uploaded_client_name,
+                    row.get('so_number'),
+                    client_registry,
+                )
                 total = float(row.get('total_amount') or 0) if row.get('total_amount') not in (None, '') else (float(sales_order.total_amount or 0) if sales_order else None)
                 paid = float(row.get('amount_paid') or row.get('payment_amount') or 0)
-                uploaded_client_name = clean_text(row.get('uploaded_client_name'), keep_period=True, keep_ampersand=True).upper()
                 if not sales_order and not uploaded_client_name:
                     continue
                 is_admin_upload = sales_order is None
+                invoice_type = row.get('invoice_type') or 'SALES'
+                if sales_order and str(invoice_type).upper() == 'ADMIN UPLOAD':
+                    invoice_type = 'SALES'
                 existing_invoice = Invoice.query.filter_by(invoice_number=row.get('invoice_number')).first() if row.get('invoice_number') else None
                 if existing_invoice:
                     existing_invoice.payment_amount = float(existing_invoice.payment_amount or 0) + float(row.get('payment_amount') or paid)
@@ -3627,18 +3701,26 @@ def admin_upload_commit(interface):
                     if existing_invoice.total_amount is not None:
                         existing_invoice.balance = max((existing_invoice.total_amount or 0) - (existing_invoice.amount_paid or 0), 0)
                     if existing_invoice.sales_order_id is None:
-                        existing_invoice.status = 'Admin Upload'
-                        existing_invoice.uploaded_client_name = existing_invoice.uploaded_client_name or uploaded_client_name or None
-                        existing_invoice.upload_source = existing_invoice.upload_source or 'admin_upload'
-                        existing_invoice.admin_upload_note = existing_invoice.admin_upload_note or 'Admin Upload'
+                        if sales_order:
+                            existing_invoice.sales_order = sales_order
+                            existing_invoice.uploaded_client_name = uploaded_client_name or existing_invoice.uploaded_client_name
+                            existing_invoice.upload_source = existing_invoice.upload_source or 'admin_upload'
+                            existing_invoice.admin_upload_note = existing_invoice.admin_upload_note or 'Matched using Uploaded Client Name'
+                        else:
+                            existing_invoice.status = 'Admin Upload'
+                            existing_invoice.uploaded_client_name = existing_invoice.uploaded_client_name or uploaded_client_name or None
+                            existing_invoice.upload_source = existing_invoice.upload_source or 'admin_upload'
+                            existing_invoice.admin_upload_note = existing_invoice.admin_upload_note or 'Admin Upload'
                     elif existing_invoice.total_amount is not None and existing_invoice.amount_paid >= existing_invoice.total_amount and existing_invoice.total_amount > 0:
                         existing_invoice.status = 'PAID'
+                    if sales_order:
+                        synchronize_sales_order_payment_state(sales_order)
                     updated += 1
                     continue
-                db.session.add(Invoice(
+                invoice = Invoice(
                     invoice_number=row.get('invoice_number') or f"INV-{Invoice.query.count() + created + 1:06d}",
                     sales_order_id=sales_order.id if sales_order else None,
-                    invoice_type='ADMIN UPLOAD' if is_admin_upload else (row.get('invoice_type') or 'SALES'),
+                    invoice_type='ADMIN UPLOAD' if is_admin_upload else invoice_type,
                     invoice_date=parse_date_value(row.get('invoice_date')),
                     summary=row.get('summary') or ('Admin Upload' if is_admin_upload else None),
                     payment_type='Admin Upload' if is_admin_upload else row.get('payment_type'),
@@ -3650,9 +3732,17 @@ def admin_upload_commit(interface):
                     balance=None if is_admin_upload and row.get('balance') in (None, '') else float(row.get('balance') if row.get('balance') not in (None, '') else max((total or 0) - paid, 0)),
                     status='Admin Upload' if is_admin_upload else (row.get('status') or ('PAID' if total is not None and paid >= total and total > 0 else 'UNPAID')),
                     uploaded_client_name=uploaded_client_name or None,
-                    upload_source='admin_upload' if is_admin_upload else None,
-                    admin_upload_note='Admin Upload' if is_admin_upload else None
-                ))
+                    upload_source='admin_upload' if uploaded_client_name else None,
+                    admin_upload_note=(
+                        'Admin Upload'
+                        if is_admin_upload
+                        else ('Matched using Uploaded Client Name' if uploaded_client_name and not row.get('so_number') else None)
+                    )
+                )
+                db.session.add(invoice)
+                db.session.flush()
+                if sales_order:
+                    synchronize_sales_order_payment_state(sales_order)
             if interface != 'purchase_order' or not is_update:
                 created += 1
         if interface in ('sales_order', 'invoice'):
