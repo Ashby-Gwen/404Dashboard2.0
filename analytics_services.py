@@ -723,17 +723,19 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
     today = datetime.now().date()
     order_ids = [order.id for order in orders]
     item_totals = {}
+    items_by_order = defaultdict(list)
     if order_ids:
         item_rows = (
-            db.session.query(
-                SalesOrderItem.sales_order_id,
-                func.coalesce(func.sum(SalesOrderItem.total), 0).label("line_total"),
-            )
+            db.session.query(SalesOrderItem)
             .filter(SalesOrderItem.sales_order_id.in_(order_ids))
-            .group_by(SalesOrderItem.sales_order_id)
             .all()
         )
-        item_totals = {row.sales_order_id: float(row.line_total or 0) for row in item_rows}
+        for item in item_rows:
+            items_by_order[item.sales_order_id].append(item)
+        item_totals = {
+            order_id: sum(float(item.total or 0) for item in order_items)
+            for order_id, order_items in items_by_order.items()
+        }
 
     invoice_paid_by_order = defaultdict(float)
     if order_ids:
@@ -775,6 +777,14 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
                 "total_order_amount": 0.0,
                 "total_paid": 0.0,
                 "latest_order_date": None,
+                "items": defaultdict(lambda: {
+                    "quantity": 0.0,
+                    "sales_order_value": 0.0,
+                    "cost": 0.0,
+                    "cost_data_complete": True,
+                }),
+                "monthly_sales": defaultdict(float),
+                "cost_data_complete": True,
             },
         )
         if len(store_name) < len(group["store_name"]):
@@ -792,6 +802,22 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
         group["order_count"] += 1
         group["total_order_amount"] += order_amount
         group["total_paid"] += float(invoice_paid_by_order[order.id] or 0)
+        if order.order_date:
+            group["monthly_sales"][order.order_date.strftime("%Y-%m")] += order_amount
+        for item in items_by_order.get(order.id, []):
+            item_name = _display_text(item.particular) or "Unspecified Item"
+            quantity = float(item.quantity or 0)
+            selling_price = float(item.selling_price or 0)
+            unit_cost = float(item.unit_cost or 0)
+            item_sales = float(item.total or 0) or quantity * selling_price
+            item_cost = quantity * unit_cost
+            item_data = group["items"][item_name]
+            item_data["quantity"] += quantity
+            item_data["sales_order_value"] += item_sales
+            item_data["cost"] += item_cost
+            if quantity <= 0 or selling_price <= 0 or unit_cost <= 0:
+                item_data["cost_data_complete"] = False
+                group["cost_data_complete"] = False
         if order.order_date and (
             group["latest_order_date"] is None
             or order.order_date > group["latest_order_date"]
@@ -803,6 +829,9 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
         group["average_order"] = group["total_order_amount"] / order_count if order_count else 0
         group["repeat_frequency"] = max(order_count - 1, 0)
         group["store_count"] = len(group["branches"])
+        group["total_cost"] = sum(float(item["cost"] or 0) for item in group["items"].values())
+        if not group["items"]:
+            group["cost_data_complete"] = False
 
     max_revenue = max([stats["total_order_amount"] for stats in store_groups.values()] or [0])
     max_order_count = max([stats["order_count"] for stats in store_groups.values()] or [0])
@@ -833,6 +862,9 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
         branches = len(branch_names)
         order_count = stats["order_count"]
         revenue = float(stats["total_order_amount"] or 0)
+        total_cost = float(stats["total_cost"] or 0)
+        gross_profit = revenue - total_cost
+        profit_margin = (gross_profit / revenue * 100) if revenue > 0 else 0
         total_paid = float(stats["total_paid"] or 0)
         balance = max(revenue - total_paid, 0)
         last_purchase = stats.get("latest_order_date")
@@ -849,6 +881,42 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             + clamp(branch_count_score, 20),
             2,
         )
+        item_metrics = []
+        for item_name, item in stats["items"].items():
+            item_sales = float(item["sales_order_value"] or 0)
+            item_cost = float(item["cost"] or 0)
+            item_profit = item_sales - item_cost
+            item_margin = (item_profit / item_sales * 100) if item_sales > 0 else 0
+            item_metrics.append({
+                "item": item_name,
+                "quantity": round(float(item["quantity"] or 0), 2),
+                "sales_order_value": round(item_sales, 2),
+                "cost": round(item_cost, 2),
+                "gross_profit": round(item_profit, 2),
+                "profit_margin": round(item_margin, 2),
+                "cost_data_complete": bool(item["cost_data_complete"]),
+            })
+        item_metrics.sort(key=lambda item: (-item["quantity"], -item["sales_order_value"], item["item"]))
+        top_item = item_metrics[0] if item_metrics else None
+        monthly_history = [
+            {"period": period, "sales_order_value": round(value, 2)}
+            for period, value in sorted(stats["monthly_sales"].items())
+        ]
+        current_month_key = today.strftime("%Y-%m")
+        complete_months = [
+            item for item in monthly_history
+            if item["period"] < current_month_key
+        ]
+        trend_status = "insufficient_history"
+        trend_change_percent = None
+        if len(complete_months) >= 3:
+            previous_value = float(complete_months[-2]["sales_order_value"] or 0)
+            current_value = float(complete_months[-1]["sales_order_value"] or 0)
+            if previous_value > 0:
+                trend_change_percent = round((current_value - previous_value) / previous_value * 100, 2)
+                trend_status = "declining" if trend_change_percent <= -10 else "stable_or_growing"
+            else:
+                trend_status = "not_comparable"
         cohort = cohort_for(client_performance_score)
         recommendations = []
         if cohort == "Low Order Activity":
@@ -872,6 +940,11 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             "client_ids": sorted(stats["client_ids"]),
             "branches_count": branches,
             "total_revenue": round(revenue, 2),
+            "sales_order_value": round(revenue, 2),
+            "total_cost": round(total_cost, 2),
+            "gross_profit": round(gross_profit, 2),
+            "profit_margin": round(profit_margin, 2),
+            "cost_data_status": "complete" if stats["cost_data_complete"] else "insufficient_cost_data",
             "total_paid": round(total_paid, 2),
             "balance": round(balance, 2),
             "balance_status": "Settled" if balance <= 0 else "Unsettled Balance",
@@ -882,6 +955,11 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             "order_count": order_count,
             "repeat_order_frequency": stats["repeat_frequency"],
             "average_order_value": round(float(stats["average_order"] or 0), 2),
+            "top_item": top_item,
+            "item_metrics": item_metrics,
+            "monthly_history": monthly_history,
+            "trend_status": trend_status,
+            "trend_change_percent": trend_change_percent,
             "score_breakdown": {
                 "total_sales_order_amount": amount_score,
                 "order_frequency": order_frequency_score,
@@ -1052,7 +1130,12 @@ def get_sales_analysis(db: Any, models: dict[str, Any], mape_threshold: float = 
         paid_revenue = _apply_date_bounds(db.session.query(func.sum(Invoice.amount_paid)).filter(Invoice.amount_paid > 0), Invoice.invoice_date, start_date, end_date).scalar() or 0
         total_expenses = _apply_date_bounds(db.session.query(func.sum(PurchaseOrder.cash_amount)), PurchaseOrder.date, start_date, end_date).scalar() or 0
         pondo = max(float(paid_revenue or 0) - float(total_expenses or 0), 0)
-    recommendations = build_rule_based_recommendations(forecast, descriptive, clients["clients"], pondo)
+    recommendation_payload = build_rule_based_recommendations(
+        forecast,
+        descriptive,
+        clients["clients"],
+        pondo,
+    )
     return {
         "kpis": get_sales_kpis(db, models, start_date, end_date),
         "history": get_sales_order_history(db, SalesOrder, Invoice, SalesOrderItem, start_date=start_date, end_date=end_date),
@@ -1060,9 +1143,13 @@ def get_sales_analysis(db: Any, models: dict[str, Any], mape_threshold: float = 
         "holt_winters": forecast["holt_winters"],
         "descriptive": descriptive,
         "predictive": forecast["predictive"],
-        "prescriptive": {"recommendations": recommendations},
+        "prescriptive": recommendation_payload,
         "forecast_accuracy": forecast["forecast_accuracy"],
-        "recommendations": recommendations,
+        "store_performance": clients["clients"],
+        "store_recommendations": recommendation_payload["store_recommendations"],
+        "system_warnings": recommendation_payload["system_warnings"],
+        "rule_thresholds": recommendation_payload["rule_thresholds"],
+        "recommendations": recommendation_payload["recommendations"],
     }
 
 
@@ -1421,109 +1508,151 @@ def build_rule_based_recommendations(
     descriptive: dict[str, Any],
     clients: list[dict[str, Any]],
     pondo: float,
-) -> list[dict[str, Any]]:
-    recommendations = []
-    for item in forecast.get("forecast", [])[:8]:
-        if item.get("accepted") and descriptive.get("trend_direction") == "increasing":
-            predicted_qty = item.get("predicted_qty")
-            recommendations.append({
-                "type": "procurement",
-                "severity": "success",
-                "title": f"Increase stock for {item['item']}",
-                "reason": f"Forecast passed MAPE threshold and predicts {item['predicted_qty']} units.",
-                "trigger_condition": "Sales trend is increasing and the item forecast passed the selected MAPE threshold.",
-                "data_used": [
-                    f"Item: {item['item']}",
-                    f"Predicted Quantity: {predicted_qty}",
-                    f"Predicted Revenue: {item.get('predicted_revenue')}",
-                    f"MAPE: {item.get('mape')}%",
-                ],
-                "calculation_process": f"Holt-Winters forecast predicted {predicted_qty} unit(s); MAPE {item.get('mape')}% is within the threshold.",
-                "result": f"{item['item']} is expected to need about {predicted_qty} unit(s).",
-                "business_interpretation": "Demand is moving upward and the forecast passed validation, so stock planning can be more confident.",
-                "suggested_action": "Review current inventory and prepare replenishment if available stock is below the forecasted demand.",
-            })
-        elif item.get("mape") is None:
-            recommendations.append({
-                "type": "forecast_review",
-                "severity": "warning",
-                "title": f"Review forecast for {item['item']}",
-                "reason": "Historical periods are insufficient for reliable Holt-Winters validation.",
-                "trigger_condition": "The item does not have enough historical periods for validation.",
-                "data_used": [
-                    f"Item: {item['item']}",
-                    f"Predicted Quantity: {item.get('predicted_qty')}",
-                    "MAPE: Insufficient data",
-                ],
-                "calculation_process": "The system used fallback averaging because validated Holt-Winters testing was not available.",
-                "result": "Forecast confidence is limited.",
-                "business_interpretation": "The item may still be important, but the system cannot strongly validate the forecast yet.",
-                "suggested_action": "Review recent orders manually before making a large procurement decision.",
-            })
-        elif not item.get("accepted"):
-            recommendations.append({
-                "type": "forecast_review",
-                "severity": "warning",
-                "title": f"Validate demand volatility for {item['item']}",
-                "reason": f"MAPE is {item['mape']}%, above the selected threshold.",
-                "trigger_condition": "Forecast validation error is above the selected MAPE threshold.",
-                "data_used": [
-                    f"Item: {item['item']}",
-                    f"MAPE: {item.get('mape')}%",
-                    f"Predicted Quantity: {item.get('predicted_qty')}",
-                ],
-                "calculation_process": f"MAPE {item.get('mape')}% was compared with the selected threshold and did not pass.",
-                "result": "The item forecast needs review before use.",
-                "business_interpretation": "Demand may be irregular, seasonal, or affected by one-time sales movement.",
-                "suggested_action": "Check recent customer orders and avoid overstocking until the pattern is clearer.",
-            })
-    for client in clients[:10]:
-        if client.get("cohort") == "Low Order Activity" and float(client.get("total_revenue") or 0) > 0:
-            store_name = client.get("store_name") or client.get("company_name")
-            recommendations.append({
-                "type": "client_ordering",
-                "severity": "warning",
-                "title": f"Rebuild ordering activity for {store_name}",
-                "reason": "Client has Sales Order history but currently ranks in the lowest ordering cohort.",
-                "trigger_condition": "Sales Order-based client value cohort is Low Order Activity.",
-                "data_used": [
-                    f"Store: {store_name}",
-                    f"Company: {client.get('company_name')}",
-                    f"Sales Order Amount: {client.get('total_revenue')}",
-                    f"Orders: {client.get('order_count')}",
-                    f"Cohort: {client.get('cohort')}",
-                ],
-                "calculation_process": "Client cohort classification used Sales Order amount, order count, recency, repeat frequency, and average order value.",
-                "result": f"{store_name} has low current Sales Order value.",
-                "business_interpretation": "Ordering activity may need follow-up before the account becomes inactive.",
-                "suggested_action": "Contact the client with a reorder prompt or targeted offer.",
-            })
-    if descriptive.get("trend_direction") == "declining":
-        months = descriptive.get("monthly_trend") or []
-        current = months[-1]["revenue"] if months else 0
-        previous = months[-2]["revenue"] if len(months) >= 2 else 0
-        change_pct = round(((current - previous) / previous * 100), 2) if previous else 0
-        recommendations.append({
-            "type": "sales_monitoring",
-            "severity": "danger",
-            "title": "Investigate declining sales",
-            "reason": "Latest revenue period is materially below the prior period.",
-            "trigger_condition": "Latest period revenue decreased by at least 10% versus the previous period.",
+) -> dict[str, Any]:
+    def percentile(values: list[float], percentile_value: float) -> float:
+        clean = sorted(float(value or 0) for value in values)
+        if not clean:
+            return 0.0
+        if len(clean) == 1:
+            return clean[0]
+        position = (len(clean) - 1) * percentile_value
+        lower = int(position)
+        upper = min(lower + 1, len(clean) - 1)
+        fraction = position - lower
+        return clean[lower] + (clean[upper] - clean[lower]) * fraction
+
+    sales_values = [float(client.get("sales_order_value") or client.get("total_revenue") or 0) for client in clients]
+    frequency_values = [float(client.get("order_count") or 0) for client in clients]
+    high_sales_threshold = round(percentile(sales_values, 0.75), 2)
+    low_activity_threshold = round(percentile(frequency_values, 0.25), 2)
+    thresholds = {
+        "high_sales_percentile": 75,
+        "high_sales_value": high_sales_threshold,
+        "low_activity_percentile": 25,
+        "low_activity_order_count": low_activity_threshold,
+        "low_margin_percent": 15,
+        "high_margin_percent": 30,
+        "decline_percent": -10,
+        "minimum_complete_months": 3,
+        "client_value_formula": {
+            "sales_order_value": 50,
+            "order_frequency": 30,
+            "branch_count": 20,
+        },
+    }
+
+    store_recommendations = []
+    for client in clients:
+        store_name = client.get("store_name") or client.get("company_name") or "Unspecified Store"
+        sales_value = float(client.get("sales_order_value") or client.get("total_revenue") or 0)
+        order_count = float(client.get("order_count") or 0)
+        margin = float(client.get("profit_margin") or 0)
+        cost_complete = client.get("cost_data_status") == "complete"
+        actions = []
+        rule_matches = []
+        severity = "success"
+
+        if cost_complete and sales_value >= high_sales_threshold and margin < 15:
+            actions.append("Review item pricing and supplier costs because strong Sales Order value is producing a low margin.")
+            rule_matches.append("high_sales_low_margin")
+            severity = "danger"
+        elif cost_complete and margin >= 30:
+            actions.append("Maintain the relationship and consider a store-specific loyalty or bundle offer.")
+            rule_matches.append("high_profit_store")
+
+        if order_count <= low_activity_threshold:
+            actions.append("Follow up with the store and offer a targeted reorder prompt or promotion.")
+            rule_matches.append("low_order_activity")
+            if severity != "danger":
+                severity = "warning"
+
+        if client.get("trend_status") == "declining":
+            actions.append("Review the store's recent demand and account activity because complete-month Sales Order value declined by at least 10%.")
+            rule_matches.append("declining_store_trend")
+            severity = "danger"
+        elif client.get("trend_status") == "insufficient_history":
+            actions.append("Collect at least three complete months of store activity before drawing a trend conclusion.")
+            rule_matches.append("insufficient_trend_history")
+            if severity == "success":
+                severity = "warning"
+
+        top_item = client.get("top_item")
+        if top_item and float(top_item.get("quantity") or 0) > 0:
+            actions.append(f"Use {top_item.get('item')} as the store's lead item for follow-up, bundles, or cross-selling.")
+            rule_matches.append("frequently_ordered_item")
+
+        item_metrics = client.get("item_metrics") or []
+        item_sales_values = sorted(float(item.get("sales_order_value") or 0) for item in item_metrics)
+        median_item_sales = percentile(item_sales_values, 0.50)
+        high_cost_low_sales = [
+            item for item in item_metrics
+            if item.get("cost_data_complete")
+            and float(item.get("sales_order_value") or 0) <= median_item_sales
+            and float(item.get("sales_order_value") or 0) > 0
+            and float(item.get("cost") or 0) / float(item.get("sales_order_value") or 1) >= 0.75
+        ]
+        if high_cost_low_sales:
+            item_names = ", ".join(item.get("item") for item in high_cost_low_sales[:3])
+            actions.append(f"Review pricing or sourcing for {item_names}; these items have high cost relative to their store-level sales.")
+            rule_matches.append("high_cost_low_sales_items")
+            if severity == "success":
+                severity = "warning"
+
+        if not cost_complete:
+            actions.append("Complete missing or zero unit-cost data before using profit and margin results for decisions.")
+            rule_matches.append("insufficient_cost_data")
+            if severity == "success":
+                severity = "warning"
+
+        if not actions:
+            actions.append("Continue monitoring this store's Sales Order value, frequency, branch coverage, and item mix.")
+            rule_matches.append("monitor_store")
+
+        recommendation = {
+            "type": "store_performance",
+            "severity": severity,
+            "store_key": client.get("store_key"),
+            "store_name": store_name,
+            "company_name": client.get("company_name"),
+            "title": f"What can I do for {store_name}?",
+            "reason": f"{len(rule_matches)} store-specific rule(s) were evaluated from this store's Sales Orders.",
+            "trigger_condition": ", ".join(rule_matches),
             "data_used": [
-                f"Previous Period Sales: {previous}",
-                f"Current Period Sales: {current}",
+                f"Store: {store_name}",
+                f"Company: {client.get('company_name')}",
+                f"Sales Order Value: {round(sales_value, 2)}",
+                f"Total Cost: {client.get('total_cost')}",
+                f"Gross Profit: {client.get('gross_profit')}",
+                f"Profit Margin: {client.get('profit_margin')}%",
+                f"Orders: {client.get('order_count')}",
+                f"Branches: {client.get('branches_count')}",
+                f"Top Item: {(top_item or {}).get('item') or 'None'}",
             ],
-            "calculation_process": f"(({current} - {previous}) / {previous}) x 100 = {change_pct}%" if previous else "Previous period sales were not available for percentage comparison.",
-            "result": f"Sales changed by {change_pct}%.",
-            "business_interpretation": "A sales decline can point to lower demand, delayed orders, or client inactivity.",
-            "suggested_action": "Review customer engagement, large account activity, and recent order pipeline.",
-        })
+            "calculation_process": "The store was compared with the selected dataset's 75th-percentile Sales Order value and 25th-percentile order frequency. Margin rules use 15% and 30%; decline rules use the latest two complete months after at least three complete months of history.",
+            "result": f"{store_name} generated {round(sales_value, 2)} in Sales Order value across {int(order_count)} order(s).",
+            "business_interpretation": "Item performance is used as evidence inside the store result; no global item recommendation is generated.",
+            "suggested_action": " ".join(actions),
+            "actions": actions,
+            "rule_matches": rule_matches,
+            "store_metrics": client,
+        }
+        store_recommendations.append(recommendation)
+
+    store_recommendations.sort(
+        key=lambda item: (
+            {"danger": 0, "warning": 1, "success": 2}.get(item["severity"], 3),
+            -float(item["store_metrics"].get("sales_order_value") or 0),
+            item["store_name"],
+        )
+    )
+
+    system_warnings = []
     if pondo <= 0:
-        recommendations.append({
+        system_warnings.append({
             "type": "budget",
             "severity": "warning",
             "title": "Pondo exhausted",
-            "reason": "Procurement recommendations should wait for additional collections.",
+            "reason": "Available operating funds are zero or below.",
             "trigger_condition": "Available pondo is zero or below.",
             "data_used": [f"Available Pondo: {pondo}"],
             "calculation_process": f"Available pondo {pondo} <= 0.",
@@ -1531,9 +1660,16 @@ def build_rule_based_recommendations(
             "business_interpretation": "Purchasing without available funds can pressure cash flow.",
             "suggested_action": "Prioritize collections or budget replenishment before approving new purchases.",
         })
-    for index, recommendation in enumerate(recommendations, start=1):
-        recommendation["id"] = f"rec-{index}"
-    return recommendations[:12]
+    for index, recommendation in enumerate(store_recommendations, start=1):
+        recommendation["id"] = f"store-rec-{index}"
+    for index, warning in enumerate(system_warnings, start=1):
+        warning["id"] = f"system-warning-{index}"
+    return {
+        "store_recommendations": store_recommendations,
+        "system_warnings": system_warnings,
+        "rule_thresholds": thresholds,
+        "recommendations": store_recommendations + system_warnings,
+    }
 
 
 def get_comparative_analysis(db: Any, Invoice: Any, year1: int, year2: int) -> dict[str, Any]:

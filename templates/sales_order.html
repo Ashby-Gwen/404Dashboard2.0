@@ -118,10 +118,50 @@
             gap: 1.5rem;
         }
 
-        @media (min-width: 1024px) {
-            .mapper-container {
-                grid-template-columns: 5fr 7fr;
-            }
+        .sales-workflow-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+            margin-bottom: 1rem;
+            padding: 0.4rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            background: var(--bg-surface);
+        }
+
+        .sales-workflow-tab {
+            border: 0;
+            border-radius: var(--radius-md);
+            padding: 0.7rem 1rem;
+            background: transparent;
+            color: var(--text-muted);
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .sales-workflow-tab.active {
+            background: var(--brand-orange);
+            color: white;
+        }
+
+        .sales-workflow-pane[hidden] {
+            display: none;
+        }
+
+        .workflow-manual-grid {
+            max-width: 920px;
+        }
+
+        .workflow-upload-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .upload-workflow-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            margin-bottom: 1rem;
         }
 
         .excel-panel {
@@ -531,32 +571,25 @@
         <div class="section-header">
             <div class="page-title">
                 <h1>Sales Order Entry</h1>
-            </div>
-            <div style="display: flex; gap: 0.75rem;">
-                <input type="file" id="fileInput" class="hidden" accept=".xlsx, .xls, .csv" multiple>
-                <button onclick="document.getElementById('fileInput').click()" class="btn btn-primary">
-                    <i data-lucide="upload" style="width: 18px; height: 18px;"></i>
-                    Upload Files
-                </button>
+                <p style="margin:0.25rem 0 0; color:var(--text-muted);">Choose manual entry for one order or Excel upload for spreadsheet mapping and batch processing.</p>
             </div>
         </div>
 
-        {% if session.role == 'admin' %}
-        <div class="card" style="margin-bottom: 1.5rem;">
-            <h2>Admin Upload, Cleaning, Outlier Identifier, Excel Mapping</h2>
-            <p style="color: var(--text-muted); margin-top: 0.25rem;">Step 1 select sales staff and upload Excel files. Step 2 run the same Excel mapping used by the regular mapper across every workbook. Step 3 review Z-score outliers (amount & date). Step 4 remove flagged orders or upload to database.
-            </p>
-            <input type="file" id="adminUploadFiles" accept=".xlsx,.xls" multiple>
-            <button class="btn btn-primary btn-sm" onclick="previewAdminUpload()">Preview Mapped Orders</button>
-            <button class="btn btn-outline btn-sm" onclick="commitAdminUpload()">Upload Mapped Orders</button>
-            <div id="adminUploadDocs" style="margin-top: 1rem; color: var(--text-muted);"></div>
-            <div id="adminUploadOutliers" style="margin-top: 1rem;"></div>
-            <div id="adminClientReviewQueue"></div>
-            <div id="adminUploadPreview" class="table-wrap"></div>
+        <div class="sales-workflow-tabs" role="tablist" aria-label="Sales Order workflows">
+            <button type="button" id="manualWorkflowTab" class="sales-workflow-tab active" role="tab"
+                aria-selected="true" aria-controls="manualWorkflowPane"
+                onclick="showSalesOrderWorkflowTab('manual')">
+                Manual Entry
+            </button>
+            <button type="button" id="excelWorkflowTab" class="sales-workflow-tab" role="tab"
+                aria-selected="false" aria-controls="excelWorkflowPane"
+                onclick="showSalesOrderWorkflowTab('excel')">
+                Excel Upload
+            </button>
         </div>
-        {% endif %}
 
-        <div class="mapper-container">
+        <section id="manualWorkflowPane" class="sales-workflow-pane" role="tabpanel" aria-labelledby="manualWorkflowTab">
+        <div class="mapper-container workflow-manual-grid">
             <!-- Left Panel: Form Entry -->
             <div class="form-section" style="height: fit-content;">
                 <div class="section-header-row">
@@ -713,7 +746,42 @@
                 </button>
                 <div id="manualSaveState" class="save-state"></div>
             </div>
+        </div>
+        </section>
 
+        <section id="excelWorkflowPane" class="sales-workflow-pane" role="tabpanel" aria-labelledby="excelWorkflowTab" hidden>
+            <div class="card" style="margin-bottom:1rem;">
+                <h2 style="margin-bottom:0.35rem;">Excel Mapping</h2>
+                <p style="color:var(--text-muted); margin-top:0;">Upload a workbook, inspect its sheets, and map cells into the Sales Order form. Selecting a field will return you to this spreadsheet viewer.</p>
+                <div class="upload-workflow-toolbar">
+                    <input type="file" id="fileInput" class="hidden" accept=".xlsx, .xls, .csv" multiple>
+                    <button type="button" onclick="document.getElementById('fileInput').click()" class="btn btn-primary">
+                        <i data-lucide="upload" style="width:18px; height:18px;"></i>
+                        Choose Files
+                    </button>
+                    <button type="button" class="btn btn-outline" onclick="showSalesOrderWorkflowTab('manual')">
+                        Review Mapped Order
+                    </button>
+                </div>
+            </div>
+
+            {% if session.role == 'admin' %}
+            <div class="card" style="margin-bottom:1rem;">
+                <h2>Batch Upload, Cleaning, and Outlier Review</h2>
+                <p style="color:var(--text-muted); margin-top:0.25rem;">Map every workbook, review client matches and Z-score outliers, then upload the approved Sales Orders.</p>
+                <div class="upload-workflow-toolbar">
+                    <input type="file" id="adminUploadFiles" accept=".xlsx,.xls" multiple>
+                    <button class="btn btn-primary btn-sm" onclick="previewAdminUpload()">Preview Mapped Orders</button>
+                    <button class="btn btn-outline btn-sm" onclick="commitAdminUpload()">Upload Mapped Orders</button>
+                </div>
+                <div id="adminUploadDocs" style="margin-top:1rem; color:var(--text-muted);"></div>
+                <div id="adminUploadOutliers" style="margin-top:1rem;"></div>
+                <div id="adminClientReviewQueue"></div>
+                <div id="adminUploadPreview" class="table-wrap"></div>
+            </div>
+            {% endif %}
+
+        <div class="mapper-container workflow-upload-grid">
             <!-- Right Panel: Excel Preview -->
             <div class="excel-panel">
                 <div class="excel-header">
@@ -764,6 +832,7 @@
                 </div>
             </div>
         </div>
+        </section>
         <div class="card sales-order-history">
             <div class="history-toolbar">
                 <h2 style="margin: 0;">Sales Order History</h2>
@@ -809,6 +878,21 @@
         let currentSelectedRange = [];
         let MAX_COLS = 50;
         let MAX_ROWS = 1000;
+
+        function showSalesOrderWorkflowTab(tabName) {
+            const manualSelected = tabName !== 'excel';
+            const manualTab = document.getElementById('manualWorkflowTab');
+            const excelTab = document.getElementById('excelWorkflowTab');
+            const manualPane = document.getElementById('manualWorkflowPane');
+            const excelPane = document.getElementById('excelWorkflowPane');
+            manualTab.classList.toggle('active', manualSelected);
+            excelTab.classList.toggle('active', !manualSelected);
+            manualTab.setAttribute('aria-selected', String(manualSelected));
+            excelTab.setAttribute('aria-selected', String(!manualSelected));
+            manualPane.hidden = !manualSelected;
+            excelPane.hidden = manualSelected;
+            if (!manualSelected && window.lucide) lucide.createIcons();
+        }
 
         // Update date/time
         function updateDateTime() {
@@ -1949,6 +2033,7 @@
         }
 
         function startSelection(field, mode) {
+            showSalesOrderWorkflowTab('excel');
             activeTarget = field;
             selectionMode = mode;
 

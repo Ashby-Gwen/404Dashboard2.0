@@ -1525,22 +1525,47 @@
             const data = await cachedAnalyticsJson(baseURL + '/sales', currentAnalyticsFilterParams({ mape_threshold: salesMapeThreshold }));
             if (!data.success) throw new Error(data.error);
             syncAnalyticsFilterFromPayload(data);
-            latestRecommendations = data.recommendations || [];
+            const storeRecommendations = data.store_recommendations || [];
+            const systemWarnings = data.system_warnings || [];
+            const thresholds = data.rule_thresholds || {};
+            latestRecommendations = [...storeRecommendations, ...systemWarnings];
             updateRecommendationBadge('recommendations');
             return `
                 <div class="analytics-section recommendations">
                     <div class="card" style="margin-bottom:1.5rem;">
-                        <h3>Rule-Based Recommendations</h3>
-                        <p style="color:var(--text-muted); font-size:0.95rem;">Each recommendation is based on system rules, recent data, and simple business logic. Click View Details to see the trigger, data used, calculation process, result, interpretation, and suggested action.</p>
+                        <h3>Per-Store Recommendations</h3>
+                        <p style="color:var(--text-muted); font-size:0.95rem;">Each store receives one consolidated “What can I do?” result. Item performance appears only as evidence inside its store, so the page does not produce a long global item-recommendation list.</p>
+                        <p style="color:var(--text-muted); font-size:0.82rem; margin-bottom:0;">Rules: high Sales Order value ≥ ${formatCurrency(thresholds.high_sales_value || 0)}; low activity ≤ ${Number(thresholds.low_activity_order_count || 0).toFixed(2)} orders; low margin &lt; ${thresholds.low_margin_percent || 15}%; high margin ≥ ${thresholds.high_margin_percent || 30}%.</p>
                     </div>
+                    ${systemWarnings.length ? `
+                        <div class="surface-panel" style="margin-bottom:1.5rem; padding:1rem; border-color:#F59E0B !important;">
+                            <strong>System Notice</strong>
+                            ${systemWarnings.map((warning, warningIndex) => `
+                                <button type="button" class="recommendation-card" style="display:block; width:100%; margin-top:0.75rem; border-left-color:${recommendationColor(warning)};" onclick="openRecommendationDetails(${storeRecommendations.length + warningIndex})">
+                                    <strong>${escapeHtml(warning.title)}</strong>
+                                    <p style="margin:0.35rem 0 0; color:var(--text-muted);">${escapeHtml(warning.reason)}</p>
+                                </button>
+                            `).join('')}
+                        </div>
+                    ` : ''}
                     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;">
-                        ${latestRecommendations.map((rec, index) => `
+                        ${storeRecommendations.map((rec, index) => {
+                            const metrics = rec.store_metrics || {};
+                            const topItem = metrics.top_item || {};
+                            return `
                             <button type="button" class="recommendation-card" style="border-left-color:${recommendationColor(rec)};" onclick="openRecommendationDetails(${index})">
-                                <strong>${rec.title}</strong>
-                                <p style="margin:0.45rem 0 0; color:var(--text-muted); font-size:0.88rem;">${rec.reason}</p>
+                                <strong>${escapeHtml(rec.store_name || rec.title)}</strong>
+                                <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.45rem; margin-top:0.75rem; text-align:left; font-size:0.82rem; color:var(--text-muted);">
+                                    <span>SO Value<br><b style="color:var(--text-main);">${formatCurrency(metrics.sales_order_value || 0)}</b></span>
+                                    <span>Gross Profit<br><b style="color:var(--text-main);">${metrics.cost_data_status === 'complete' ? formatCurrency(metrics.gross_profit || 0) : 'Needs cost data'}</b></span>
+                                    <span>Margin<br><b style="color:var(--text-main);">${metrics.cost_data_status === 'complete' ? Number(metrics.profit_margin || 0).toFixed(2) + '%' : 'Unavailable'}</b></span>
+                                    <span>Orders / Branches<br><b style="color:var(--text-main);">${Number(metrics.order_count || 0)} / ${Number(metrics.branches_count || 0)}</b></span>
+                                </div>
+                                <p style="margin:0.75rem 0 0; color:var(--text-muted); font-size:0.85rem; text-align:left;"><b>Top item:</b> ${escapeHtml(topItem.item || 'No item data')}</p>
+                                <p style="margin:0.45rem 0 0; color:var(--text-muted); font-size:0.88rem; text-align:left;">${escapeHtml((rec.actions || [rec.suggested_action])[0] || '')}</p>
                                 <span style="display:inline-block; margin-top:0.75rem; color:var(--brand-orange); font-weight:700;">View Details</span>
                             </button>
-                        `).join('') || '<p style="color: var(--text-muted);">No recommendations yet.</p>'}
+                        `}).join('') || '<p style="color: var(--text-muted);">No store recommendations are available for this period.</p>'}
                     </div>
                 </div>`;
         }
@@ -1561,31 +1586,59 @@
             const rec = latestRecommendations[index];
             if (!rec) return;
             closeRecommendationDetails();
+            const metrics = rec.store_metrics || null;
             const details = [
                 ['Recommendation Title', rec.title],
                 ['Trigger Condition', rec.trigger_condition || 'Rule trigger was not provided.'],
-                ['Data Used', (rec.data_used || []).map(item => `<div>${item}</div>`).join('') || rec.reason],
+                ['Data Used', (rec.data_used || []).map(item => `<div>${escapeHtml(item)}</div>`).join('') || escapeHtml(rec.reason)],
                 ['Calculation Process', rec.calculation_process || rec.reason],
                 ['Result', rec.result || rec.reason],
                 ['Business Interpretation', rec.business_interpretation || 'Review this result before making a business decision.'],
-                ['Suggested Action', rec.suggested_action || 'Review the affected record and decide the next action.']
+                ['What Can I Do?', (rec.actions || [rec.suggested_action || 'Review the affected record and decide the next action.']).map(action => `<div style="margin-bottom:0.35rem;">• ${escapeHtml(action)}</div>`).join('')]
             ];
+            const itemRows = metrics ? (metrics.item_metrics || []) : [];
+            const monthlyRows = metrics ? (metrics.monthly_history || []) : [];
             const modal = document.createElement('div');
             modal.id = 'recommendationModal';
             modal.className = 'recommendation-modal-backdrop';
             modal.innerHTML = `
                 <section class="recommendation-modal" role="dialog" aria-modal="true" aria-labelledby="recommendationModalTitle">
                     <div style="display:flex; justify-content:space-between; gap:1rem; align-items:start;">
-                        <h3 id="recommendationModalTitle" style="margin:0;">${rec.title}</h3>
+                        <h3 id="recommendationModalTitle" style="margin:0;">${escapeHtml(rec.title)}</h3>
                         <button type="button" class="btn btn-outline btn-sm" onclick="closeRecommendationDetails()">Close</button>
                     </div>
                     <div style="display:grid; gap:0.85rem; margin-top:1rem;">
                         ${details.map(([label, value]) => `
                             <div style="border-bottom:1px solid var(--border-color); padding-bottom:0.75rem;">
-                                <strong>${label}</strong>
-                                <div style="margin-top:0.35rem; color:var(--text-muted); line-height:1.5;">${value}</div>
+                                <strong>${escapeHtml(label)}</strong>
+                                <div style="margin-top:0.35rem; color:var(--text-muted); line-height:1.5;">${label === 'Data Used' || label === 'What Can I Do?' ? value : escapeHtml(value)}</div>
                             </div>
                         `).join('')}
+                        ${itemRows.length ? `
+                            <div>
+                                <strong>Store Item Evidence</strong>
+                                <div class="table-wrap" style="margin-top:0.5rem;">
+                                    <table class="data-table">
+                                        <thead><tr><th>Item</th><th>Qty</th><th>SO Value</th><th>Cost</th><th>Margin</th></tr></thead>
+                                        <tbody>${itemRows.map(item => `<tr>
+                                            <td>${escapeHtml(item.item)}</td>
+                                            <td>${Number(item.quantity || 0).toFixed(2)}</td>
+                                            <td>${formatCurrency(item.sales_order_value || 0)}</td>
+                                            <td>${item.cost_data_complete ? formatCurrency(item.cost || 0) : 'Incomplete'}</td>
+                                            <td>${item.cost_data_complete ? Number(item.profit_margin || 0).toFixed(2) + '%' : 'Unavailable'}</td>
+                                        </tr>`).join('')}</tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${monthlyRows.length ? `
+                            <div>
+                                <strong>Monthly Sales Order History</strong>
+                                <div style="margin-top:0.5rem; display:flex; flex-wrap:wrap; gap:0.5rem;">
+                                    ${monthlyRows.map(item => `<span class="badge">${escapeHtml(item.period)}: ${formatCurrency(item.sales_order_value || 0)}</span>`).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
                     </div>
                 </section>`;
             modal.addEventListener('click', event => {
