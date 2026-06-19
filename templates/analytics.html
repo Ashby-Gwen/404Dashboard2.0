@@ -476,6 +476,15 @@
         let activeAnalyticsFilterLabel = '';
         const initialAnalyticsYears = {{ available_years|tojson }};
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         function currentAnalyticsFilterParams(extra = {}) {
             return {
                 year: document.getElementById('analyticsYear')?.value || new Date().getFullYear(),
