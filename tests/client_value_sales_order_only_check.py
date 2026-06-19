@@ -22,13 +22,13 @@ from app import (  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
 
-def add_order(client, so_number, order_date, line_total, paid_amount=0, store_name='Main'):
+def add_order(client, so_number, order_date, line_total, paid_amount=0, store_name='Main', store_branch='HQ'):
     order = SalesOrder(
         so_number=so_number,
         client_id=client.id,
         company_name=client.client_name,
         store_name=store_name,
-        store_branch='HQ',
+        store_branch=store_branch,
         order_date=order_date,
         sales_staff='QA Staff',
         total_amount=line_total,
@@ -74,13 +74,20 @@ def main():
         )
         ordering_client = Client(client_name='ORDERING FIRST CLIENT')
         paid_client = Client(client_name='PAID ONLY CLIENT')
-        db.session.add_all([manager, ordering_client, paid_client])
+        broad_client = Client(client_name='BROAD COVERAGE CLIENT')
+        narrow_client = Client(client_name='NARROW COVERAGE CLIENT')
+        db.session.add_all([manager, ordering_client, paid_client, broad_client, narrow_client])
         db.session.flush()
 
-        add_order(ordering_client, 'SO-HIGH-1', date(2026, 4, 1), 2500, paid_amount=0, store_name='Ordering Store')
-        add_order(ordering_client, 'SO-HIGH-2', date(2026, 5, 1), 3000, paid_amount=0, store_name='Ordering Store')
-        add_order(ordering_client, 'SO-HIGH-3', date(2026, 6, 1), 3500, paid_amount=0, store_name='Ordering Store')
+        add_order(ordering_client, 'SO-HIGH-1', date(2026, 4, 1), 2500, paid_amount=0, store_name='Ordering Store', store_branch='North')
+        add_order(ordering_client, 'SO-HIGH-2', date(2026, 5, 1), 3000, paid_amount=0, store_name='Ordering Store', store_branch='South')
+        add_order(ordering_client, 'SO-HIGH-3', date(2026, 6, 1), 3500, paid_amount=0, store_name='Ordering Store', store_branch='Main')
         add_order(paid_client, 'SO-LOW-1', date(2026, 6, 1), 500, paid_amount=50000, store_name='Paid Store')
+        add_order(broad_client, 'SO-BROAD-1', date(2026, 5, 1), 500, store_name='Broad Store', store_branch='East')
+        add_order(broad_client, 'SO-BROAD-2', date(2026, 6, 1), 500, store_name='Broad Store', store_branch='West')
+        add_order(narrow_client, 'SO-NARROW-1', date(2026, 5, 1), 500, store_name='Narrow Store', store_branch='Central')
+        add_order(narrow_client, 'SO-NARROW-2', date(2026, 6, 1), 500, store_name='Narrow Store', store_branch='Central')
+        add_order(broad_client, 'SO-BROAD-OLD', date(2025, 6, 1), 500, store_name='Broad Store', store_branch='Old Branch')
         db.session.commit()
 
         with app.test_client() as web:
@@ -97,19 +104,29 @@ def main():
             clients = {item['store_name'].upper(): item for item in payload['clients']}
             ordering = clients['ORDERING STORE']
             paid_only = clients['PAID STORE']
+            broad = clients['BROAD STORE']
+            narrow = clients['NARROW STORE']
 
             assert ordering['total_revenue'] == 9000
             assert paid_only['total_revenue'] == 500
             assert paid_only['total_paid'] == 50000
             assert ordering['client_performance_score'] > paid_only['client_performance_score']
+            assert ordering['client_performance_score'] == 100
 
             breakdown = ordering['score_breakdown']
             assert 'payment_reliability' not in breakdown
-            assert 'total_sales_order_amount' in breakdown
-            assert 'sales_order_count' in breakdown
-            assert 'order_recency' in breakdown
-            assert 'repeat_order_frequency' in breakdown
-            assert 'average_order_value' in breakdown
+            assert breakdown == {
+                'total_sales_order_amount': 50,
+                'order_frequency': 30,
+                'branch_count': 20,
+            }
+            assert sum(breakdown.values()) == ordering['client_performance_score']
+            assert broad['total_revenue'] == narrow['total_revenue'] == 1000
+            assert broad['order_count'] == narrow['order_count'] == 2
+            assert broad['branches_count'] == 2
+            assert narrow['branches_count'] == 1
+            assert broad['store_branches'] == ['EAST', 'WEST']
+            assert broad['client_performance_score'] > narrow['client_performance_score']
             assert ordering['cohort'] in {
                 'Core Ordering Clients',
                 'Growth Ordering Clients',

@@ -65,11 +65,16 @@ def main():
         db.session.add_all([manager, north_owner, alt_owner, south_owner])
         db.session.flush()
 
-        add_order(north_owner, 'SO-N-001', 'North Store', 'Branch A', 1000)
+        add_order(north_owner, 'SO-N-001', 'North Store', 'Branch-A', 1000)
         add_order(alt_owner, 'SO-N-002', ' north store ', 'Branch B', 2000)
         add_order(north_owner, 'SO-N-003', 'NORTH STORE', '  branch   a  ', 500)
         add_order(alt_owner, 'SO-N-004', 'North Store', '   ', 250)
+        add_order(north_owner, 'SO-N-005', 'North Store', 'NO BRANCH', 100)
+        add_order(north_owner, 'SO-N-006', 'North Store', 'N/A', 100)
+        add_order(north_owner, 'SO-N-007', 'North Store', 'MAIN', 100)
         add_order(south_owner, 'SO-S-001', 'South Store', 'Main', 700)
+        add_order(south_owner, 'SO-S-002', 'South Store', 'HQ', 100)
+        add_order(south_owner, 'SO-S-003', 'South Store', 'HEAD OFFICE', 100)
         db.session.commit()
 
         with app.test_client() as client:
@@ -85,16 +90,18 @@ def main():
             assert len(payload['clients']) == 2
             north = stores['NORTH STORE']
             assert north['store_name'] == 'NORTH STORE'
-            assert north['total_revenue'] == 3750
-            assert north['order_count'] == 4
-            assert north['branches_count'] == 2
-            assert north['store_branches'] == ['BRANCH A', 'BRANCH B']
+            assert north['total_revenue'] == 4050
+            assert north['order_count'] == 7
+            assert north['branches_count'] == 3
+            assert north['store_branches'] == ['BRANCH A', 'BRANCH B', 'MAIN']
             assert north['company_name'] == 'ALT RETAIL CORP, NORTH HOLDINGS INC'
 
             south = stores['SOUTH STORE']
             assert south['store_name'] == 'SOUTH STORE'
             assert south['company_name'] == 'SOUTH RETAIL CORP'
-            assert south['total_revenue'] == 700
+            assert south['total_revenue'] == 900
+            assert south['branches_count'] == 3
+            assert south['store_branches'] == ['HEAD OFFICE', 'HQ', 'MAIN']
 
     print('Client overview Store Name grouping check passed.')
 

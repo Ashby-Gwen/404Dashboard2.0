@@ -684,7 +684,18 @@ def _store_group_key(value: Any) -> str:
 
 
 def _branch_group_key(value: Any) -> str:
-    return _display_text(value).casefold()
+    text = _display_text(value).upper().replace("&", " AND ")
+    normalized = " ".join(re_sub_non_company(text).split())
+    no_branch_placeholders = {
+        "",
+        "N A",
+        "NA",
+        "NONE",
+        "NO BRANCH",
+        "NO STORE BRANCH",
+        "NOT APPLICABLE",
+    }
+    return "" if normalized in no_branch_placeholders else normalized
 
 
 def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None, end_date: Any = None) -> dict[str, Any]:
@@ -772,10 +783,9 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             group["company_names"].add(company_name)
         if order.client_id:
             group["client_ids"].add(order.client_id)
-        branch_display = _display_text(order.store_branch)
-        branch_key = _branch_group_key(branch_display)
+        branch_key = _branch_group_key(order.store_branch)
         if branch_key and branch_key not in group["branches"]:
-            group["branches"][branch_key] = branch_display.upper()
+            group["branches"][branch_key] = branch_key
 
         order_amount = item_totals.get(order.id) or float(order.total_amount or 0)
         group["order_amounts"].append(order_amount)
@@ -796,8 +806,7 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
 
     max_revenue = max([stats["total_order_amount"] for stats in store_groups.values()] or [0])
     max_order_count = max([stats["order_count"] for stats in store_groups.values()] or [0])
-    max_average_order = max([stats["average_order"] for stats in store_groups.values()] or [0])
-    max_repeat_frequency = max([stats["repeat_frequency"] for stats in store_groups.values()] or [0])
+    max_branch_count = max([stats["store_count"] for stats in store_groups.values()] or [0])
 
     def clamp(value: float, upper: float) -> float:
         return max(0.0, min(float(value or 0), upper))
@@ -827,25 +836,17 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
         total_paid = float(stats["total_paid"] or 0)
         balance = max(revenue - total_paid, 0)
         last_purchase = stats.get("latest_order_date")
-        repeat_purchase_ratio = 1.0 if order_count >= 2 else 0.0
         recency_ratio = 0.0
         if last_purchase:
             days_since_purchase = max((today - last_purchase).days, 0)
             recency_ratio = max(0.0, 1 - min(days_since_purchase, 365) / 365)
-        amount_score = round(ratio(revenue, max_revenue) * 35, 2)
-        order_count_score = round(ratio(order_count, max_order_count) * 20, 2)
-        recency_score = round(recency_ratio * 15, 2)
-        repeat_score = round(
-            (ratio(stats["repeat_frequency"], max_repeat_frequency) if max_repeat_frequency else repeat_purchase_ratio) * 15,
-            2,
-        )
-        average_order_score = round(ratio(stats["average_order"], max_average_order) * 15, 2)
+        amount_score = round(ratio(revenue, max_revenue) * 50, 2)
+        order_frequency_score = round(ratio(order_count, max_order_count) * 30, 2)
+        branch_count_score = round(ratio(branches, max_branch_count) * 20, 2)
         client_performance_score = round(
-            clamp(amount_score, 35)
-            + clamp(order_count_score, 20)
-            + clamp(recency_score, 15)
-            + clamp(repeat_score, 15)
-            + clamp(average_order_score, 15),
+            clamp(amount_score, 50)
+            + clamp(order_frequency_score, 30)
+            + clamp(branch_count_score, 20),
             2,
         )
         cohort = cohort_for(client_performance_score)
@@ -859,7 +860,7 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
         if client_performance_score >= 80:
             recommendations.append("Protect relationship and consider priority fulfillment.")
         if not recommendations:
-            recommendations.append("Continue monitoring Sales Order frequency and average order value.")
+            recommendations.append("Continue monitoring Sales Order revenue, order frequency, and branch coverage.")
 
         client_data = {
             "store_name": stats["store_name"],
@@ -883,10 +884,8 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             "average_order_value": round(float(stats["average_order"] or 0), 2),
             "score_breakdown": {
                 "total_sales_order_amount": amount_score,
-                "sales_order_count": order_count_score,
-                "order_recency": recency_score,
-                "repeat_order_frequency": repeat_score,
-                "average_order_value": average_order_score,
+                "order_frequency": order_frequency_score,
+                "branch_count": branch_count_score,
             },
             "recommendations": recommendations,
             "last_purchase": last_purchase.isoformat() if last_purchase else None

@@ -986,7 +986,7 @@
                     <td class="${kpiClassFor('revenue', client.total_revenue)}" style="text-align: right;">${formatCurrency(client.total_revenue)}</td>
                     <td style="text-align: right;">${Number(client.branches_count || 0)}</td>
                     <td style="text-align: right; font-weight: 600;">${Number(client.client_performance_score || 0).toFixed(2)}</td>
-                    <td style="font-size: 0.78rem; color: var(--text-muted);">Revenue ${Number(breakdown.total_sales_order_amount || 0).toFixed(1)} / Orders ${Number(breakdown.sales_order_count || 0).toFixed(1)} / Recency ${Number(breakdown.order_recency || 0).toFixed(1)} / Repeat ${Number(breakdown.repeat_order_frequency || 0).toFixed(1)} / AOV ${Number(breakdown.average_order_value || 0).toFixed(1)}</td>
+                    <td style="font-size: 0.78rem; color: var(--text-muted);">Revenue ${Number(breakdown.total_sales_order_amount || 0).toFixed(1)} / Frequency ${Number(breakdown.order_frequency || 0).toFixed(1)} / Branches ${Number(breakdown.branch_count || 0).toFixed(1)}</td>
                     <td style="text-align: center;"><span style="display: inline-block; padding: 0.25rem 0.75rem; background-color: ${valColor.bg}; color: ${valColor.text}; border-radius: var(--radius-lg); font-size: 0.85rem; font-weight: 500;">${client.cohort || client.value_status}</span></td>
                 </tr>`;
             }).join('');
@@ -1029,7 +1029,7 @@
                         <strong style="color: var(--text-main);">${Number(client.client_performance_score || 0).toFixed(2)}</strong>
                     </div>
                     <div style="margin-bottom: 1rem; color: var(--text-muted); font-size: 0.78rem; line-height: 1.5;">
-                        Revenue ${Number(breakdown.total_sales_order_amount || 0).toFixed(1)} / Orders ${Number(breakdown.sales_order_count || 0).toFixed(1)} / Recency ${Number(breakdown.order_recency || 0).toFixed(1)} / Repeat ${Number(breakdown.repeat_order_frequency || 0).toFixed(1)} / AOV ${Number(breakdown.average_order_value || 0).toFixed(1)}
+                        Revenue ${Number(breakdown.total_sales_order_amount || 0).toFixed(1)} / Frequency ${Number(breakdown.order_frequency || 0).toFixed(1)} / Branches ${Number(breakdown.branch_count || 0).toFixed(1)}
                     </div>
                     <span style="display: inline-block; padding: 0.25rem 0.5rem; background-color: ${valColor.bg}; color: ${valColor.text}; border-radius: var(--radius-lg); font-size: 0.75rem; font-weight: 600;">${client.cohort || client.value_status}</span>
                 </div>`;
