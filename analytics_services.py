@@ -121,24 +121,47 @@ def _invoice_client_name(invoice: Any, lookup: dict[str, str]) -> str:
     return lookup.get(normalize_company_match_key(uploaded), uploaded or "Admin Upload")
 
 
-def build_canonical_financials(db: Any, models: dict[str, Any]) -> dict[str, Any]:
+def build_canonical_financials(
+    db: Any,
+    models: dict[str, Any],
+    start_date: Any = None,
+    end_date: Any = None,
+) -> dict[str, Any]:
     """Return the shared collected-revenue and one-balance-per-order ledger."""
     Invoice = models["Invoice"]
     SalesOrder = models["SalesOrder"]
     lookup = _canonical_client_lookup(models)
     client_revenue: dict[str, float] = defaultdict(float)
     receivables = []
+    unmapped_clients: dict[str, dict[str, Any]] = {}
 
-    invoices = Invoice.query.order_by(Invoice.invoice_date.asc(), Invoice.id.asc()).all()
+    invoices = _apply_date_bounds(
+        Invoice.query,
+        Invoice.invoice_date,
+        start_date,
+        end_date,
+    ).order_by(Invoice.invoice_date.asc(), Invoice.id.asc()).all()
     for invoice in invoices:
         paid = max(float(invoice.amount_paid or 0), 0)
         if paid > MONEY_TOLERANCE:
             client_revenue[_invoice_client_name(invoice, lookup)] += paid
 
-    for order in SalesOrder.query.order_by(SalesOrder.order_date.asc(), SalesOrder.id.asc()).all():
+    orders = _apply_date_bounds(
+        SalesOrder.query,
+        SalesOrder.order_date,
+        start_date,
+        end_date,
+    ).order_by(SalesOrder.order_date.asc(), SalesOrder.id.asc()).all()
+    for order in orders:
         line_total = sum(float(item.total or 0) for item in order.items)
         total = line_total if line_total > 0 else float(order.total_amount or 0)
-        linked = list(order.invoices)
+        linked = [
+            invoice for invoice in order.invoices
+            if (
+                (start_date is None or (invoice.invoice_date and invoice.invoice_date >= start_date))
+                and (end_date is None or (invoice.invoice_date and invoice.invoice_date < end_date))
+            )
+        ]
         paid = sum(max(float(invoice.amount_paid or 0), 0) for invoice in linked)
         balance = max(round(total - paid, 2), 0)
         if balance <= MONEY_TOLERANCE:
@@ -160,17 +183,38 @@ def build_canonical_financials(db: Any, models: dict[str, Any]) -> dict[str, Any
             "status": "PARTIAL" if paid > MONEY_TOLERANCE else "UNPAID",
         })
 
-    standalone = Invoice.query.filter(Invoice.sales_order_id.is_(None)).all()
+    standalone = _apply_date_bounds(
+        Invoice.query.filter(Invoice.sales_order_id.is_(None)),
+        Invoice.invoice_date,
+        start_date,
+        end_date,
+    ).all()
     for invoice in standalone:
         total = float(invoice.total_amount if invoice.total_amount is not None else invoice.amount_paid or 0)
         paid = max(float(invoice.amount_paid or 0), 0)
         balance = max(float(invoice.balance if invoice.balance is not None else total - paid), 0)
         if balance <= MONEY_TOLERANCE:
             continue
+        uploaded_name = str(invoice.uploaded_client_name or "").strip()
+        normalized_name = normalize_company_match_key(uploaded_name)
+        canonical_name = lookup.get(normalized_name)
+        if not canonical_name:
+            unmapped_key = normalized_name or f"UNMAPPED-{invoice.id}"
+            unmapped = unmapped_clients.setdefault(unmapped_key, {
+                "client_name": uploaded_name or "Unmapped Client",
+                "total_invoices": 0,
+                "total_amount": 0.0,
+                "amount_paid": 0.0,
+                "balance": 0.0,
+            })
+            unmapped["total_invoices"] += 1
+            unmapped["total_amount"] += total
+            unmapped["amount_paid"] += paid
+            unmapped["balance"] += balance
         receivables.append({
             "sales_order_id": None,
             "so_number": None,
-            "client_name": _invoice_client_name(invoice, lookup),
+            "client_name": canonical_name or uploaded_name or "Unmapped Client",
             "invoice_number": invoice.invoice_number,
             "invoice_date": invoice.invoice_date,
             "total_amount": total,
@@ -187,10 +231,27 @@ def build_canonical_financials(db: Any, models: dict[str, Any]) -> dict[str, Any
         ],
         "receivables": receivables,
         "accounts_receivable": round(sum(item["balance"] for item in receivables), 2),
+        "unmapped_clients": [
+            {
+                **item,
+                "total_amount": round(item["total_amount"], 2),
+                "amount_paid": round(item["amount_paid"], 2),
+                "balance": round(item["balance"], 2),
+            }
+            for item in sorted(
+                unmapped_clients.values(),
+                key=lambda item: (-item["balance"], item["client_name"]),
+            )
+        ],
     }
 
 
-def build_analytics_payload(db: Any, models: dict[str, Any]) -> dict[str, Any]:
+def build_analytics_payload(
+    db: Any,
+    models: dict[str, Any],
+    start_date: Any = None,
+    end_date: Any = None,
+) -> dict[str, Any]:
     """Build the complete manager analytics payload from current system data."""
     Invoice = models["Invoice"]
     PurchaseOrder = models["PurchaseOrder"]
@@ -198,7 +259,7 @@ def build_analytics_payload(db: Any, models: dict[str, Any]) -> dict[str, Any]:
     SalesOrderItem = models["SalesOrderItem"]
 
     today = datetime.now().date()
-    financials = build_canonical_financials(db, models)
+    financials = build_canonical_financials(db, models, start_date, end_date)
     paid_revenue = financials["collected_revenue"]
     unpaid_receivable = financials["accounts_receivable"]
     total_expenses = db.session.query(func.sum(PurchaseOrder.cash_amount)).scalar() or 0
@@ -247,6 +308,7 @@ def build_analytics_payload(db: Any, models: dict[str, Any]) -> dict[str, Any]:
             {"client_name": name, "balance": round(balance, 2)}
             for name, balance in sorted(client_balances.items(), key=lambda item: item[1], reverse=True)
         ],
+        "unmapped_clients": financials["unmapped_clients"],
         "top_items": _top_items(db, SalesOrderItem),
         "demand_predictions": _demand_predictions(db, SalesOrderItem),
         "purchase_recommendations": _purchase_recommendations(db, SalesOrderItem, pondo),

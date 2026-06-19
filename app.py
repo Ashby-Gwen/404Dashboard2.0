@@ -2799,13 +2799,33 @@ def dashboard():
         .all()
     )
 
+    client_registry = build_client_registry()
+    client_groups = {}
+    client_key_by_id = {}
+    for client in Client.query.order_by(Client.client_name.asc(), Client.id.asc()).all():
+        client_key = normalize_client_match_key(client.client_name) or f'CLIENT-{client.id}'
+        group = client_groups.setdefault(client_key, {
+            'primary_client': client,
+            'client_ids': set(),
+        })
+        group['client_ids'].add(client.id)
+        client_key_by_id[client.id] = client_key
+
     orders_by_client = defaultdict(list)
     for order in all_orders:
-        orders_by_client[order.client_id].append(order)
+        client_key = client_key_by_id.get(order.client_id)
+        if not client_key:
+            client_name = order.client.client_name if order.client else order.company_name
+            client_key = normalize_client_match_key(client_name) or f'CLIENT-{order.client_id or order.id}'
+        orders_by_client[client_key].append(order)
 
     invoice_counts_by_client = defaultdict(int)
-    admin_paid_by_client = defaultdict(float)
-    client_registry = build_client_registry()
+    standalone_financials_by_client = defaultdict(lambda: {
+        'total_amount': 0.0,
+        'total_paid': 0.0,
+        'current_balance': 0.0,
+    })
+    unmapped_clients = {}
     year_invoices = (
         Invoice.query
         .options(selectinload(Invoice.sales_order))
@@ -2817,7 +2837,9 @@ def dashboard():
     )
     for invoice in year_invoices:
         if invoice.sales_order:
-            invoice_counts_by_client[invoice.sales_order.client_id] += 1
+            client_key = client_key_by_id.get(invoice.sales_order.client_id)
+            if client_key:
+                invoice_counts_by_client[client_key] += 1
             continue
         normalized_name = normalize_client_match_key(invoice.uploaded_client_name)
         registry_entry = client_registry['lookup'].get(normalized_name)
@@ -2833,17 +2855,58 @@ def dashboard():
                     'client_name': fuzzy_match['client_name'],
                 }
         if registry_entry:
-            client_id = registry_entry['client_id']
-            invoice_counts_by_client[client_id] += 1
-            admin_paid_by_client[client_id] += nz(invoice.amount_paid)
+            client_key = client_key_by_id.get(registry_entry['client_id'])
+            if client_key:
+                total_amount = float(
+                    invoice.total_amount
+                    if invoice.total_amount is not None
+                    else invoice.amount_paid or 0
+                )
+                paid_amount = max(float(invoice.amount_paid or 0), 0)
+                balance = max(float(
+                    invoice.balance
+                    if invoice.balance is not None
+                    else total_amount - paid_amount
+                ), 0)
+                invoice_counts_by_client[client_key] += 1
+                standalone_financials_by_client[client_key]['total_amount'] += total_amount
+                standalone_financials_by_client[client_key]['total_paid'] += paid_amount
+                standalone_financials_by_client[client_key]['current_balance'] += balance
+                continue
+
+        display_name = clean_text(
+            invoice.uploaded_client_name,
+            keep_period=True,
+            keep_ampersand=True
+        ).upper() or 'UNMAPPED CLIENT'
+        unmapped_key = normalized_name or f'UNMAPPED-{invoice.id}'
+        unmapped = unmapped_clients.setdefault(unmapped_key, {
+            'client_name': display_name,
+            'total_invoices': 0,
+            'total_amount': 0.0,
+            'total_paid': 0.0,
+            'current_balance': 0.0,
+        })
+        total_amount = float(
+            invoice.total_amount
+            if invoice.total_amount is not None
+            else invoice.amount_paid or 0
+        )
+        paid_amount = max(float(invoice.amount_paid or 0), 0)
+        balance = max(float(
+            invoice.balance
+            if invoice.balance is not None
+            else total_amount - paid_amount
+        ), 0)
+        unmapped['total_invoices'] += 1
+        unmapped['total_amount'] += total_amount
+        unmapped['total_paid'] += paid_amount
+        unmapped['current_balance'] += balance
 
     client_summaries = []
     analysis_clients = get_clients_analysis(db, app_models(), year_start, next_year_start).get('clients', [])
 
-    analysis_by_client_id = defaultdict(lambda: {
-        'total_revenue': 0.0,
-        'total_paid': 0.0,
-        'balance': 0.0,
+    analysis_by_client_key = defaultdict(lambda: {
         'client_performance_score': 0.0,
         'cohort': None,
         'value_status': None,
@@ -2852,11 +2915,13 @@ def dashboard():
     })
     for item in analysis_clients:
         client_ids = item.get('client_ids') or []
-        for client_id in client_ids:
-            summary = analysis_by_client_id[client_id]
-            summary['total_revenue'] += float(item.get('total_revenue') or 0)
-            summary['total_paid'] += float(item.get('total_paid') or 0)
-            summary['balance'] += float(item.get('balance') or 0)
+        item_client_keys = {
+            client_key_by_id.get(client_id)
+            for client_id in client_ids
+            if client_key_by_id.get(client_id)
+        }
+        for client_key in item_client_keys:
+            summary = analysis_by_client_key[client_key]
             if float(item.get('client_performance_score') or 0) > float(summary.get('client_performance_score') or 0):
                 summary['client_performance_score'] = item.get('client_performance_score')
                 summary['cohort'] = item.get('cohort')
@@ -2869,11 +2934,14 @@ def dashboard():
                 not summary.get('last_purchase') or item.get('last_purchase') > summary.get('last_purchase')
             ):
                 summary['last_purchase'] = item.get('last_purchase')
-    for client in Client.query.order_by(Client.client_name.asc()).all():
-        client_orders = orders_by_client.get(client.id, [])
+
+    for client_key, group in client_groups.items():
+        client = group['primary_client']
+        client_orders = orders_by_client.get(client_key, [])
         unpaid_sales_orders = []
         client_revenue = 0.0
         client_paid = 0.0
+        current_balance = 0.0
 
         for order in client_orders:
             order_total = sum(
@@ -2889,6 +2957,7 @@ def dashboard():
             client_revenue += order_total
             client_paid += paid_total
             unpaid_balance = max(order_total - paid_total, 0)
+            current_balance += unpaid_balance
 
             if not order.invoices or unpaid_balance > 0.01:
                 unpaid_sales_orders.append({
@@ -2901,20 +2970,20 @@ def dashboard():
                     'status': order.status
                 })
 
-        client_paid += admin_paid_by_client.get(client.id, 0)
+        standalone = standalone_financials_by_client.get(client_key, {})
+        client_revenue += float(standalone.get('total_amount', 0) or 0)
+        client_paid += float(standalone.get('total_paid', 0) or 0)
+        current_balance += float(standalone.get('current_balance', 0) or 0)
 
-        analysis_client = analysis_by_client_id.get(client.id, {})
-        client_revenue = float(analysis_client.get('total_revenue', client_revenue) or 0)
-        client_paid = float(client_paid or 0)
-        current_balance = max(client_revenue - client_paid, 0)
+        analysis_client = analysis_by_client_key.get(client_key, {})
         client_summaries.append({
             'id': client.id,
             'client_name': client.client_name,
             'contact_info': client.contact_info,
-            'total_invoices': invoice_counts_by_client.get(client.id, 0),
-            'current_balance': current_balance,
-            'total_revenue': client_revenue,
-            'total_paid': client_paid,
+            'total_invoices': invoice_counts_by_client.get(client_key, 0),
+            'current_balance': round(current_balance, 2),
+            'total_revenue': round(client_revenue, 2),
+            'total_paid': round(client_paid, 2),
             'balance_status': analysis_client.get('balance_status') or ('Settled' if current_balance <= 0.01 else 'Unsettled Balance'),
             'client_performance_score': analysis_client.get('client_performance_score', 0),
             'cohort': analysis_client.get('cohort') or analysis_client.get('value_status') or 'Low Order Activity',
@@ -2923,12 +2992,27 @@ def dashboard():
             'unpaid_sales_orders': unpaid_sales_orders
         })
 
+    unmapped_clients_list = sorted(
+        (
+            {
+                **item,
+                'total_amount': round(item['total_amount'], 2),
+                'total_paid': round(item['total_paid'], 2),
+                'current_balance': round(item['current_balance'], 2),
+            }
+            for item in unmapped_clients.values()
+        ),
+        key=lambda item: (-item['current_balance'], item['client_name'])
+    )
     accounts_receivable_total = sum(
         float(client['current_balance'] or 0)
         for client in client_summaries
-    )
+    ) + sum(float(client['current_balance'] or 0) for client in unmapped_clients_list)
     accounts_receivable_count = sum(
         1 for client in client_summaries
+        if float(client['current_balance'] or 0) > 0.01
+    ) + sum(
+        1 for client in unmapped_clients_list
         if float(client['current_balance'] or 0) > 0.01
     )
 
@@ -3029,6 +3113,7 @@ def dashboard():
             for inv in recent_invoices
         ],
         'clients_summary': client_summaries,
+        'unmapped_clients': unmapped_clients_list,
         'selected_year_revenue': selected_year_revenue,
         'aging_0_30': aging_0_30,
         'monthly_cashflow': monthly_cashflow,
@@ -6123,7 +6208,15 @@ def api_analytics_comparative():
 @role_required('manager', 'admin')
 def get_analytics():
     try:
-        analytics_data = build_analytics_payload(db, app_models())
+        filters = parse_report_date_filter()
+        analytics_data = build_analytics_payload(
+            db,
+            app_models(),
+            filters['start_date'],
+            filters['end_date'],
+        )
+        analytics_data['selected_year'] = filters['selected_year']
+        analytics_data['available_years'] = filters['available_years']
         return jsonify({'success': True, 'analytics': analytics_data})
     
     except Exception as e:

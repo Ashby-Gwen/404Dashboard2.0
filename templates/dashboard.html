@@ -668,16 +668,21 @@
         function loadARInvoices() {
             const container = document.getElementById('ar-invoices-list');
             const clientsWithBalance = dashboardData.clients_summary.filter(client => parseFloat(client.current_balance || 0) > 0);
+            const unmappedWithBalance = (dashboardData.unmapped_clients || []).filter(client => parseFloat(client.current_balance || 0) > 0);
             
-            if (clientsWithBalance.length === 0) {
+            if (clientsWithBalance.length === 0 && unmappedWithBalance.length === 0) {
                 container.innerHTML = '<p class="no-data">No client balances found.</p>';
                 return;
             }
 
-            let tableHTML = '<div class="table-wrap"><table class="data-table" id="ar-table"><thead><tr><th>Client</th><th>Sales Order Amount</th><th>Total Paid</th><th>Balance</th><th>Status</th></tr></thead><tbody>';
+            let tableHTML = '<div class="table-wrap"><table class="data-table" id="ar-table"><thead><tr><th>Client</th><th>Transaction Amount</th><th>Total Paid</th><th>Balance</th><th>Status</th></tr></thead><tbody>';
             
             clientsWithBalance.forEach(client => {
-                tableHTML += '<tr><td data-label="Client">' + client.client_name + '</td><td data-label="Sales Order Amount" class="' + kpiClassFor('revenue', client.total_revenue || 0) + '">' + formatCurrency(client.total_revenue || 0) + '</td><td data-label="Total Paid" class="' + kpiClassFor('revenue', client.total_paid || 0) + '">' + formatCurrency(client.total_paid || 0) + '</td><td data-label="Balance" class="' + kpiClassFor('accounts_receivable', client.current_balance || 0) + '">' + formatCurrency(client.current_balance || 0) + '</td><td data-label="Status">' + statusBadge(client.balance_status || 'Unsettled Balance') + '</td></tr>';
+                tableHTML += '<tr><td data-label="Client">' + client.client_name + '</td><td data-label="Transaction Amount" class="' + kpiClassFor('revenue', client.total_revenue || 0) + '">' + formatCurrency(client.total_revenue || 0) + '</td><td data-label="Total Paid" class="' + kpiClassFor('revenue', client.total_paid || 0) + '">' + formatCurrency(client.total_paid || 0) + '</td><td data-label="Balance" class="' + kpiClassFor('accounts_receivable', client.current_balance || 0) + '">' + formatCurrency(client.current_balance || 0) + '</td><td data-label="Status">' + statusBadge(client.balance_status || 'Unsettled Balance') + '</td></tr>';
+            });
+
+            unmappedWithBalance.forEach(client => {
+                tableHTML += '<tr><td data-label="Client">' + client.client_name + ' <span class="badge badge-pending">Unmapped</span></td><td data-label="Transaction Amount">' + formatCurrency(client.total_amount || 0) + '</td><td data-label="Total Paid">' + formatCurrency(client.total_paid || 0) + '</td><td data-label="Balance" class="' + kpiClassFor('accounts_receivable', client.current_balance || 0) + '">' + formatCurrency(client.current_balance || 0) + '</td><td data-label="Status">' + statusBadge('Unsettled Balance') + '</td></tr>';
             });
             
             tableHTML += '</tbody></table></div>';
