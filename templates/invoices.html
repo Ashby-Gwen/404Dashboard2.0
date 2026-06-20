@@ -671,10 +671,11 @@
             <p style="color: var(--text-muted);">Upload CSV/Excel, preview cleaned invoice fields, review
                 Z-scoreoutliers, remove rows, then upload to database.</p>
             <input type="file" id="adminUploadFiles" accept=".csv,.xlsx,.xls" multiple>
-            <button class="btn btn-primary btn-sm" onclick="previewAdminUpload('invoice')">Preview Upload</button>
-            <button class="btn btn-outline btn-sm" onclick="commitAdminUpload('invoice')">Upload Clean Rows</button>
+            <button class="btn btn-primary btn-sm" id="adminUploadPreviewButton" onclick="previewAdminUpload('invoice')">Preview Upload</button>
+            <button class="btn btn-outline btn-sm" id="adminUploadCommitButton" onclick="commitAdminUpload('invoice')">Upload Clean Rows</button>
             <div id="adminUploadDocs" style="margin-top: 1rem; color: var(--text-muted);"></div>
             <div id="adminUploadOutliers" style="margin-top: 1rem;"></div>
+            <div id="adminUploadConflicts" style="margin-top: 1rem;"></div>
             <div id="adminUploadPreview" class="table-wrap"></div>
         </div>
         {% endif %}
@@ -1654,39 +1655,122 @@
         }
 
         let adminCleanRows = [];
+        async function readAdminUploadResponse(response) {
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                return await response.json();
+            }
+            const text = await response.text();
+            if (response.status === 401) {
+                throw new Error('Your session expired. Sign in again before uploading.');
+            }
+            if (response.status === 403) {
+                throw new Error('Your account does not have permission to upload invoices.');
+            }
+            if (response.status >= 500) {
+                throw new Error('The server could not finish the upload. No records were saved. Check the Render logs or try a smaller batch.');
+            }
+            throw new Error(text && !text.trim().startsWith('<') ? text : 'The server returned an unexpected non-JSON response.');
+        }
+
+        function setAdminUploadBusy(busy) {
+            const previewButton = document.getElementById('adminUploadPreviewButton');
+            const commitButton = document.getElementById('adminUploadCommitButton');
+            if (previewButton) previewButton.disabled = busy;
+            if (commitButton) commitButton.disabled = busy;
+        }
+
+        function renderAdminUploadConflicts(conflicts = []) {
+            const container = document.getElementById('adminUploadConflicts');
+            if (!container) return;
+            if (!conflicts.length) {
+                container.innerHTML = '';
+                return;
+            }
+            const sections = conflicts.map(conflict => {
+                const sourceRows = new Set((conflict.source_rows || []).map(String));
+                const conflictRows = adminCleanRows
+                    .map((row, index) => ({ row, index }))
+                    .filter(item => sourceRows.has(String(item.row._source_row || item.row.source_row || item.index + 1)));
+                const editor = conflictRows.length
+                    ? `<div class="table-responsive mt-2"><table class="table table-sm"><thead><tr><th>Source row</th><th>Invoice number</th><th>Uploaded Client Name</th><th></th></tr></thead><tbody>${conflictRows.map(({ row, index }) => `<tr>
+                        <td>${escapeHtml(row._source_row || row.source_row || index + 1)}</td>
+                        <td><input class="form-control form-control-sm" value="${escapeHtml(row.invoice_number || '')}" onchange="updateAdminUploadRow(${index}, 'invoice_number', this.value)"></td>
+                        <td><input class="form-control form-control-sm" value="${escapeHtml(row.uploaded_client_name || '')}" onchange="updateAdminUploadRow(${index}, 'uploaded_client_name', this.value)"></td>
+                        <td><button class="btn btn-outline btn-sm" onclick="removeAdminRow(${index}); renderAdminUploadConflicts([])">Exclude</button></td>
+                    </tr>`).join('')}</tbody></table></div>`
+                    : '';
+                return `<div class="mb-3"><strong>${escapeHtml(conflict.invoice_number)}</strong> — ${escapeHtml((conflict.clients || [conflict.uploaded_client_name, conflict.existing_client_name]).filter(Boolean).join(' / '))}${editor}</div>`;
+            }).join('');
+            container.innerHTML = `<div class="alert alert-warning"><strong>Invoice conflicts require review:</strong>${sections}</div>`;
+        }
+
         async function previewAdminUpload(interfaceName) {
             const input = document.getElementById('adminUploadFiles');
             if (!input || input.files.length === 0) return showToast('Select CSV or Excel files first.', 'error');
             const formData = new FormData();
             Array.from(input.files).forEach(file => formData.append('files', file));
-            const response = await fetch(`/admin/upload-preview/${interfaceName}`, { method: 'POST', body: formData });
-            const data = await response.json();
-            if (!data.success) return showToast(data.error || 'Preview failed', 'error');
-            if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
-            adminCleanRows = data.rows;
-            document.getElementById('adminUploadDocs').innerHTML = data.documentation.map(step => `<div>${step}</div>`).join('');
-            document.getElementById('adminUploadOutliers').innerHTML = data.outliers.length
-                ? `<strong>Outliers:</strong> ${data.outliers.map(o => `Row ${o.index + 1} ${o.field}=${o.value} z=${o.z_score} <button class="btn btn-outline btn-sm" onclick="removeAdminRow(${o.index})">Remove</button>`).join('<br>')}`
-                : '<strong>No Z-score outliers detected.</strong>';
-            renderAdminPreview();
+            setAdminUploadBusy(true);
+            try {
+                const response = await fetch(`/admin/upload-preview/${interfaceName}`, { method: 'POST', body: formData });
+                const data = await readAdminUploadResponse(response);
+                if (!response.ok || !data.success) throw new Error(data.error || 'Preview failed');
+                if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
+                adminCleanRows = data.rows;
+                document.getElementById('adminUploadDocs').innerHTML =
+                    data.documentation.map(step => `<div>${escapeHtml(step)}</div>`).join('') +
+                    `<div><strong>${data.rows.length}</strong> source row(s), <strong>${data.grouped_invoice_count ?? data.rows.length}</strong> resulting collection record(s).</div>`;
+                document.getElementById('adminUploadOutliers').innerHTML = data.outliers.length
+                    ? `<strong>Outliers:</strong> ${data.outliers.map(o => `Row ${o.index + 1} ${o.field}=${o.value} z=${o.z_score} <button class="btn btn-outline btn-sm" onclick="removeAdminRow(${o.index})">Remove</button>`).join('<br>')}`
+                    : '<strong>No Z-score outliers detected.</strong>';
+                renderAdminUploadConflicts(data.conflicts || []);
+                renderAdminPreview();
+            } catch (error) {
+                showToast(error.message || 'Invoice preview failed.', 'error');
+            } finally {
+                setAdminUploadBusy(false);
+            }
         }
         function removeAdminRow(index) { adminCleanRows.splice(index, 1); renderAdminPreview(); }
+        function updateAdminUploadRow(index, field, value) {
+            if (!adminCleanRows[index]) return;
+            adminCleanRows[index][field] = value;
+        }
         function renderAdminPreview() {
             const container = document.getElementById('adminUploadPreview');
             if (!container || adminCleanRows.length === 0) return container ? container.innerHTML = '<p class="no-data">No cleaned rows ready.</p>' : null;
-            const columns = Object.keys(adminCleanRows[0]).filter(key => !key.startsWith('_'));
-            container.innerHTML = `<table class="invoice-table"><thead><tr>${columns.map(col => `<th>${col}</th>`).join('')}<th></th></tr></thead><tbody>${adminCleanRows.slice(0, 50).map((row, idx) => `<tr>${columns.map(col => `<td>${row[col] ?? ''}</td>`).join('')}<td><button class="btn btn-outline btn-sm" onclick="removeAdminRow(${idx})">Remove</button></td></tr>`).join('')}</tbody></table>`;
+            const columns = ['invoice_number', 'uploaded_client_name', 'invoice_date', 'amount_paid', 'cr_number', 'summary', 'invoice_type'];
+            const editable = new Set(['invoice_number', 'uploaded_client_name', 'invoice_date', 'amount_paid', 'cr_number']);
+            container.innerHTML = `<p class="text-muted">Showing the first 100 rows. Conflicting rows can be edited or removed before upload.</p><table class="invoice-table"><thead><tr>${columns.map(col => `<th>${escapeHtml(col)}</th>`).join('')}<th></th></tr></thead><tbody>${adminCleanRows.slice(0, 100).map((row, idx) => `<tr>${columns.map(col => {
+                const value = row[col] ?? '';
+                return editable.has(col)
+                    ? `<td><input class="form-control form-control-sm" value="${escapeHtml(value)}" onchange="updateAdminUploadRow(${idx}, '${col}', this.value)"></td>`
+                    : `<td>${escapeHtml(value)}</td>`;
+            }).join('')}<td><button class="btn btn-outline btn-sm" onclick="removeAdminRow(${idx})">Remove</button></td></tr>`).join('')}</tbody></table>`;
         }
         async function commitAdminUpload(interfaceName) {
             if (adminCleanRows.length === 0) return showToast('No cleaned rows to upload.', 'error');
-            const response = await fetch(`/admin/upload-commit/${interfaceName}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: adminCleanRows }) });
-            const data = await response.json();
-            if (!data.success) return showToast(data.error || 'Upload failed', 'error');
-            showToast(data.message || 'Rows uploaded.', 'success');
-            if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
-            adminCleanRows = [];
-            renderAdminPreview();
-            loadInvoices();
+            setAdminUploadBusy(true);
+            try {
+                const response = await fetch(`/admin/upload-commit/${interfaceName}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ rows: adminCleanRows })
+                });
+                const data = await readAdminUploadResponse(response);
+                renderAdminUploadConflicts(data.conflicts || []);
+                if (!response.ok || !data.success) throw new Error(data.error || 'Upload failed');
+                showToast(data.message || 'Rows uploaded.', 'success');
+                if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
+                adminCleanRows = [];
+                renderAdminPreview();
+                renderAdminUploadConflicts([]);
+                loadInvoices();
+            } catch (error) {
+                showToast(error.message || 'Invoice upload failed. Preview rows were preserved.', 'error');
+            } finally {
+                setAdminUploadBusy(false);
+            }
         }
     </script>
 </body>

@@ -6,7 +6,7 @@ try:
     from werkzeug.security import generate_password_hash, check_password_hash  # type: ignore[import]
     from werkzeug.utils import secure_filename  # type: ignore[import]
     from collections import defaultdict
-    from sqlalchemy import func, extract, asc, desc, or_, and_, case # type: ignore[import]
+    from sqlalchemy import func, extract, asc, desc, or_, and_, case, inspect as sa_inspect # type: ignore[import]
     from sqlalchemy.orm import selectinload, synonym
     from dotenv import load_dotenv  # type: ignore[import]
     from decimal import Decimal, InvalidOperation     # <--- ADD THIS LINE HERE
@@ -402,7 +402,12 @@ ERROR_INTERFACE = {
 }
 
 def wants_json_response():
-    return request.path.startswith('/api/') or request.accept_mimetypes.best == 'application/json' or request.is_json
+    return (
+        request.path.startswith('/api/')
+        or request.path.startswith('/admin/')
+        or request.accept_mimetypes.best == 'application/json'
+        or request.is_json
+    )
 
 def error_interface_payload(error_type='server', details=None):
     title, message, action = ERROR_INTERFACE.get(error_type, ERROR_INTERFACE['server'])
@@ -457,10 +462,14 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
+            if wants_json_response():
+                return jsonify({'success': False, 'error': 'Your session has expired. Sign in again.'}), 401
             return redirect(url_for('login'))
         user = db.session.get(User, session['user_id'])
         if not is_user_approved(user):
             session.clear()
+            if wants_json_response():
+                return jsonify({'success': False, 'error': 'Your session is no longer active. Sign in again.'}), 401
             flash(user_access_message(user), 'error')
             return redirect(url_for('login'))
         return f(*args, **kwargs)
@@ -471,10 +480,14 @@ def role_required(*allowed_roles):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if 'user_id' not in session:
+                if wants_json_response():
+                    return jsonify({'success': False, 'error': 'Your session has expired. Sign in again.'}), 401
                 return redirect(url_for('login'))
             
             user = db.session.get(User, session['user_id'])
             if not is_user_approved(user) or not user_has_role(user, allowed_roles):
+                if wants_json_response():
+                    return jsonify({'success': False, 'error': 'Access denied. Insufficient permissions.'}), 403
                 flash('Access denied. Insufficient permissions.', 'error')
                 return redirect(url_for('dashboard'))
             return f(*args, **kwargs)
@@ -1108,11 +1121,22 @@ def clean_code(value):
     value = '' if value is None else str(value).strip()
     return re.sub(r'\s+', ' ', re.sub(r'[^A-Za-z0-9\s#./_-]', '', value)).strip()
 
+def normalize_invoice_number(value, cr_number=None):
+    number = clean_code(value).upper()
+    if number in ('', 'NULL', 'N/A', 'NA', 'NONE'):
+        receipt = clean_code(cr_number).upper()
+        return f'CR-{receipt}' if receipt else ''
+    match = re.match(r'^(SVI|SVL|SI)[\s_-]*(.+)$', number)
+    if match:
+        suffix = re.sub(r'[\s_-]+', '-', match.group(2)).strip('-')
+        return f'{match.group(1)}-{suffix}' if suffix else match.group(1)
+    return re.sub(r'\s+', '-', number)
+
 def canonical_invoice_type(invoice_number, stored_type=''):
-    normalized_number = clean_code(invoice_number).upper()
-    if normalized_number.startswith('SVI-'):
+    normalized_number = re.sub(r'[^A-Z0-9]', '', clean_code(invoice_number).upper())
+    if normalized_number.startswith(('SVI', 'SVL')):
         return 'SERVICE'
-    if normalized_number.startswith('SI-'):
+    if normalized_number.startswith('SI'):
         return 'SALES'
     return clean_code(stored_type).upper()
 
@@ -1564,7 +1588,11 @@ def match_sales_order_for_uploaded_invoice(uploaded_client_name, so_number=None,
     outstanding_orders = []
     orders = (
         SalesOrder.query
-        .options(selectinload(SalesOrder.items), selectinload(SalesOrder.invoices))
+        .options(
+            selectinload(SalesOrder.client),
+            selectinload(SalesOrder.items),
+            selectinload(SalesOrder.invoices),
+        )
         .filter(SalesOrder.client_id == client.id)
         .order_by(SalesOrder.order_date.desc(), SalesOrder.id.desc())
         .all()
@@ -2572,19 +2600,28 @@ def normalize_upload_row(interface, row):
     is_admin_upload = bool(uploaded_client_name and not so_number)
     raw_total = lower.get('total_amount') if lower.get('total_amount') not in (None, '') else lower.get('amount')
     raw_balance = lower.get('balance')
-    invoice_number = clean_code(lower.get('invoice_number') or lower.get('invoice_no')).upper()
-    supplied_invoice_type = 'ADMIN UPLOAD' if is_admin_upload else (
-        clean_text(lower.get('invoice_type') or 'SALES') or 'SALES'
-    ).upper()
+    cr_number = clean_code(lower.get('cr_number') or lower.get('cr_no'))
+    invoice_number = normalize_invoice_number(
+        lower.get('invoice_number') or lower.get('invoice_no'),
+        cr_number,
+    )
+    stored_type = (clean_text(lower.get('invoice_type')) or '').upper()
+    supplied_invoice_type = canonical_invoice_type(
+        invoice_number,
+        stored_type or ('ADMIN UPLOAD' if is_admin_upload else 'SALES'),
+    )
+    invoice_date = parse_date_value(lower.get('invoice_date') or lower.get('date'), default_today=False)
+    if not invoice_date:
+        raise ValueError('Invoice date is required and must be valid.')
     return {
         'invoice_number': invoice_number,
         'uploaded_client_name': uploaded_client_name,
         'so_number': so_number,
-        'invoice_type': canonical_invoice_type(invoice_number, supplied_invoice_type),
-        'invoice_date': parse_date_value(lower.get('invoice_date') or lower.get('date')).isoformat(),
+        'invoice_type': supplied_invoice_type,
+        'invoice_date': invoice_date.isoformat(),
         'summary': clean_text(lower.get('summary') or lower.get('description')) or ('Admin Upload' if is_admin_upload else ''),
         'payment_type': 'Admin Upload' if is_admin_upload else clean_text(lower.get('payment_type')),
-        'cr_number': clean_code(lower.get('cr_number') or lower.get('cr_no')),
+        'cr_number': cr_number,
         'payment_amount': parse_amount(lower.get('payment_amount') or lower.get('amount_paid') or lower.get('paid')),
         'tax_amount_paid': parse_amount(lower.get('tax_amount_paid') or lower.get('tax')),
         'total_amount': None if is_admin_upload and raw_total in (None, '') else parse_amount(raw_total),
@@ -2605,6 +2642,399 @@ def zscore_outliers(rows, amount_key):
         {'index': idx, 'field': amount_key, 'value': value, 'z_score': round((value - mean) / std, 2)}
         for idx, value in enumerate(values) if abs((value - mean) / std) >= 2.5
     ]
+
+def invoice_upload_schema_status():
+    inspector = sa_inspect(db.engine)
+    tables = set(inspector.get_table_names())
+    missing = []
+    if 'sales_order_branches' not in tables:
+        missing.append('sales_order_branches')
+    if 'sales_order_items' not in tables:
+        missing.append('sales_order_items')
+    else:
+        item_columns = {column['name'] for column in inspector.get_columns('sales_order_items')}
+        if 'sales_order_branch_id' not in item_columns:
+            missing.append('sales_order_items.sales_order_branch_id')
+    return {'ready': not missing, 'missing': missing}
+
+def invoice_upload_client_key(value):
+    return normalize_client_match_key(
+        clean_text(value, keep_period=True, keep_ampersand=True).upper()
+    )
+
+def prepare_invoice_upload_rows(rows):
+    prepared = []
+    clients_by_invoice = defaultdict(set)
+    source_rows_by_invoice = defaultdict(list)
+    for index, raw in enumerate(rows, start=1):
+        if raw.get('included') is False:
+            continue
+        client_name = clean_text(
+            raw.get('uploaded_client_name'),
+            keep_period=True,
+            keep_ampersand=True,
+        ).upper()
+        cr_number = clean_code(raw.get('cr_number')).upper()
+        invoice_number = normalize_invoice_number(raw.get('invoice_number'), cr_number)
+        invoice_date = parse_date_value(raw.get('invoice_date'), default_today=False)
+        amount_paid = parse_nonnegative_amount(
+            raw.get('amount_paid') if raw.get('amount_paid') not in (None, '') else raw.get('payment_amount'),
+            f'Row {index} Amount Paid',
+        )
+        payment_amount = parse_nonnegative_amount(
+            raw.get('payment_amount') if raw.get('payment_amount') not in (None, '') else amount_paid,
+            f'Row {index} Payment Amount',
+        )
+        if not client_name:
+            raise ValueError(f'Row {index}: Uploaded Client Name is required.')
+        if not invoice_number:
+            raise ValueError(f'Row {index}: Invoice Number or CR Number is required.')
+        if not invoice_date:
+            raise ValueError(f'Row {index}: Invoice Date is required and must be valid.')
+        if amount_paid <= 0:
+            raise ValueError(f'Row {index}: Amount Paid must be greater than zero.')
+        client_key = invoice_upload_client_key(client_name)
+        number_key = invoice_number.upper()
+        source_row = raw.get('_source_row') or raw.get('source_row') or index
+        clients_by_invoice[number_key].add(client_key)
+        source_rows_by_invoice[number_key].append(source_row)
+        prepared.append({
+            'source_row': source_row,
+            'invoice_number': invoice_number,
+            'invoice_key': number_key,
+            'uploaded_client_name': client_name,
+            'client_key': client_key,
+            'so_number': clean_code(raw.get('so_number')),
+            'invoice_type': canonical_invoice_type(
+                invoice_number,
+                raw.get('invoice_type') or 'ADMIN UPLOAD',
+            ),
+            'invoice_date': invoice_date,
+            'summary': clean_text(raw.get('summary') or raw.get('description')),
+            'payment_type': raw.get('payment_type') or 'Admin Upload',
+            'cr_number': cr_number,
+            'payment_amount': payment_amount,
+            'tax_amount_paid': parse_nonnegative_amount(raw.get('tax_amount_paid'), f'Row {index} Tax Amount'),
+            'total_amount': (
+                None if raw.get('total_amount') in (None, '')
+                else parse_nonnegative_amount(raw.get('total_amount'), f'Row {index} Total Amount')
+            ),
+            'amount_paid': amount_paid,
+            'balance': (
+                None if raw.get('balance') in (None, '')
+                else parse_nonnegative_amount(raw.get('balance'), f'Row {index} Balance')
+            ),
+        })
+
+    conflicts = [
+        {
+            'invoice_number': invoice_number,
+            'clients': sorted({
+                row['uploaded_client_name']
+                for row in prepared
+                if row['invoice_key'] == invoice_number
+            }),
+            'source_rows': source_rows_by_invoice[invoice_number],
+        }
+        for invoice_number, client_keys in clients_by_invoice.items()
+        if len(client_keys) > 1
+    ]
+    grouped = {}
+    for row in prepared:
+        key = (row['invoice_key'], row['client_key'])
+        if key not in grouped:
+            grouped[key] = {
+                **row,
+                'source_rows': [row['source_row']],
+                'collection_dates': {row['invoice_date']},
+                'cr_numbers': {row['cr_number']} if row['cr_number'] else set(),
+                'summaries': {row['summary']} if row['summary'] else set(),
+            }
+            continue
+        current = grouped[key]
+        current['amount_paid'] = round(current['amount_paid'] + row['amount_paid'], 2)
+        current['payment_amount'] = round(current['payment_amount'] + row['payment_amount'], 2)
+        current['tax_amount_paid'] = round(current['tax_amount_paid'] + row['tax_amount_paid'], 2)
+        current['invoice_date'] = max(current['invoice_date'], row['invoice_date'])
+        current['source_rows'].append(row['source_row'])
+        current['collection_dates'].add(row['invoice_date'])
+        if row['cr_number']:
+            current['cr_numbers'].add(row['cr_number'])
+        if row['summary']:
+            current['summaries'].add(row['summary'])
+    return list(grouped.values()), conflicts
+
+def invoice_collection_note(row, matched):
+    if len(row['source_rows']) == 1:
+        return 'Matched using Uploaded Client Name' if matched else 'Admin Upload'
+    dates = ', '.join(item.isoformat() for item in sorted(row['collection_dates']))
+    receipts = ', '.join(sorted(row['cr_numbers']))
+    summaries = '; '.join(sorted(row['summaries']))
+    parts = [
+        'Matched using Uploaded Client Name' if matched else 'Admin Upload',
+        f"Source rows: {', '.join(map(str, row['source_rows']))}",
+        f'Collection dates: {dates}',
+    ]
+    if receipts:
+        parts.append(f'CR numbers: {receipts}')
+    if summaries:
+        parts.append(f'Summaries: {summaries}')
+    return ' | '.join(parts)
+
+def resolve_invoice_upload_client(client_name, registry, clients_by_id):
+    client_key = invoice_upload_client_key(client_name)
+    exact = registry['lookup'].get(client_key)
+    if exact:
+        return clients_by_id.get(exact['client_id'])
+    fuzzy_match = find_client_match(client_name, registry)
+    if (
+        fuzzy_match
+        and float(fuzzy_match.get('match_percent') or 0) >= CLIENT_REVIEW_MATCH_PERCENT
+        and not is_client_fuzzy_exception(client_name, fuzzy_match.get('client_name'))
+    ):
+        return clients_by_id.get(fuzzy_match['client_id'])
+    return None
+
+def commit_invoice_upload_batch(rows):
+    schema = invoice_upload_schema_status()
+    if not schema['ready']:
+        return jsonify({
+            'success': False,
+            'error': (
+                'The database schema is not ready for invoice matching. Apply the current '
+                f"Supabase migration first. Missing: {', '.join(schema['missing'])}."
+            ),
+            'error_type': 'database_schema',
+            'missing_schema': schema['missing'],
+        }), 500
+
+    grouped_rows, conflicts = prepare_invoice_upload_rows(rows)
+    if conflicts:
+        return jsonify({
+            'success': False,
+            'needs_review': True,
+            'error': 'Some invoice numbers belong to different Uploaded Client Names. Correct or exclude those rows.',
+            'conflicts': conflicts,
+        }), 409
+
+    registry = build_client_registry()
+    clients_by_id = {client.id: client for client in registry['clients']}
+    client_cache = {}
+    orders = (
+        SalesOrder.query
+        .options(selectinload(SalesOrder.items), selectinload(SalesOrder.invoices))
+        .order_by(SalesOrder.order_date.desc(), SalesOrder.id.desc())
+        .all()
+    )
+    orders_by_so = defaultdict(list)
+    outstanding_by_client = defaultdict(list)
+    for order in orders:
+        orders_by_so[clean_code(order.so_number).upper()].append(order)
+        paid = sum(float(invoice.amount_paid or 0) for invoice in order.invoices)
+        if sales_order_total(order) - paid > MONEY_TOLERANCE:
+            outstanding_by_client[order.client_id].append(order)
+
+    existing_invoices = (
+        Invoice.query
+        .options(selectinload(Invoice.sales_order))
+        .all()
+    )
+    existing_by_number = {
+        normalize_invoice_number(invoice.invoice_number).upper(): invoice
+        for invoice in existing_invoices
+    }
+
+    prepared_actions = []
+    database_conflicts = []
+    additions_by_order = defaultdict(float)
+    for row in grouped_rows:
+        if row['client_key'] not in client_cache:
+            client_cache[row['client_key']] = resolve_invoice_upload_client(
+                row['uploaded_client_name'],
+                registry,
+                clients_by_id,
+            )
+        client = client_cache[row['client_key']]
+        sales_order = None
+        so_number = clean_code(row.get('so_number')).upper()
+        if so_number:
+            candidates = orders_by_so.get(so_number, [])
+            if len(candidates) == 1:
+                sales_order = candidates[0]
+        elif client:
+            candidates = outstanding_by_client.get(client.id, [])
+            if len(candidates) == 1:
+                sales_order = candidates[0]
+
+        existing_invoice = existing_by_number.get(row['invoice_key'])
+        existing_client_id = None
+        existing_client_name = None
+        if existing_invoice:
+            if existing_invoice.sales_order:
+                existing_client_id = existing_invoice.sales_order.client_id
+                existing_client_name = (
+                    existing_invoice.sales_order.client.client_name
+                    if existing_invoice.sales_order.client else existing_invoice.uploaded_client_name
+                )
+            elif existing_invoice.uploaded_client_name:
+                existing_client = resolve_invoice_upload_client(
+                    existing_invoice.uploaded_client_name,
+                    registry,
+                    clients_by_id,
+                )
+                existing_client_id = existing_client.id if existing_client else None
+                existing_client_name = existing_invoice.uploaded_client_name
+        if existing_invoice and client and existing_client_id and existing_client_id != client.id:
+            database_conflicts.append({
+                'invoice_number': row['invoice_number'],
+                'uploaded_client_name': row['uploaded_client_name'],
+                'existing_client_name': existing_client_name,
+                'source_rows': row['source_rows'],
+            })
+            continue
+        if existing_invoice and existing_invoice.sales_order:
+            sales_order = existing_invoice.sales_order
+        if sales_order:
+            additions_by_order[sales_order.id] += float(row['amount_paid'] or 0)
+        prepared_actions.append((row, client, sales_order, existing_invoice))
+
+    if database_conflicts:
+        return jsonify({
+            'success': False,
+            'needs_review': True,
+            'error': 'Some invoice numbers already exist under a different client.',
+            'conflicts': database_conflicts,
+        }), 409
+
+    overpayments = []
+    orders_by_id = {order.id: order for order in orders}
+    for order_id, addition in additions_by_order.items():
+        order = orders_by_id[order_id]
+        current_paid = sum(float(invoice.amount_paid or 0) for invoice in order.invoices)
+        available = max(sales_order_total(order) - current_paid, 0)
+        if addition > available + MONEY_TOLERANCE:
+            overpayments.append({
+                'sales_order_id': order.id,
+                'so_number': order.so_number,
+                'available_balance': round(available, 2),
+                'uploaded_payment': round(addition, 2),
+            })
+    if overpayments:
+        return jsonify({
+            'success': False,
+            'needs_review': True,
+            'error': 'One or more uploaded payments exceed the matched Sales Order balance.',
+            'overpayments': overpayments,
+        }), 409
+
+    created = 0
+    updated = 0
+    linked = 0
+    standalone = 0
+    affected_orders = {}
+    for row, client, sales_order, existing_invoice in prepared_actions:
+        matched = sales_order is not None
+        collection_note = invoice_collection_note(row, matched)
+        receipt_numbers = sorted(row['cr_numbers'])
+        cr_number = receipt_numbers[-1] if receipt_numbers else None
+        summary = '; '.join(sorted(row['summaries'])) or ('Admin Upload' if not matched else None)
+        invoice_type = canonical_invoice_type(
+            row['invoice_number'],
+            row['invoice_type'] or ('SALES' if matched else 'ADMIN UPLOAD'),
+        )
+        if matched and invoice_type == 'ADMIN UPLOAD':
+            invoice_type = 'SALES'
+        if existing_invoice:
+            existing_invoice.invoice_number = row['invoice_number']
+            existing_invoice.invoice_type = invoice_type
+            existing_invoice.invoice_date = max(existing_invoice.invoice_date, row['invoice_date'])
+            existing_invoice.payment_amount = round(
+                float(existing_invoice.payment_amount or 0) + float(row['payment_amount'] or 0),
+                2,
+            )
+            existing_invoice.amount_paid = round(
+                float(existing_invoice.amount_paid or 0) + float(row['amount_paid'] or 0),
+                2,
+            )
+            existing_invoice.tax_amount_paid = round(
+                float(existing_invoice.tax_amount_paid or 0) + float(row['tax_amount_paid'] or 0),
+                2,
+            )
+            existing_invoice.cr_number = cr_number or existing_invoice.cr_number
+            existing_invoice.summary = summary or existing_invoice.summary
+            existing_invoice.uploaded_client_name = row['uploaded_client_name']
+            existing_invoice.upload_source = existing_invoice.upload_source or 'admin_upload'
+            existing_invoice.admin_upload_note = collection_note
+            if sales_order and existing_invoice.sales_order_id is None:
+                existing_invoice.sales_order = sales_order
+            if sales_order:
+                existing_invoice.total_amount = sales_order_total(sales_order)
+                existing_invoice.balance = max(existing_invoice.total_amount - existing_invoice.amount_paid, 0)
+                existing_invoice.status = 'PAID' if existing_invoice.balance <= MONEY_TOLERANCE else 'PARTIAL'
+                affected_orders[sales_order.id] = sales_order
+                linked += 1
+            else:
+                existing_invoice.status = 'Admin Upload'
+                standalone += 1
+            updated += 1
+            continue
+
+        total = sales_order_total(sales_order) if sales_order else row['total_amount']
+        balance = max(total - row['amount_paid'], 0) if total is not None else None
+        invoice = Invoice(
+            invoice_number=row['invoice_number'],
+            sales_order_id=sales_order.id if sales_order else None,
+            invoice_type=invoice_type,
+            invoice_date=row['invoice_date'],
+            summary=summary,
+            payment_type='Admin Upload' if not matched else row['payment_type'],
+            cr_number=cr_number,
+            payment_amount=row['payment_amount'],
+            tax_amount_paid=row['tax_amount_paid'],
+            total_amount=total,
+            amount_paid=row['amount_paid'],
+            balance=balance,
+            status=(
+                'Admin Upload' if not matched
+                else ('PAID' if balance is not None and balance <= MONEY_TOLERANCE else 'PARTIAL')
+            ),
+            uploaded_client_name=row['uploaded_client_name'],
+            upload_source='admin_upload',
+            admin_upload_note=collection_note,
+        )
+        db.session.add(invoice)
+        if sales_order:
+            affected_orders[sales_order.id] = sales_order
+            linked += 1
+        else:
+            standalone += 1
+        created += 1
+
+    db.session.flush()
+    for order in affected_orders.values():
+        synchronize_sales_order_payment_state(order)
+    refresh_client_financials()
+    log_audit('UPLOAD_COMMIT', 'invoices', None, None, {
+        'source_rows': len(rows),
+        'grouped_records': len(grouped_rows),
+        'created': created,
+        'updated': updated,
+        'linked': linked,
+        'standalone': standalone,
+        'excluded': len(rows) - sum(1 for row in rows if row.get('included') is not False),
+    })
+    db.session.commit()
+    return jsonify({
+        'success': True,
+        'message': f'Processed {len(grouped_rows)} collection record(s).',
+        'source_rows': len(rows),
+        'grouped_records': len(grouped_rows),
+        'created': created,
+        'updated': updated,
+        'linked': linked,
+        'standalone': standalone,
+        'excluded': len(rows) - sum(1 for row in rows if row.get('included') is not False),
+    })
 
 def serialize_record(record):
     if not record:
@@ -4010,6 +4440,7 @@ def admin_upload_preview(interface):
                         'error': f'{upload.filename}, row {row_index}: {validation_error}'
                     }), 400
                 normalized['_source_file'] = upload.filename
+                normalized['_source_row'] = row_index
                 rows.append(normalized)
 
         amount_key = 'cash_amount' if interface == 'purchase_order' else 'total_amount'
@@ -4025,10 +4456,17 @@ def admin_upload_preview(interface):
                     (f'Row {index} Expense date', row.get('date')),
                     (f'Row {index} OR date', row.get('or_date')),
                 ])
+        conflicts = []
+        grouped_invoice_count = None
+        if interface == 'invoice':
+            grouped_invoice_rows, conflicts = prepare_invoice_upload_rows(rows)
+            grouped_invoice_count = len(grouped_invoice_rows)
         return jsonify({
             'success': True,
             'rows': rows,
             'outliers': zscore_outliers(rows, amount_key),
+            'conflicts': conflicts,
+            'grouped_invoice_count': grouped_invoice_count,
             'warnings': future_date_warnings(dict(warning_fields)),
             'documentation': [
                 'Upload: select one or more CSV/Excel files for this interface.',
@@ -4038,7 +4476,12 @@ def admin_upload_preview(interface):
             ]
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        db.session.rollback()
+        app.logger.exception('Admin upload preview failed for %s', interface)
+        return jsonify({
+            'success': False,
+            'error': public_error_message(e, 'The upload could not be read. Check the CSV format and values.'),
+        }), 400
 
 @app.route('/admin/upload-commit/<interface>', methods=['POST'])
 @login_required
@@ -4047,12 +4490,16 @@ def admin_upload_commit(interface):
     denied = admin_required_json()
     if denied:
         return denied
-    payload = request.get_json() or {}
-    rows = payload.get('rows', [])
-    resolutions = parse_resolution_payload(payload)
-    if not rows:
-        return jsonify({'success': False, 'error': 'No rows to upload'}), 400
     try:
+        if interface not in ('sales_order', 'purchase_order', 'invoice'):
+            return jsonify({'success': False, 'error': 'Unknown upload interface'}), 400
+        payload = request.get_json(silent=True) or {}
+        rows = payload.get('rows', [])
+        resolutions = parse_resolution_payload(payload)
+        if not rows:
+            return jsonify({'success': False, 'error': 'No rows to upload'}), 400
+        if interface == 'invoice':
+            return commit_invoice_upload_batch(rows)
         if interface == 'sales_order':
             unresolved = []
             registry = build_client_registry()
@@ -4072,20 +4519,6 @@ def admin_upload_commit(interface):
                     'client_resolutions': unresolved,
                     'error': 'Some uploaded company names look similar to existing clients. Choose whether to use the suggestion or create a new client.'
                 }), 409
-        if interface == 'invoice':
-            grouped_rows = {}
-            for row in rows:
-                invoice_number = row.get('invoice_number')
-                if not invoice_number:
-                    grouped_rows[(None, id(row))] = row
-                    continue
-                if invoice_number not in grouped_rows:
-                    grouped_rows[invoice_number] = row.copy()
-                    continue
-                grouped_rows[invoice_number]['amount_paid'] = float(grouped_rows[invoice_number].get('amount_paid') or 0) + float(row.get('amount_paid') or row.get('payment_amount') or 0)
-                grouped_rows[invoice_number]['payment_amount'] = float(grouped_rows[invoice_number].get('payment_amount') or 0) + float(row.get('payment_amount') or row.get('amount_paid') or 0)
-            rows = list(grouped_rows.values())
-
         created = 0
         updated = 0
         client_registry = build_client_registry() if interface == 'invoice' else None
@@ -4213,86 +4646,6 @@ def admin_upload_commit(interface):
                         debit_type=debit['debit_type'],
                         amount=debit['amount'],
                     ))
-            elif interface == 'invoice':
-                uploaded_client_name = clean_text(
-                    row.get('uploaded_client_name'),
-                    keep_period=True,
-                    keep_ampersand=True
-                ).upper()
-                sales_order = match_sales_order_for_uploaded_invoice(
-                    uploaded_client_name,
-                    row.get('so_number'),
-                    client_registry,
-                )
-                total = float(row.get('total_amount') or 0) if row.get('total_amount') not in (None, '') else (float(sales_order.total_amount or 0) if sales_order else None)
-                paid = float(row.get('amount_paid') or row.get('payment_amount') or 0)
-                if not sales_order and not uploaded_client_name:
-                    continue
-                is_admin_upload = sales_order is None
-                invoice_type = row.get('invoice_type') or 'SALES'
-                if sales_order and str(invoice_type).upper() == 'ADMIN UPLOAD':
-                    invoice_type = 'SALES'
-                invoice_number = clean_code(row.get('invoice_number')).upper()
-                invoice_type = canonical_invoice_type(
-                    invoice_number,
-                    'ADMIN UPLOAD' if is_admin_upload else invoice_type
-                )
-                existing_invoice = Invoice.query.filter(
-                    func.lower(Invoice.invoice_number) == invoice_number.lower()
-                ).first() if invoice_number else None
-                if existing_invoice:
-                    existing_invoice.invoice_number = invoice_number
-                    existing_invoice.invoice_type = canonical_invoice_type(
-                        invoice_number,
-                        existing_invoice.invoice_type
-                    )
-                    existing_invoice.payment_amount = float(existing_invoice.payment_amount or 0) + float(row.get('payment_amount') or paid)
-                    existing_invoice.amount_paid = float(existing_invoice.amount_paid or 0) + paid
-                    if existing_invoice.total_amount is not None:
-                        existing_invoice.balance = max((existing_invoice.total_amount or 0) - (existing_invoice.amount_paid or 0), 0)
-                    if existing_invoice.sales_order_id is None:
-                        if sales_order:
-                            existing_invoice.sales_order = sales_order
-                            existing_invoice.uploaded_client_name = uploaded_client_name or existing_invoice.uploaded_client_name
-                            existing_invoice.upload_source = existing_invoice.upload_source or 'admin_upload'
-                            existing_invoice.admin_upload_note = existing_invoice.admin_upload_note or 'Matched using Uploaded Client Name'
-                        else:
-                            existing_invoice.status = 'Admin Upload'
-                            existing_invoice.uploaded_client_name = existing_invoice.uploaded_client_name or uploaded_client_name or None
-                            existing_invoice.upload_source = existing_invoice.upload_source or 'admin_upload'
-                            existing_invoice.admin_upload_note = existing_invoice.admin_upload_note or 'Admin Upload'
-                    elif existing_invoice.total_amount is not None and existing_invoice.amount_paid >= existing_invoice.total_amount and existing_invoice.total_amount > 0:
-                        existing_invoice.status = 'PAID'
-                    if sales_order:
-                        synchronize_sales_order_payment_state(sales_order)
-                    updated += 1
-                    continue
-                invoice = Invoice(
-                    invoice_number=invoice_number or f"INV-{Invoice.query.count() + created + 1:06d}",
-                    sales_order_id=sales_order.id if sales_order else None,
-                    invoice_type=invoice_type,
-                    invoice_date=parse_date_value(row.get('invoice_date')),
-                    summary=row.get('summary') or ('Admin Upload' if is_admin_upload else None),
-                    payment_type='Admin Upload' if is_admin_upload else row.get('payment_type'),
-                    cr_number=row.get('cr_number'),
-                    payment_amount=float(row.get('payment_amount') or paid),
-                    tax_amount_paid=float(row.get('tax_amount_paid') or 0),
-                    total_amount=total,
-                    amount_paid=paid,
-                    balance=None if is_admin_upload and row.get('balance') in (None, '') else float(row.get('balance') if row.get('balance') not in (None, '') else max((total or 0) - paid, 0)),
-                    status='Admin Upload' if is_admin_upload else (row.get('status') or ('PAID' if total is not None and paid >= total and total > 0 else 'UNPAID')),
-                    uploaded_client_name=uploaded_client_name or None,
-                    upload_source='admin_upload' if uploaded_client_name else None,
-                    admin_upload_note=(
-                        'Admin Upload'
-                        if is_admin_upload
-                        else ('Matched using Uploaded Client Name' if uploaded_client_name and not row.get('so_number') else None)
-                    )
-                )
-                db.session.add(invoice)
-                db.session.flush()
-                if sales_order:
-                    synchronize_sales_order_payment_state(sales_order)
             if interface != 'purchase_order' or not is_update:
                 created += 1
         if interface in ('sales_order', 'invoice'):
@@ -4303,9 +4656,17 @@ def admin_upload_commit(interface):
         if updated:
             message += f' and updated {updated} existing invoice(s)'
         return json_success({'created': created, 'updated': updated, 'message': message}, warnings)
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e), 'error_type': 'validation'}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)})
+        app.logger.exception('Admin upload commit failed for %s', interface)
+        return jsonify({
+            'success': False,
+            'error': public_error_message(e, 'The upload could not be completed. No records were saved.'),
+            'error_type': 'server',
+        }), 500
 
 @app.route('/auto-identify-fields', methods=['POST'])
 @login_required
@@ -4520,9 +4881,17 @@ def create_sales_order():
             'print_url': url_for('print_sales_order', so_id=sales_order.id)
         }, warnings)
     
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e), 'error_type': 'validation'}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)})
+        app.logger.exception('Sales Order creation failed')
+        return jsonify({
+            'success': False,
+            'error': public_error_message(e, 'The Sales Order could not be created.'),
+            'error_type': 'server',
+        }), 500
 
 @app.route('/get-sales-orders')
 @login_required
