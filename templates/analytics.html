@@ -69,27 +69,6 @@
             font-weight: 800;
         }
 
-        .recommendation-card {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            text-align: left;
-            width: 100%;
-            border: 1px solid var(--border-color);
-            border-left: 4px solid #F59E0B;
-            border-radius: var(--radius-lg);
-            padding: 1.25rem;
-            background: var(--bg-card, #fff);
-            cursor: pointer;
-            min-height: 100%;
-            transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
-        }
-
-        .recommendation-card:hover {
-            border-color: var(--brand-orange);
-            transform: translateY(-2px);
-        }
-
         .recommendation-intro {
             margin-bottom: 1.25rem;
         }
@@ -109,98 +88,242 @@
             border-color: #F59E0B !important;
         }
 
-        .recommendation-system-notice .recommendation-card {
-            min-height: auto;
+        .recommendation-system-notice-list {
+            display: grid;
+            gap: 0.75rem;
             margin-top: 0.75rem;
         }
 
-        .recommendation-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+        .recommendation-system-warning {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             gap: 1rem;
-            align-items: stretch;
+            width: 100%;
+            padding: 0.85rem 1rem;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid #F59E0B;
+            border-radius: var(--radius-md);
+            background: var(--bg-card, #fff);
+            color: var(--text-main);
+            text-align: left;
         }
 
-        .recommendation-card-header {
+        .recommendation-system-warning-copy {
+            display: grid;
+            gap: 0.2rem;
+        }
+
+        .recommendation-toolbar {
             display: flex;
-            align-items: flex-start;
             justify-content: space-between;
+            align-items: flex-end;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            background: var(--bg-card, #fff);
+        }
+
+        .recommendation-summary {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .recommendation-filter-group {
+            margin-top: 0.65rem;
+        }
+
+        .recommendation-summary-item,
+        .recommendation-filter {
+            min-height: 34px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.4rem 0.7rem;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            background: var(--bg-canvas);
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .recommendation-filter {
+            cursor: pointer;
+        }
+
+        .recommendation-filter[aria-pressed="true"] {
+            border-color: var(--brand-orange);
+            background: rgba(255, 106, 0, 0.1);
+            color: var(--brand-orange);
+        }
+
+        .recommendation-search {
+            display: grid;
+            gap: 0.35rem;
+            min-width: min(100%, 260px);
+        }
+
+        .recommendation-search label {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .recommendation-search input {
+            min-height: 42px;
+            width: 100%;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--bg-card, #fff);
+            padding: 0.55rem 0.75rem;
+            color: var(--text-main);
+            font: inherit;
+        }
+
+        .recommendation-list {
+            display: grid;
             gap: 0.75rem;
         }
 
+        .recommendation-row {
+            display: grid;
+            grid-template-columns: minmax(190px, 1.2fr) minmax(240px, 2fr) minmax(330px, 1.7fr) auto;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid #F59E0B;
+            border-radius: var(--radius-lg);
+            background: var(--bg-card, #fff);
+        }
+
+        .recommendation-rank {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            min-width: 0;
+        }
+
+        .recommendation-rank-number {
+            flex: 0 0 auto;
+            width: 30px;
+            height: 30px;
+            display: grid;
+            place-items: center;
+            border-radius: 999px;
+            background: var(--bg-canvas);
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            font-weight: 800;
+        }
+
+        .recommendation-store-copy {
+            min-width: 0;
+        }
+
         .recommendation-store-name {
+            display: block;
+            overflow-wrap: anywhere;
             color: var(--text-main);
-            font-size: 1rem;
+            font-size: 0.98rem;
             line-height: 1.35;
         }
 
-        .recommendation-severity {
-            flex: 0 0 auto;
-            width: 10px;
-            height: 10px;
-            margin-top: 0.28rem;
+        .recommendation-severity-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            margin-top: 0.3rem;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            font-weight: 750;
+            text-transform: capitalize;
+        }
+
+        .recommendation-severity-dot {
+            width: 8px;
+            height: 8px;
             border-radius: 999px;
             background: currentColor;
         }
 
-        .recommendation-metrics {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.75rem;
+        .recommendation-primary-action {
+            color: var(--text-main);
+            font-size: 0.88rem;
+            line-height: 1.5;
         }
 
-        .recommendation-metric {
+        .recommendation-row-metrics {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(70px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .recommendation-row-metric {
             min-width: 0;
-            padding: 0.75rem;
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            background: var(--bg-canvas);
+            padding-left: 0.65rem;
+            border-left: 1px solid var(--border-color);
             color: var(--text-muted);
-            font-size: 0.78rem;
+            font-size: 0.72rem;
             line-height: 1.35;
         }
 
-        .recommendation-metric strong {
+        .recommendation-row-metric strong {
             display: block;
-            margin-top: 0.2rem;
+            margin-top: 0.15rem;
             overflow-wrap: anywhere;
             color: var(--text-main);
-            font-size: 0.92rem;
+            font-size: 0.84rem;
         }
 
-        .recommendation-evidence {
-            display: grid;
-            gap: 0.5rem;
-            margin: 0;
+        .recommendation-empty {
+            padding: 2.5rem 1rem;
+            border: 1px dashed var(--border-color);
+            border-radius: var(--radius-lg);
             color: var(--text-muted);
-            font-size: 0.86rem;
-            line-height: 1.5;
+            text-align: center;
         }
 
-        .recommendation-action {
-            margin: auto 0 0;
-            padding-top: 0.85rem;
-            border-top: 1px solid var(--border-color);
-            color: var(--text-main);
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
-
-        .recommendation-link {
-            display: inline-flex;
-            align-items: center;
-            min-height: 32px;
-            color: var(--brand-orange);
-            font-weight: 750;
-        }
-
-        @media (max-width: 560px) {
-            .recommendation-card {
-                padding: 1rem;
+        @media (max-width: 1100px) {
+            .recommendation-row {
+                grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.5fr) auto;
             }
 
-            .recommendation-metrics {
+            .recommendation-row-metrics {
+                grid-column: 1 / -1;
+                grid-row: 2;
+            }
+        }
+
+        @media (max-width: 700px) {
+            .recommendation-toolbar,
+            .recommendation-system-warning {
+                align-items: stretch;
+            }
+
+            .recommendation-search {
+                width: 100%;
+            }
+
+            .recommendation-row {
                 grid-template-columns: 1fr;
+                align-items: stretch;
+            }
+
+            .recommendation-row-metrics {
+                grid-column: auto;
+                grid-row: auto;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .recommendation-row > .btn {
+                width: 100%;
             }
         }
 
@@ -286,20 +409,6 @@
             background: var(--bg-card, #fff);
         }
 
-        .analytics-tools-content {
-            max-height: 760px;
-            opacity: 1;
-            overflow: hidden;
-            transition: max-height 0.28s ease, opacity 0.2s ease, margin 0.28s ease;
-        }
-
-        .analytics-tools-content.collapsed {
-            max-height: 0;
-            opacity: 0;
-            margin: 0;
-            pointer-events: none;
-        }
-
         .analytics-toolbar {
             display: flex;
             justify-content: space-between;
@@ -347,6 +456,100 @@
             display: flex;
             gap: 0.75rem;
             flex-wrap: wrap;
+        }
+
+        .analytics-tools-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 10040;
+            display: flex;
+            justify-content: flex-end;
+            background: rgba(15, 23, 42, 0.55);
+        }
+
+        .analytics-tools-backdrop[hidden] {
+            display: none;
+        }
+
+        .analytics-tools-drawer {
+            width: min(440px, 100%);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-left: 1px solid var(--border-color);
+            background: var(--bg-card, #fff);
+            color: var(--text-main);
+        }
+
+        .analytics-tools-drawer-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .analytics-tools-drawer-header h2,
+        .analytics-tools-drawer-header p {
+            margin: 0;
+        }
+
+        .analytics-tools-drawer-header p {
+            margin-top: 0.25rem;
+            color: var(--text-muted);
+            font-size: 0.86rem;
+            line-height: 1.45;
+        }
+
+        .analytics-tools-drawer-body {
+            display: grid;
+            gap: 1rem;
+            overflow-y: auto;
+            padding: 1.25rem;
+        }
+
+        .analytics-tool-section {
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            background: var(--bg-card, #fff);
+        }
+
+        .analytics-tool-section h3,
+        .analytics-tool-section p {
+            margin-top: 0;
+        }
+
+        .analytics-tool-section p {
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+
+        .analytics-tool-form {
+            display: grid;
+            gap: 0.85rem;
+        }
+
+        .analytics-tool-file {
+            width: 100%;
+            min-height: 44px;
+            color: var(--text-main);
+            font: inherit;
+        }
+
+        .analytics-tool-help,
+        .analytics-tool-status {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            line-height: 1.45;
+        }
+
+        .analytics-tool-status {
+            color: var(--brand-orange);
+            font-weight: 700;
         }
 
         .analytics-print-modal {
@@ -465,6 +668,7 @@
 
         @media print {
             body > *:not(#analyticsPrintModal) { display: none !important; }
+            .analytics-tools-backdrop, .recommendation-toolbar, .recommendation-system-warning button, .recommendation-row button { display: none !important; }
             #analyticsPrintModal { position: static; display: block !important; padding: 0; background: #fff; }
             .analytics-preview-shell { width: auto; height: auto; overflow: visible; border-radius: 0; box-shadow: none; }
             .analytics-preview-toolbar { display: none !important; }
@@ -590,6 +794,10 @@
                 </div>
             </div>
             <div class="analytics-actions">
+                <button type="button" class="btn btn-outline" id="analyticsToolsButton"
+                    onclick="openAnalyticsTools()" aria-haspopup="dialog" aria-controls="analyticsToolsDrawer">
+                    Analytics Tools
+                </button>
                 <button type="button" class="btn btn-outline" onclick="exportAnalyticsCsv()">Export CSV</button>
                 <button type="button" class="btn btn-primary" onclick="previewAnalyticsReport()">Preview PDF</button>
             </div>
@@ -598,6 +806,21 @@
         <div id="analytics-content">
             <div class="loading">Loading analytics data...</div>
         </div>
+    </div>
+
+    <div id="analyticsToolsBackdrop" class="analytics-tools-backdrop" hidden>
+        <aside id="analyticsToolsDrawer" class="analytics-tools-drawer" role="dialog" aria-modal="true"
+            aria-labelledby="analyticsToolsTitle" tabindex="-1">
+            <div class="analytics-tools-drawer-header">
+                <div>
+                    <h2 id="analyticsToolsTitle">Analytics Tools</h2>
+                    <p>Refresh the analytical ledger or upload historical transaction data.</p>
+                </div>
+                <button type="button" class="btn btn-outline btn-sm" onclick="closeAnalyticsTools()"
+                    aria-label="Close Analytics Tools">Close</button>
+            </div>
+            <div id="analyticsToolsDrawerBody" class="analytics-tools-drawer-body"></div>
+        </aside>
     </div>
 
     <div id="analyticsPrintModal" class="analytics-print-modal" hidden>
@@ -623,12 +846,16 @@
         let currentCharts = [];
         let pendingCsvClientResolutions = [];
         let pendingUploadRequiresOutlierConfirmation = false;
-        let analyticsToolsHidden = true;
         let overviewSelectedYear = null;
         let salesMapeThreshold = 20;
         let latestRecommendations = [];
+        let latestStoreRecommendations = [];
+        let recommendationSeverityFilter = 'all';
+        let recommendationSearchQuery = '';
         let activeAnalyticsSection = 'overview';
         let activeAnalyticsFilterLabel = '';
+        let analyticsOverlayReturnFocus = null;
+        let analyticsHasLiveData = true;
         const initialAnalyticsYears = {{ available_years|tojson }};
 
         function escapeHtml(value) {
@@ -778,6 +1005,8 @@
                     //     initExpensesCharts();
                 } else if (section === 'sales') {
                     initSalesCharts();
+                } else if (section === 'recommendations') {
+                    renderRecommendationList();
                 }
                 updateRecommendationBadge(section);
             } catch (error) {
@@ -785,71 +1014,117 @@
             }
         }
 
-        function renderCSVUploadPanel(compact = false) {
-            const wrapperStyle = compact
-                ? 'margin-bottom: 2rem; padding: 1.25rem;'
-                : 'display: inline-block; padding: 2rem; min-width: min(100%, 420px);';
-
+        function renderCSVUploadPanel() {
             return `
-            <form id="csvUploadForm" class="surface-panel" onsubmit="handleCSVUpload(event)" style="${wrapperStyle}">
-                <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;">
-                    <input type="file" id="csvFile" accept=".csv,.xlsx,.xls" required onchange="updateSelectedCSVFile()" style="flex: 1 1 220px; font-size: 0.9rem; color: var(--text-main);" />
-                    <button id="csvUploadButton" type="submit" class="btn-secondary" style="background-color: var(--brand-orange, #FF6B00); color: white; border: none; padding: 0.75rem 1.25rem; border-radius: var(--radius-lg); cursor: pointer; font-weight: 600;">
-                        Upload File
-                    </button>
-                </div>
-                <div style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-muted); line-height: 1.45;">
-                    <div><strong>Required CSV/Excel headers:</strong> DATE, COMPANY NAME, STORE NAME, COST, QUANTITY, SELLING PRICE</div>
-                    <div><strong>Optional headers:</strong> STORE BRANCH, PARTICULAR</div>
-                    <div id="selectedCsvFile">Required date format: DD/MM/YYYY, example 01/01/2025.</div>
-                </div>
-                <div id="uploadStatus" style="margin-top: 1rem; font-weight: 600; color: var(--brand-orange);"></div>
-            </form>`;
+            <section class="analytics-tool-section" aria-labelledby="historicalUploadTitle">
+                <h3 id="historicalUploadTitle">Upload Historical CSV/Excel</h3>
+                <p>Add historical transaction data for analysis. Existing upload validation and client resolution rules still apply.</p>
+                <form id="csvUploadForm" class="analytics-tool-form" onsubmit="handleCSVUpload(event)">
+                    <label for="csvFile"><strong>Transaction file</strong></label>
+                    <input class="analytics-tool-file" type="file" id="csvFile" accept=".csv,.xlsx,.xls" required
+                        onchange="updateSelectedCSVFile()" />
+                    <div class="analytics-tool-help">
+                        <div><strong>Required:</strong> DATE, COMPANY NAME, STORE NAME, COST, QUANTITY, SELLING PRICE</div>
+                        <div><strong>Optional:</strong> STORE BRANCH, PARTICULAR</div>
+                        <div id="selectedCsvFile">Date format: DD/MM/YYYY, example 01/01/2025.</div>
+                    </div>
+                    <button id="csvUploadButton" type="submit" class="btn btn-primary">Upload File</button>
+                    <div id="uploadStatus" class="analytics-tool-status" role="status" aria-live="polite"></div>
+                </form>
+            </section>`;
         }
 
-        function renderGenerateAnalyticsPanel(compact = false, hasLiveData = true) {
-            const wrapperStyle = compact
-                ? 'margin-bottom: 1rem; padding: 1.25rem;'
-                : 'display: inline-block; padding: 1.5rem; min-width: min(100%, 420px); margin-bottom: 1rem;';
-
+        function renderGenerateAnalyticsPanel(hasLiveData = true) {
             return `
-            <div class="surface-panel" style="${wrapperStyle}">
-                <div style="font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem;">Generate Analytics Report</div>
-                <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.85rem;">
-                    ${hasLiveData ? 'System data is available. Generate analytics manually when you are ready to refresh the historical transaction ledger.' : 'No system data found. Upload Historical Transaction CSV.'}
-                </div>
-                <button id="generateAnalyticsButton" type="button" class="btn-secondary" onclick="generateAnalyticsReport()" ${hasLiveData ? '' : 'disabled'} style="background-color: var(--brand-orange, #FF6B00); color: white; border: none; padding: 0.75rem 1.25rem; border-radius: var(--radius-lg); cursor: pointer; font-weight: 600;">
+            <section class="analytics-tool-section" aria-labelledby="generateAnalyticsTitle">
+                <h3 id="generateAnalyticsTitle">Generate Analytics Report</h3>
+                <p>
+                    ${hasLiveData
+                        ? 'System data is available. Refresh the historical transaction ledger when you are ready.'
+                        : 'No system data was found. Upload historical transaction data before generating analytics.'}
+                </p>
+                <button id="generateAnalyticsButton" type="button" class="btn btn-primary"
+                    onclick="generateAnalyticsReport()" ${hasLiveData ? '' : 'disabled'}>
                     Generate Analytics Report
                 </button>
-                <div id="generateAnalyticsStatus" style="margin-top: 0.75rem; font-weight: 600; color: var(--brand-orange);"></div>
-            </div>`;
+                <div id="generateAnalyticsStatus" class="analytics-tool-status" role="status" aria-live="polite"></div>
+            </section>`;
         }
 
-        function renderAnalyticsToolsPanel(compact = false, hasLiveData = true) {
-            return `
-            <div class="analytics-tools-panel" style="margin-bottom: ${compact ? '2rem' : '0'};">
-                <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
-                    <button id="analyticsToolsToggle" type="button" class="btn-secondary" onclick="toggleAnalyticsTools()" aria-expanded="${analyticsToolsHidden ? 'false' : 'true'}" style="padding: 0.5rem 1rem;">
-                        ${analyticsToolsHidden ? 'Show Analytics Tools' : 'Hide Analytics Tools'}
-                    </button>
-                </div>
-                <div id="analyticsToolsContent" class="analytics-tools-content ${analyticsToolsHidden ? 'collapsed' : ''}">
-                    ${renderGenerateAnalyticsPanel(compact, hasLiveData)}
-                    ${renderCSVUploadPanel(compact)}
-                </div>
-            </div>`;
+        function renderAnalyticsToolsDrawer() {
+            const body = document.getElementById('analyticsToolsDrawerBody');
+            if (!body) return;
+            body.innerHTML = `
+                ${renderGenerateAnalyticsPanel(analyticsHasLiveData)}
+                ${renderCSVUploadPanel()}
+            `;
         }
 
-        function toggleAnalyticsTools() {
-            analyticsToolsHidden = !analyticsToolsHidden;
-            const content = document.getElementById('analyticsToolsContent');
-            const button = document.getElementById('analyticsToolsToggle');
-            if (content) content.classList.toggle('collapsed', analyticsToolsHidden);
-            if (button) {
-                button.textContent = analyticsToolsHidden ? 'Show Analytics Tools' : 'Hide Analytics Tools';
-                button.setAttribute('aria-expanded', analyticsToolsHidden ? 'false' : 'true');
+        function getFocusableElements(container) {
+            return Array.from(container.querySelectorAll(
+                'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
+                'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            )).filter(element => !element.hidden && element.offsetParent !== null);
+        }
+
+        function openAnalyticsTools() {
+            const backdrop = document.getElementById('analyticsToolsBackdrop');
+            const drawer = document.getElementById('analyticsToolsDrawer');
+            analyticsOverlayReturnFocus = document.activeElement;
+            renderAnalyticsToolsDrawer();
+            backdrop.hidden = false;
+            document.body.style.overflow = 'hidden';
+            requestAnimationFrame(() => {
+                const firstFocusable = getFocusableElements(drawer)[0];
+                (firstFocusable || drawer).focus();
+            });
+        }
+
+        function closeAnalyticsTools() {
+            const backdrop = document.getElementById('analyticsToolsBackdrop');
+            if (!backdrop || backdrop.hidden) return;
+            backdrop.hidden = true;
+            document.body.style.overflow = '';
+            if (analyticsOverlayReturnFocus && document.contains(analyticsOverlayReturnFocus)) {
+                analyticsOverlayReturnFocus.focus();
+            }
+            analyticsOverlayReturnFocus = null;
+        }
+
+        function handleOverlayKeydown(event) {
+            const toolsBackdrop = document.getElementById('analyticsToolsBackdrop');
+            const recommendationModal = document.getElementById('recommendationModal');
+            const activeOverlay = recommendationModal && !recommendationModal.hidden
+                ? recommendationModal.querySelector('[role="dialog"]')
+                : (!toolsBackdrop.hidden ? document.getElementById('analyticsToolsDrawer') : null);
+            if (!activeOverlay) return;
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                recommendationModal ? closeRecommendationDetails() : closeAnalyticsTools();
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = getFocusableElements(activeOverlay);
+            if (!focusable.length) {
+                event.preventDefault();
+                activeOverlay.focus();
+                return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
             }
         }
+
+        document.addEventListener('keydown', handleOverlayKeydown);
+        document.getElementById('analyticsToolsBackdrop').addEventListener('click', event => {
+            if (event.target === event.currentTarget) closeAnalyticsTools();
+        });
 
         // Overview tab
 
@@ -868,6 +1143,7 @@
                 if (!data.success) throw new Error(data.error);
                 if (data.selected_year) overviewSelectedYear = Number(data.selected_year);
                 syncAnalyticsFilterFromPayload(data);
+                analyticsHasLiveData = Boolean(data.has_live_data);
 
                 // --- EMPTY DATA STATE: RENDER CSV UPLOADER ---
                 if (data.is_empty) {
@@ -878,7 +1154,7 @@
             <p style="color: var(--text-muted); margin-bottom: 2rem; max-width: 450px; margin-left: auto; margin-right: auto;">
                 Your analytical database is currently empty. Upload your historical sales record file (.csv/.xlsx) to generate dashboard parameters.
             </p>
-            ${renderAnalyticsToolsPanel(false, Boolean(data.has_live_data))}
+            <button type="button" class="btn btn-primary" onclick="openAnalyticsTools()">Open Analytics Tools</button>
         </div>
     `;
                 }
@@ -894,8 +1170,6 @@
         <div class="toolbar-surface" style="margin-bottom: 2rem; padding: 0.75rem 1rem; color: var(--text-muted); font-weight: 600;">
             Reporting Period: ${data.filter?.label || activeAnalyticsFilterLabel || data.selected_year}
         </div>
-
-        ${renderAnalyticsToolsPanel(true, true)}
 
         <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
             <div class="stat-card">
@@ -1670,6 +1944,12 @@
             return '#F59E0B';
         }
 
+        function recommendationSeverityLabel(severity) {
+            if (severity === 'danger') return 'High priority';
+            if (severity === 'success') return 'Maintain';
+            return 'Needs attention';
+        }
+
         function updateRecommendationBadge(activeSection = '') {
             const badge = document.getElementById('recommendationBadge');
             if (!badge) return;
@@ -1692,7 +1972,10 @@
             const storeRecommendations = data.store_recommendations || [];
             const systemWarnings = data.system_warnings || [];
             const thresholds = data.rule_thresholds || {};
+            latestStoreRecommendations = storeRecommendations;
             latestRecommendations = [...storeRecommendations, ...systemWarnings];
+            recommendationSeverityFilter = 'all';
+            recommendationSearchQuery = '';
             updateRecommendationBadge('recommendations');
             return `
                 <div class="analytics-section recommendations">
@@ -1704,39 +1987,126 @@
                     ${systemWarnings.length ? `
                         <div class="surface-panel recommendation-system-notice">
                             <strong>System Notice</strong>
-                            ${systemWarnings.map((warning, warningIndex) => `
-                                <button type="button" class="recommendation-card" style="border-left-color:${recommendationColor(warning)};" onclick="openRecommendationDetails(${storeRecommendations.length + warningIndex})">
-                                    <span class="recommendation-card-header">
-                                        <strong class="recommendation-store-name">${escapeHtml(warning.title)}</strong>
-                                    </span>
-                                    <span class="recommendation-evidence">${escapeHtml(warning.reason)}</span>
-                                </button>
-                            `).join('')}
+                            <div class="recommendation-system-notice-list">
+                                ${systemWarnings.map((warning, warningIndex) => `
+                                    <div class="recommendation-system-warning" style="border-left-color:${recommendationColor(warning)};">
+                                        <span class="recommendation-system-warning-copy">
+                                            <strong>${escapeHtml(warning.title)}</strong>
+                                            <span>${escapeHtml(warning.reason)}</span>
+                                        </span>
+                                        <button type="button" class="btn btn-outline btn-sm"
+                                            onclick="openRecommendationDetails(${storeRecommendations.length + warningIndex})">
+                                            View Details
+                                        </button>
+                                    </div>
+                                `).join('')}
+                            </div>
                         </div>
                     ` : ''}
-                    <div class="recommendation-grid">
-                        ${storeRecommendations.map((rec, index) => {
-                            const metrics = rec.store_metrics || {};
-                            const topItem = metrics.top_item || {};
-                            return `
-                            <button type="button" class="recommendation-card" style="border-left-color:${recommendationColor(rec)};" onclick="openRecommendationDetails(${index})">
-                                <span class="recommendation-card-header">
-                                    <strong class="recommendation-store-name">${escapeHtml(rec.store_name || rec.title)}</strong>
-                                    <span class="recommendation-severity" style="color:${recommendationColor(rec)};" aria-hidden="true"></span>
-                                </span>
-                                <span class="recommendation-metrics">
-                                    <span class="recommendation-metric">SO Value<strong>${formatCurrency(metrics.sales_order_value || 0)}</strong></span>
-                                    <span class="recommendation-metric">Gross Profit<strong>${metrics.cost_data_status === 'complete' ? formatCurrency(metrics.gross_profit || 0) : 'Needs cost data'}</strong></span>
-                                    <span class="recommendation-metric">Margin<strong>${metrics.cost_data_status === 'complete' ? Number(metrics.profit_margin || 0).toFixed(2) + '%' : 'Unavailable'}</strong></span>
-                                    <span class="recommendation-metric">Orders / Branches<strong>${Number(metrics.order_count || 0)} / ${Number(metrics.branches_count || 0)}</strong></span>
-                                </span>
-                                <span class="recommendation-evidence"><b>Top item:</b> ${escapeHtml(topItem.item || 'No item data')}</span>
-                                <span class="recommendation-action">${escapeHtml((rec.actions || [rec.suggested_action])[0] || '')}</span>
-                                <span class="recommendation-link">View details →</span>
-                            </button>
-                        `}).join('') || '<p style="color: var(--text-muted);">No store recommendations are available for this period.</p>'}
+                    <div class="recommendation-toolbar" aria-label="Recommendation search and filters">
+                        <div>
+                            <div class="recommendation-summary" aria-label="Recommendation totals">
+                                <span class="recommendation-summary-item">${storeRecommendations.length} stores</span>
+                                <span class="recommendation-summary-item">${storeRecommendations.filter(item => item.severity === 'danger').length} high priority</span>
+                                <span class="recommendation-summary-item">${storeRecommendations.filter(item => item.severity === 'warning').length} need attention</span>
+                                <span class="recommendation-summary-item">${storeRecommendations.filter(item => item.severity === 'success').length} maintain</span>
+                            </div>
+                            <div class="recommendation-summary recommendation-filter-group" role="group" aria-label="Filter recommendations by severity">
+                                ${[
+                                    ['all', 'All'],
+                                    ['danger', 'High priority'],
+                                    ['warning', 'Needs attention'],
+                                    ['success', 'Maintain']
+                                ].map(([value, label]) => `
+                                    <button type="button" class="recommendation-filter" data-severity="${value}"
+                                        aria-pressed="${value === 'all' ? 'true' : 'false'}"
+                                        onclick="setRecommendationSeverityFilter('${value}')">${label}</button>
+                                `).join('')}
+                            </div>
+                        </div>
+                        <div class="recommendation-search">
+                            <label for="recommendationStoreSearch">Search Store Name</label>
+                            <input id="recommendationStoreSearch" type="search" placeholder="Enter a store name"
+                                oninput="setRecommendationSearch(this.value)" autocomplete="off" />
+                        </div>
                     </div>
+                    <div id="recommendationResultCount" class="recommendation-summary-item" role="status" aria-live="polite"></div>
+                    <div id="recommendationList" class="recommendation-list" role="list"></div>
                 </div>`;
+        }
+
+        function setRecommendationSeverityFilter(severity) {
+            recommendationSeverityFilter = severity;
+            document.querySelectorAll('.recommendation-filter').forEach(button => {
+                button.setAttribute('aria-pressed', button.dataset.severity === severity ? 'true' : 'false');
+            });
+            renderRecommendationList();
+        }
+
+        function setRecommendationSearch(value) {
+            recommendationSearchQuery = String(value || '').trim().toUpperCase();
+            renderRecommendationList();
+        }
+
+        function filteredStoreRecommendations() {
+            return latestStoreRecommendations
+                .map((recommendation, originalIndex) => ({ recommendation, originalIndex }))
+                .filter(({ recommendation }) => {
+                    const severityMatches = recommendationSeverityFilter === 'all'
+                        || recommendation.severity === recommendationSeverityFilter;
+                    const storeName = String(recommendation.store_name || recommendation.title || '').toUpperCase();
+                    return severityMatches && storeName.includes(recommendationSearchQuery);
+                });
+        }
+
+        function renderRecommendationList() {
+            const list = document.getElementById('recommendationList');
+            const resultCount = document.getElementById('recommendationResultCount');
+            if (!list || !resultCount) return;
+            const filtered = filteredStoreRecommendations();
+            resultCount.textContent = `${filtered.length} of ${latestStoreRecommendations.length} stores shown`;
+            if (!latestStoreRecommendations.length) {
+                list.innerHTML = '<div class="recommendation-empty">No store recommendations are available for this reporting period.</div>';
+                return;
+            }
+            if (!filtered.length) {
+                list.innerHTML = '<div class="recommendation-empty">No recommendations match the selected severity and Store Name.</div>';
+                return;
+            }
+            list.innerHTML = filtered.map(({ recommendation: rec, originalIndex }, visibleIndex) => {
+                const metrics = rec.store_metrics || {};
+                const margin = metrics.cost_data_status === 'complete'
+                    ? `${Number(metrics.profit_margin || 0).toFixed(2)}%`
+                    : 'Unavailable';
+                return `
+                    <article class="recommendation-row" role="listitem"
+                        style="border-left-color:${recommendationColor(rec)};">
+                        <div class="recommendation-rank">
+                            <span class="recommendation-rank-number" aria-label="Rank ${visibleIndex + 1}">${visibleIndex + 1}</span>
+                            <span class="recommendation-store-copy">
+                                <strong class="recommendation-store-name">${escapeHtml(rec.store_name || rec.title)}</strong>
+                                <span class="recommendation-severity-label" style="color:${recommendationColor(rec)};">
+                                    <span class="recommendation-severity-dot" aria-hidden="true"></span>
+                                    ${recommendationSeverityLabel(rec.severity)}
+                                </span>
+                            </span>
+                        </div>
+                        <div class="recommendation-primary-action">
+                            ${escapeHtml((rec.actions || [rec.suggested_action])[0] || 'Continue monitoring this store.')}
+                        </div>
+                        <div class="recommendation-row-metrics" aria-label="Store recommendation metrics">
+                            <span class="recommendation-row-metric">SO Value<strong>${formatCurrency(metrics.sales_order_value || 0)}</strong></span>
+                            <span class="recommendation-row-metric">Margin<strong>${margin}</strong></span>
+                            <span class="recommendation-row-metric">Orders<strong>${Number(metrics.order_count || 0)}</strong></span>
+                            <span class="recommendation-row-metric">Branches<strong>${Number(metrics.branches_count || 0)}</strong></span>
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm"
+                            onclick="openRecommendationDetails(${originalIndex})"
+                            aria-label="View recommendation details for ${escapeHtml(rec.store_name || rec.title)}">
+                            View Details
+                        </button>
+                    </article>`;
+            }).join('');
         }
 
         async function refreshRecommendationBadge() {
@@ -1755,6 +2125,7 @@
             const rec = latestRecommendations[index];
             if (!rec) return;
             closeRecommendationDetails();
+            recommendationModalReturnFocus = document.activeElement;
             const metrics = rec.store_metrics || null;
             const details = [
                 ['Recommendation Title', rec.title],
@@ -1771,7 +2142,8 @@
             modal.id = 'recommendationModal';
             modal.className = 'recommendation-modal-backdrop';
             modal.innerHTML = `
-                <section class="recommendation-modal" role="dialog" aria-modal="true" aria-labelledby="recommendationModalTitle">
+                <section class="recommendation-modal" role="dialog" aria-modal="true"
+                    aria-labelledby="recommendationModalTitle" tabindex="-1">
                     <div style="display:flex; justify-content:space-between; gap:1rem; align-items:start;">
                         <h3 id="recommendationModalTitle" style="margin:0;">${escapeHtml(rec.title)}</h3>
                         <button type="button" class="btn btn-outline btn-sm" onclick="closeRecommendationDetails()">Close</button>
@@ -1814,10 +2186,22 @@
                 if (event.target === modal) closeRecommendationDetails();
             });
             document.body.appendChild(modal);
+            document.body.style.overflow = 'hidden';
+            requestAnimationFrame(() => {
+                const closeButton = modal.querySelector('button');
+                (closeButton || modal.querySelector('[role="dialog"]')).focus();
+            });
         }
 
         function closeRecommendationDetails() {
-            document.getElementById('recommendationModal')?.remove();
+            const modal = document.getElementById('recommendationModal');
+            if (!modal) return;
+            modal.remove();
+            document.body.style.overflow = '';
+            if (recommendationModalReturnFocus && document.contains(recommendationModalReturnFocus)) {
+                recommendationModalReturnFocus.focus();
+            }
+            recommendationModalReturnFocus = null;
         }
 
         // Load Comparative Analysis
@@ -1985,7 +2369,10 @@
             rows.push([]);
 
             if (!tables.length) {
-                const cards = Array.from(document.querySelectorAll('#analytics-content .stat-card, #analytics-content .card, #analytics-content .recommendation-card'));
+                const cards = Array.from(document.querySelectorAll(
+                    '#analytics-content .stat-card, #analytics-content .card, ' +
+                    '#analytics-content .recommendation-row, #analytics-content .recommendation-system-warning'
+                ));
                 cards.forEach(card => {
                     const text = card.innerText.replace(/\s+/g, ' ').trim();
                     if (text) rows.push([text]);
@@ -2019,7 +2406,10 @@
             const modal = document.getElementById('analyticsPrintModal');
             await waitForAnalyticsPrintReady();
             const clone = source.cloneNode(true);
-            clone.querySelectorAll('button, input, select, textarea, form, .analytics-tools-panel').forEach(node => node.remove());
+            clone.querySelectorAll(
+                'button, input, select, textarea, form, .analytics-tools-backdrop, ' +
+                '.recommendation-toolbar, #recommendationResultCount'
+            ).forEach(node => node.remove());
             const sourceCanvases = Array.from(source.querySelectorAll('canvas'));
             clone.querySelectorAll('canvas').forEach((canvas, index) => {
                 const sourceCanvas = sourceCanvases[index];

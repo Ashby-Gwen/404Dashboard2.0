@@ -90,6 +90,16 @@ def main():
             assert 'role="tabpanel"' in admin_html
             assert {'gridTable', 'gridSearch', 'gridStatus', 'gridPageSize'} <= set(admin_parser.controls)
 
+            analytics_html = client.get('/analytics').get_data(as_text=True)
+            analytics_parser = assert_unique_ids(analytics_html)
+            assert 'id="analyticsToolsDrawer"' in analytics_html
+            assert 'aria-labelledby="analyticsToolsTitle"' in analytics_html
+            assert 'aria-controls="analyticsToolsDrawer"' in analytics_html
+            assert 'aria-haspopup="dialog"' in analytics_html
+            assert 'aria-label="Close Analytics Tools"' in analytics_html
+            assert 'aria-label="Analytics date filter and actions"' in analytics_html
+            assert {'analyticsYear', 'analyticsPeriod'} <= set(analytics_parser.controls)
+
             login(client, accounting, 'accounting staff')
             expense_html = client.get('/expenses').get_data(as_text=True)
             expense_parser = assert_unique_ids(expense_html)
@@ -114,6 +124,7 @@ def main():
             assert 'Reference/PO Number' not in expense_html
 
     admin_source = open(os.path.join(ROOT, 'templates', 'admin.html'), encoding='utf-8').read()
+    analytics_source = open(os.path.join(ROOT, 'templates', 'analytics.html'), encoding='utf-8').read()
     expense_source = open(os.path.join(ROOT, 'templates', 'purchase_orders.html'), encoding='utf-8').read()
     styles = open(os.path.join(ROOT, 'static', 'css', 'styles.css'), encoding='utf-8').read()
 
@@ -122,6 +133,10 @@ def main():
     assert "event.key === 'Escape'" in expense_source
     assert "event.key !== 'Tab'" in expense_source
     assert 'expenseModalReturnFocus' in expense_source
+    assert "event.key === 'Escape'" in analytics_source
+    assert "event.key !== 'Tab'" in analytics_source
+    assert 'analyticsOverlayReturnFocus' in analytics_source
+    assert 'recommendationModalReturnFocus' in analytics_source
     assert ':focus-visible' in styles
     assert '.skip-link:focus' in styles
 

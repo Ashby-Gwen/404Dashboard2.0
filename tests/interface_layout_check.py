@@ -28,12 +28,18 @@ def main():
     assert '.button-group-responsive' in styles
     assert '@media (max-width: 760px)' in styles
 
-    assert '.recommendation-grid' in analytics
-    assert '.recommendation-metrics' in analytics
-    assert '.recommendation-action' in analytics
+    assert '.recommendation-list' in analytics
+    assert '.recommendation-row-metrics' in analytics
+    assert '.recommendation-primary-action' in analytics
     assert 'recommendation-store-name' in analytics
-    assert 'View details →' in analytics
-
+    assert 'recommendationStoreSearch' in analytics
+    assert 'setRecommendationSeverityFilter' in analytics
+    assert 'No recommendations match the selected severity and Store Name.' in analytics
+    assert 'analyticsToolsDrawer' in analytics
+    assert 'openAnalyticsTools' in analytics
+    assert 'Generate Analytics Report' in analytics
+    assert 'Upload Historical CSV/Excel' in analytics
+    assert '@media (max-width: 700px)' in analytics
     assert 'input[type="checkbox"]' in generated_theme
     assert 'min-height: 44px !important' in generated_theme
     assert 'padding: 16px !important' in generated_theme
