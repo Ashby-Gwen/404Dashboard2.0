@@ -1,6 +1,7 @@
 import io
 import os
 import sys
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,7 +14,17 @@ if str(ROOT) not in sys.path:
 os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 
 import app as app_module  # noqa: E402
-from app import Invoice, Role, User, app, db, init_db  # noqa: E402
+from app import (  # noqa: E402
+    Client,
+    Invoice,
+    Role,
+    SalesOrder,
+    SalesOrderItem,
+    User,
+    app,
+    db,
+    init_db,
+)
 from werkzeug.security import generate_password_hash  # noqa: E402
 
 
@@ -71,12 +82,13 @@ def main():
             preview = upload_csv(web)
             assert preview.status_code == 200, preview.get_data(as_text=True)
             payload = preview.get_json()
-            assert len(payload['rows']) == 837
-            assert payload['grouped_invoice_count'] == 829
-            assert len(payload['conflicts']) == 5
+            assert len(payload['rows']) == 832
+            assert payload['grouped_invoice_count'] == 824
+            assert payload['conflicts'] == []
             assert payload['rows'][0]['invoice_number'] == 'CR-4640'
             assert any(
-                row['invoice_number'].startswith('SVL-') and row['invoice_type'] == 'SERVICE'
+                row['invoice_number'].startswith(('SVI-', 'SVL-'))
+                and row['invoice_type'] == 'SERVICE'
                 for row in payload['rows']
             )
             assert any(
@@ -84,23 +96,33 @@ def main():
                 for row in payload['rows']
             )
 
-            blocked = web.post(
+            invoice_conflict = web.post(
                 '/admin/upload-commit/invoice',
-                json={'rows': payload['rows']},
+                json={'rows': [
+                    {
+                        'invoice_number': 'SI-CONFLICT',
+                        'uploaded_client_name': 'CLIENT A',
+                        'invoice_date': '2025-01-01',
+                        'amount_paid': 100,
+                        'payment_amount': 100,
+                        'cr_number': 'TEST-CONFLICT-1',
+                    },
+                    {
+                        'invoice_number': 'SI-CONFLICT',
+                        'uploaded_client_name': 'CLIENT B',
+                        'invoice_date': '2025-01-01',
+                        'amount_paid': 100,
+                        'payment_amount': 100,
+                        'cr_number': 'TEST-CONFLICT-2',
+                    },
+                ]},
                 headers={'Accept': 'application/json'},
             )
-            assert blocked.status_code == 409
-            assert blocked.is_json
+            assert invoice_conflict.status_code == 409
+            assert invoice_conflict.is_json
             assert Invoice.query.count() == 0
 
-            conflict_numbers = {
-                conflict['invoice_number']
-                for conflict in payload['conflicts']
-            }
-            accepted_rows = [
-                row for row in payload['rows']
-                if row['invoice_number'] not in conflict_numbers
-            ]
+            accepted_rows = payload['rows']
             select_count = 0
 
             def count_selects(conn, cursor, statement, parameters, context, executemany):
@@ -119,15 +141,108 @@ def main():
                 event.remove(db.engine, 'before_cursor_execute', count_selects)
             assert committed.status_code == 200, committed.get_data(as_text=True)
             result = committed.get_json()
-            assert result['source_rows'] == 827
-            assert result['grouped_records'] == 819
-            assert result['created'] == 819
-            assert result['standalone'] == 819
-            assert Invoice.query.count() == 819
+            assert result['source_rows'] == 832
+            assert result['grouped_records'] == 824
+            assert result['created'] == 824
+            assert result['standalone'] == 824
+            assert result['duplicate_receipts_skipped'] == 0
+            assert Invoice.query.count() == 824
             assert select_count < 40, f'Expected bounded SELECT queries, saw {select_count}'
             assert Invoice.query.filter_by(invoice_number='CR-4640').one().cr_number == '4640'
-            assert Invoice.query.filter(Invoice.invoice_number.like('SVL-%'), Invoice.invoice_type == 'SERVICE').count() > 0
+            assert Invoice.query.filter(
+                Invoice.invoice_number.like('SVI-%'),
+                Invoice.invoice_type == 'SERVICE',
+            ).count() > 0
             assert Invoice.query.filter(Invoice.invoice_number.like('SI-%'), Invoice.invoice_type == 'SALES').count() > 0
+
+            repeated = web.post(
+                '/admin/upload-commit/invoice',
+                json={'rows': accepted_rows},
+                headers={'Accept': 'application/json'},
+            )
+            assert repeated.status_code == 200, repeated.get_data(as_text=True)
+            repeated_result = repeated.get_json()
+            assert repeated_result['created'] == 0
+            assert repeated_result['updated'] == 0
+            assert repeated_result['duplicate_receipts_skipped'] == 832
+            assert Invoice.query.count() == 824
+
+            overpay_client = Client(client_name='OVERPAY TEST CLIENT')
+            db.session.add(overpay_client)
+            db.session.flush()
+            overpay_order = SalesOrder(
+                so_number='SO-OVERPAY-1',
+                client_id=overpay_client.id,
+                company_name=overpay_client.client_name,
+                official_client_name=overpay_client.client_name,
+                store_name='OVERPAY STORE',
+                order_date=date(2025, 1, 1),
+                total_amount=100,
+                status='PARTIAL',
+            )
+            db.session.add(overpay_order)
+            db.session.flush()
+            db.session.add(SalesOrderItem(
+                sales_order_id=overpay_order.id,
+                particular='TEST ITEM',
+                quantity=1,
+                unit_cost=50,
+                selling_price=100,
+                total=100,
+            ))
+            db.session.commit()
+
+            client_only_overpayment = web.post(
+                '/admin/upload-commit/invoice',
+                json={'rows': [{
+                    'invoice_number': 'SI-CLIENT-FALLBACK',
+                    'uploaded_client_name': overpay_client.client_name,
+                    'invoice_date': '2025-01-02',
+                    'amount_paid': 150,
+                    'payment_amount': 150,
+                    'cr_number': 'TEST-OVERPAY-STANDALONE',
+                }]},
+                headers={'Accept': 'application/json'},
+            )
+            assert client_only_overpayment.status_code == 200
+            fallback_result = client_only_overpayment.get_json()
+            assert fallback_result['standalone'] == 1
+            assert Invoice.query.filter_by(
+                invoice_number='SI-CLIENT-FALLBACK',
+            ).one().sales_order_id is None
+
+            linked_invoice = Invoice(
+                invoice_number='SI-EXACT-OVERPAY',
+                sales_order_id=overpay_order.id,
+                invoice_type='SALES',
+                invoice_date=date(2025, 1, 2),
+                payment_amount=90,
+                total_amount=100,
+                amount_paid=90,
+                balance=10,
+                status='PARTIAL',
+                uploaded_client_name=overpay_client.client_name,
+                upload_source='admin_upload',
+                cr_number='TEST-EXACT-ORIGINAL',
+            )
+            db.session.add(linked_invoice)
+            db.session.commit()
+            exact_overpayment = web.post(
+                '/admin/upload-commit/invoice',
+                json={'rows': [{
+                    'invoice_number': 'SI-EXACT-OVERPAY',
+                    'uploaded_client_name': overpay_client.client_name,
+                    'invoice_date': '2025-01-03',
+                    'amount_paid': 20,
+                    'payment_amount': 20,
+                    'cr_number': 'TEST-EXACT-NEW',
+                }]},
+                headers={'Accept': 'application/json'},
+            )
+            assert exact_overpayment.status_code == 409
+            assert exact_overpayment.get_json()['overpayments'][0]['available_balance'] == 10
+            db.session.refresh(linked_invoice)
+            assert linked_invoice.amount_paid == 90
 
             malformed = web.post(
                 '/admin/upload-preview/invoice',

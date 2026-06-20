@@ -1759,7 +1759,20 @@
                 });
                 const data = await readAdminUploadResponse(response);
                 renderAdminUploadConflicts(data.conflicts || []);
-                if (!response.ok || !data.success) throw new Error(data.error || 'Upload failed');
+                if (!response.ok || !data.success) {
+                    let detail = '';
+                    if (Array.isArray(data.overpayments) && data.overpayments.length) {
+                        detail = data.overpayments.map(item =>
+                            `${item.so_number}: available ₱${Number(item.available_balance || 0).toLocaleString()}, ` +
+                            `uploaded ₱${Number(item.uploaded_payment || 0).toLocaleString()}`
+                        ).join('; ');
+                    } else if (Array.isArray(data.receipt_conflicts) && data.receipt_conflicts.length) {
+                        detail = data.receipt_conflicts.map(item =>
+                            `CR ${item.cr_number} (${item.invoice_number})`
+                        ).join(', ');
+                    }
+                    throw new Error(`${data.error || 'Upload failed'}${detail ? ` ${detail}` : ''}`);
+                }
                 showToast(data.message || 'Rows uploaded.', 'success');
                 if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
                 adminCleanRows = [];

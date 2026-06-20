@@ -2795,6 +2795,90 @@ def resolve_invoice_upload_client(client_name, registry, clients_by_id):
         return clients_by_id.get(fuzzy_match['client_id'])
     return None
 
+def invoice_receipt_numbers(invoice):
+    receipt_numbers = set()
+    direct_receipt = clean_code(invoice.cr_number).upper()
+    if direct_receipt:
+        receipt_numbers.add(direct_receipt)
+    note = invoice.admin_upload_note or ''
+    marker = 'CR numbers:'
+    if marker in note:
+        receipt_text = note.split(marker, 1)[1].split('|', 1)[0]
+        receipt_numbers.update(
+            clean_code(value).upper()
+            for value in receipt_text.split(',')
+            if clean_code(value)
+        )
+    return receipt_numbers
+
+def existing_invoice_client_key(invoice):
+    if invoice.sales_order and invoice.sales_order.client:
+        return invoice_upload_client_key(invoice.sales_order.client.client_name)
+    return invoice_upload_client_key(invoice.uploaded_client_name)
+
+def filter_existing_invoice_receipts(rows, existing_invoices):
+    invoices_by_receipt = defaultdict(list)
+    for invoice in existing_invoices:
+        for receipt_number in invoice_receipt_numbers(invoice):
+            invoices_by_receipt[receipt_number].append(invoice)
+
+    accepted_rows = []
+    skipped_receipts = []
+    receipt_conflicts = []
+    for index, row in enumerate(rows, start=1):
+        if row.get('included') is False:
+            accepted_rows.append(row)
+            continue
+        receipt_number = clean_code(row.get('cr_number')).upper()
+        if not receipt_number or receipt_number not in invoices_by_receipt:
+            accepted_rows.append(row)
+            continue
+
+        incoming_client_key = invoice_upload_client_key(row.get('uploaded_client_name'))
+        incoming_invoice_number = normalize_invoice_number(
+            row.get('invoice_number'),
+            receipt_number,
+        ).upper()
+        matching_invoice = None
+        for existing_invoice in invoices_by_receipt[receipt_number]:
+            existing_number = normalize_invoice_number(existing_invoice.invoice_number).upper()
+            legacy_blank_number = (
+                incoming_invoice_number == f'CR-{receipt_number}'
+                and existing_number.startswith('INV-')
+            )
+            if (
+                existing_invoice_client_key(existing_invoice) == incoming_client_key
+                and (existing_number == incoming_invoice_number or legacy_blank_number)
+            ):
+                matching_invoice = existing_invoice
+                break
+
+        source_row = row.get('_source_row') or row.get('source_row') or index
+        if matching_invoice:
+            skipped_receipts.append({
+                'cr_number': receipt_number,
+                'invoice_number': incoming_invoice_number,
+                'existing_invoice_id': matching_invoice.id,
+                'source_row': source_row,
+            })
+            continue
+
+        receipt_conflicts.append({
+            'cr_number': receipt_number,
+            'invoice_number': incoming_invoice_number,
+            'uploaded_client_name': clean_text(row.get('uploaded_client_name')).upper(),
+            'existing_invoices': [
+                {
+                    'id': invoice.id,
+                    'invoice_number': invoice.invoice_number,
+                    'uploaded_client_name': invoice.uploaded_client_name,
+                }
+                for invoice in invoices_by_receipt[receipt_number]
+            ],
+            'source_row': source_row,
+        })
+    return accepted_rows, skipped_receipts, receipt_conflicts
+
 def commit_invoice_upload_batch(rows):
     schema = invoice_upload_schema_status()
     if not schema['ready']:
@@ -2808,7 +2892,26 @@ def commit_invoice_upload_batch(rows):
             'missing_schema': schema['missing'],
         }), 500
 
-    grouped_rows, conflicts = prepare_invoice_upload_rows(rows)
+    existing_invoices = (
+        Invoice.query
+        .options(
+            selectinload(Invoice.sales_order).selectinload(SalesOrder.client),
+        )
+        .all()
+    )
+    accepted_rows, skipped_receipts, receipt_conflicts = filter_existing_invoice_receipts(
+        rows,
+        existing_invoices,
+    )
+    if receipt_conflicts:
+        return jsonify({
+            'success': False,
+            'needs_review': True,
+            'error': 'Some CR numbers already exist under a different invoice or Uploaded Client Name.',
+            'receipt_conflicts': receipt_conflicts,
+        }), 409
+
+    grouped_rows, conflicts = prepare_invoice_upload_rows(accepted_rows)
     if conflicts:
         return jsonify({
             'success': False,
@@ -2834,11 +2937,6 @@ def commit_invoice_upload_batch(rows):
         if sales_order_total(order) - paid > MONEY_TOLERANCE:
             outstanding_by_client[order.client_id].append(order)
 
-    existing_invoices = (
-        Invoice.query
-        .options(selectinload(Invoice.sales_order))
-        .all()
-    )
     existing_by_number = {
         normalize_invoice_number(invoice.invoice_number).upper(): invoice
         for invoice in existing_invoices
@@ -2856,15 +2954,18 @@ def commit_invoice_upload_batch(rows):
             )
         client = client_cache[row['client_key']]
         sales_order = None
+        bridge_candidate = None
+        match_source = 'standalone'
         so_number = clean_code(row.get('so_number')).upper()
         if so_number:
             candidates = orders_by_so.get(so_number, [])
             if len(candidates) == 1:
                 sales_order = candidates[0]
+                match_source = 'explicit_sales_order'
         elif client:
             candidates = outstanding_by_client.get(client.id, [])
             if len(candidates) == 1:
-                sales_order = candidates[0]
+                bridge_candidate = candidates[0]
 
         existing_invoice = existing_by_number.get(row['invoice_key'])
         existing_client_id = None
@@ -2894,9 +2995,20 @@ def commit_invoice_upload_batch(rows):
             continue
         if existing_invoice and existing_invoice.sales_order:
             sales_order = existing_invoice.sales_order
-        if sales_order:
-            additions_by_order[sales_order.id] += float(row['amount_paid'] or 0)
-        prepared_actions.append((row, client, sales_order, existing_invoice))
+            match_source = 'existing_invoice'
+        if sales_order and match_source != 'uploaded_client_name':
+            addition = float(row['amount_paid'] or 0)
+            if existing_invoice and existing_invoice.sales_order_id is None:
+                addition += float(existing_invoice.amount_paid or 0)
+            additions_by_order[sales_order.id] += addition
+        prepared_actions.append({
+            'row': row,
+            'client': client,
+            'sales_order': sales_order,
+            'existing_invoice': existing_invoice,
+            'match_source': match_source,
+            'bridge_candidate': bridge_candidate,
+        })
 
     if database_conflicts:
         return jsonify({
@@ -2927,14 +3039,46 @@ def commit_invoice_upload_batch(rows):
             'overpayments': overpayments,
         }), 409
 
+    bridge_reservations_by_order = defaultdict(float)
+    for action in prepared_actions:
+        if action['sales_order'] is not None or action['bridge_candidate'] is None:
+            continue
+        candidate = action['bridge_candidate']
+        current_paid = sum(float(invoice.amount_paid or 0) for invoice in candidate.invoices)
+        available = max(
+            sales_order_total(candidate)
+            - current_paid
+            - additions_by_order[candidate.id]
+            - bridge_reservations_by_order[candidate.id],
+            0,
+        )
+        amount_to_link = float(action['row']['amount_paid'] or 0)
+        existing_invoice = action['existing_invoice']
+        if existing_invoice and existing_invoice.sales_order_id is None:
+            amount_to_link += float(existing_invoice.amount_paid or 0)
+        if amount_to_link <= available + MONEY_TOLERANCE:
+            action['sales_order'] = candidate
+            action['match_source'] = 'uploaded_client_name'
+            bridge_reservations_by_order[candidate.id] += amount_to_link
+
     created = 0
     updated = 0
     linked = 0
     standalone = 0
     affected_orders = {}
-    for row, client, sales_order, existing_invoice in prepared_actions:
+    for action in prepared_actions:
+        row = action['row']
+        client = action['client']
+        sales_order = action['sales_order']
+        existing_invoice = action['existing_invoice']
+        match_source = action['match_source']
         matched = sales_order is not None
         collection_note = invoice_collection_note(row, matched)
+        if not matched and client:
+            collection_note = (
+                f'{collection_note} | Uploaded Client Name matched a client, '
+                'but no single Sales Order had enough available balance.'
+            )
         receipt_numbers = sorted(row['cr_numbers'])
         cr_number = receipt_numbers[-1] if receipt_numbers else None
         summary = '; '.join(sorted(row['summaries'])) or ('Admin Upload' if not matched else None)
@@ -3021,18 +3165,27 @@ def commit_invoice_upload_batch(rows):
         'updated': updated,
         'linked': linked,
         'standalone': standalone,
+        'duplicate_receipts_skipped': len(skipped_receipts),
         'excluded': len(rows) - sum(1 for row in rows if row.get('included') is not False),
     })
     db.session.commit()
+    if grouped_rows:
+        message = f'Processed {len(grouped_rows)} new collection record(s).'
+    else:
+        message = 'No new collection records were added.'
+    if skipped_receipts:
+        message += f' Skipped {len(skipped_receipts)} CR number(s) already in the database.'
     return jsonify({
         'success': True,
-        'message': f'Processed {len(grouped_rows)} collection record(s).',
+        'message': message,
         'source_rows': len(rows),
         'grouped_records': len(grouped_rows),
         'created': created,
         'updated': updated,
         'linked': linked,
         'standalone': standalone,
+        'duplicate_receipts_skipped': len(skipped_receipts),
+        'skipped_receipts': skipped_receipts,
         'excluded': len(rows) - sum(1 for row in rows if row.get('included') is not False),
     })
 
