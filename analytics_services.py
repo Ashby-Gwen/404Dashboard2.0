@@ -702,6 +702,7 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
     """Get Sales Order-based client value analysis grouped by Store Name."""
     Invoice = models["Invoice"]
     SalesOrder = models["SalesOrder"]
+    SalesOrderBranch = models.get("SalesOrderBranch")
     SalesOrderItem = models["SalesOrderItem"]
 
     order_query = db.session.query(SalesOrder).order_by(
@@ -724,6 +725,7 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
     order_ids = [order.id for order in orders]
     item_totals = {}
     items_by_order = defaultdict(list)
+    branches_by_order = defaultdict(list)
     if order_ids:
         item_rows = (
             db.session.query(SalesOrderItem)
@@ -736,6 +738,14 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             order_id: sum(float(item.total or 0) for item in order_items)
             for order_id, order_items in items_by_order.items()
         }
+        if SalesOrderBranch is not None:
+            branch_rows = (
+                db.session.query(SalesOrderBranch)
+                .filter(SalesOrderBranch.sales_order_id.in_(order_ids))
+                .all()
+            )
+            for branch in branch_rows:
+                branches_by_order[branch.sales_order_id].append(branch)
 
     invoice_paid_by_order = defaultdict(float)
     if order_ids:
@@ -793,9 +803,16 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             group["company_names"].add(company_name)
         if order.client_id:
             group["client_ids"].add(order.client_id)
-        branch_key = _branch_group_key(order.store_branch)
-        if branch_key and branch_key not in group["branches"]:
-            group["branches"][branch_key] = branch_key
+        order_branches = branches_by_order.get(order.id)
+        if order_branches:
+            for branch in order_branches:
+                branch_key = _branch_group_key(branch.branch_name)
+                if branch_key and branch_key not in group["branches"]:
+                    group["branches"][branch_key] = branch.branch_name
+        else:
+            branch_key = _branch_group_key(order.store_branch)
+            if branch_key and branch_key not in group["branches"]:
+                group["branches"][branch_key] = branch_key
 
         order_amount = item_totals.get(order.id) or float(order.total_amount or 0)
         group["order_amounts"].append(order_amount)

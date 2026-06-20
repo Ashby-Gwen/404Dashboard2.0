@@ -178,16 +178,31 @@ class SalesOrder(db.Model):
     
     client = db.relationship('Client', backref='sales_orders')
     items = db.relationship('SalesOrderItem', backref='sales_order', cascade='all, delete-orphan')
+    branches = db.relationship('SalesOrderBranch', backref='sales_order', cascade='all, delete-orphan')
+
+class SalesOrderBranch(db.Model):
+    __tablename__ = 'sales_order_branches'
+    __table_args__ = (
+        db.UniqueConstraint('sales_order_id', 'normalized_branch_key', name='uq_sales_order_branch_key'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    sales_order_id = db.Column(db.Integer, db.ForeignKey('sales_orders.id'), nullable=False)
+    branch_name = db.Column(db.String(200), nullable=False)
+    normalized_branch_key = db.Column(db.String(200), nullable=False)
 
 class SalesOrderItem(db.Model):
     __tablename__ = 'sales_order_items'
     id = db.Column(db.Integer, primary_key=True)
     sales_order_id = db.Column(db.Integer, db.ForeignKey('sales_orders.id'), nullable=False)
+    sales_order_branch_id = db.Column(db.Integer, db.ForeignKey('sales_order_branches.id'), nullable=True)
     particular = db.Column(db.String(500), nullable=False)
     quantity = db.Column(db.Float, nullable=False)
     unit_cost = db.Column(db.Float, nullable=False)
     selling_price = db.Column(db.Float, nullable=False)
     total = db.Column(db.Float, nullable=False)
+
+    branch = db.relationship('SalesOrderBranch', backref='items')
 
 class Invoice(db.Model):
     __tablename__ = 'invoices'
@@ -473,6 +488,7 @@ def app_models():
         'Client': Client,
         'ClientAlias': ClientAlias,
         'SalesOrder': SalesOrder,
+        'SalesOrderBranch': SalesOrderBranch,
         'SalesOrderItem': SalesOrderItem,
         'Invoice': Invoice,
         'PurchaseOrder': PurchaseOrder,
@@ -2226,6 +2242,207 @@ def normalize_upload_header(header):
     value = re.sub(r'[^a-z0-9]+', '_', value)
     return value.strip('_')
 
+COMPILED_SALES_HEADERS = (
+    'DATE',
+    'SO NUMBER',
+    'COMPANY NAME',
+    'STORE NAME',
+    'STORE BRANCH',
+    'SALES STAFF',
+    'PARTICULAR',
+    'COST',
+    'QUANTITY',
+    'SELLING PRICE',
+    'TOTAL REVENUE',
+    'TOTAL COST',
+)
+
+def normalize_sales_order_number(value):
+    text = clean_code(value).upper()
+    numeric = re.sub(r'^SO[-\s]*', '', text)
+    if numeric.isdigit():
+        return f"SO-{int(numeric):03d}"
+    return text
+
+def sales_order_number_key(value):
+    text = normalize_sales_order_number(value)
+    numeric = re.sub(r'^SO[-\s]*', '', text)
+    return str(int(numeric)) if numeric.isdigit() else normalize_client_match_key(text)
+
+def normalized_sales_staff(value):
+    return clean_text(value, keep_period=True).upper()
+
+def compiled_sales_order_key(so_number, sales_staff):
+    return f"{sales_order_number_key(so_number)}|{normalize_client_match_key(sales_staff)}"
+
+def normalized_branch_key(value):
+    text = clean_text(value, keep_period=True, keep_ampersand=True).upper().replace('&', ' AND ')
+    return normalize_client_match_key(text)
+
+def _optional_upload_amount(value):
+    if value is None or str(value).strip() == '' or pd.isna(value):
+        return None
+    return parse_amount(value)
+
+def _compiled_sales_row(raw_row, row_number):
+    lower = {normalize_upload_header(key): value for key, value in raw_row.items()}
+    quantity_raw = lower.get('quantity')
+    quantity = None
+    try:
+        quantity_float = float(quantity_raw)
+        quantity = int(quantity_float) if quantity_float.is_integer() else quantity_float
+    except (TypeError, ValueError):
+        quantity = None
+
+    order_date = parse_date_value(lower.get('date'), default_today=False)
+    unit_cost = _optional_upload_amount(lower.get('cost'))
+    selling_price = _optional_upload_amount(lower.get('selling_price'))
+    total_revenue = _optional_upload_amount(lower.get('total_revenue'))
+    total_cost = _optional_upload_amount(lower.get('total_cost'))
+    if total_revenue is None and quantity and selling_price is not None:
+        total_revenue = round(float(quantity) * selling_price, 2)
+    if total_cost is None and quantity and unit_cost is not None:
+        total_cost = round(float(quantity) * unit_cost, 2)
+
+    row = {
+        'row_id': row_number,
+        'source_row': row_number,
+        'included': True,
+        'order_date': order_date.isoformat() if order_date else None,
+        'so_number': normalize_sales_order_number(lower.get('so_number')),
+        'company_name': clean_text(lower.get('company_name'), keep_period=True, keep_ampersand=True).upper(),
+        'store_name': clean_text(lower.get('store_name'), keep_period=True, keep_ampersand=True).upper(),
+        'store_branch': clean_text(lower.get('store_branch'), keep_period=True, keep_ampersand=True).upper(),
+        'sales_staff': normalized_sales_staff(lower.get('sales_staff')),
+        'particular': clean_text(lower.get('particular'), keep_period=True, keep_ampersand=True).upper(),
+        'unit_cost': unit_cost,
+        'quantity': quantity,
+        'selling_price': selling_price,
+        'total_revenue': total_revenue,
+        'total_cost': total_cost,
+    }
+    row['compound_key'] = compiled_sales_order_key(row['so_number'], row['sales_staff'])
+    row['branch_key'] = normalized_branch_key(row['store_branch'])
+    return row
+
+def validate_compiled_sales_rows(rows):
+    seen_lines = {}
+    for row in rows:
+        issues = []
+        blocking = []
+        if not row.get('order_date'):
+            blocking.append('A valid Date is required.')
+        for field, label in (
+            ('so_number', 'SO Number'),
+            ('company_name', 'Company Name'),
+            ('store_name', 'Store Name'),
+            ('store_branch', 'Store Branch'),
+            ('sales_staff', 'Sales Staff'),
+            ('particular', 'Particular'),
+        ):
+            if not str(row.get(field) or '').strip():
+                blocking.append(f'{label} is required.')
+        quantity = row.get('quantity')
+        if not isinstance(quantity, int) or quantity <= 0:
+            blocking.append('Quantity must be a positive whole number.')
+        for field, label in (('unit_cost', 'Cost'), ('selling_price', 'Selling Price')):
+            value = row.get(field)
+            if value is None or float(value) < 0:
+                blocking.append(f'{label} is required and cannot be negative.')
+        if row.get('total_revenue') is None:
+            blocking.append('Total Revenue is required or must be derivable.')
+        if row.get('total_cost') is None:
+            blocking.append('Total Cost is required or must be derivable.')
+        if isinstance(quantity, int) and quantity > 0 and row.get('selling_price') is not None and row.get('total_revenue') is not None:
+            computed = round(quantity * float(row['selling_price']), 2)
+            if abs(computed - float(row['total_revenue'])) > 0.01:
+                blocking.append(f'Total Revenue differs from Quantity × Selling Price ({computed:.2f}).')
+        if isinstance(quantity, int) and quantity > 0 and row.get('unit_cost') is not None and row.get('total_cost') is not None:
+            computed_cost = round(quantity * float(row['unit_cost']), 2)
+            if abs(computed_cost - float(row['total_cost'])) > 0.01:
+                blocking.append(f'Total Cost differs from Quantity × Cost ({computed_cost:.2f}).')
+
+        duplicate_key = (
+            row.get('compound_key'),
+            row.get('branch_key'),
+            normalize_client_match_key(row.get('particular')),
+            row.get('quantity'),
+            row.get('unit_cost'),
+            row.get('selling_price'),
+            row.get('total_revenue'),
+        )
+        previous = seen_lines.get(duplicate_key)
+        if previous:
+            issues.append(f'Possible duplicate of source row {previous}.')
+        else:
+            seen_lines[duplicate_key] = row.get('source_row')
+        row['issues'] = issues + blocking
+        row['blocking_issues'] = blocking
+    return rows
+
+def group_compiled_sales_rows(rows):
+    grouped = {}
+    for row in rows:
+        if not row.get('included', True):
+            continue
+        group = grouped.setdefault(row['compound_key'], {
+            'compound_key': row['compound_key'],
+            'so_number': row['so_number'],
+            'sales_staff': row['sales_staff'],
+            'order_date': row['order_date'],
+            'company_name': row['company_name'],
+            'store_name': row['store_name'],
+            'branches': {},
+            'rows': [],
+        })
+        for field in ('order_date', 'company_name', 'store_name'):
+            if group[field] != row[field]:
+                raise ValueError(
+                    f"Compound order {row['so_number']} / {row['sales_staff']} has conflicting {field.replace('_', ' ')} values."
+                )
+        group['branches'][row['branch_key']] = row['store_branch']
+        group['rows'].append(row)
+    return list(grouped.values())
+
+def existing_compiled_sales_orders():
+    existing = {}
+    for order in SalesOrder.query.all():
+        key = compiled_sales_order_key(order.so_number, order.sales_staff)
+        existing.setdefault(key, order)
+    return existing
+
+def normalize_submitted_compiled_row(raw_row):
+    row = {
+        'row_id': raw_row.get('row_id') or raw_row.get('source_row'),
+        'source_row': raw_row.get('source_row') or raw_row.get('row_id'),
+        'included': bool(raw_row.get('included', True)),
+        'order_date': parse_date_value(raw_row.get('order_date'), default_today=False),
+        'so_number': normalize_sales_order_number(raw_row.get('so_number')),
+        'company_name': clean_text(raw_row.get('company_name'), keep_period=True, keep_ampersand=True).upper(),
+        'store_name': clean_text(raw_row.get('store_name'), keep_period=True, keep_ampersand=True).upper(),
+        'store_branch': clean_text(raw_row.get('store_branch'), keep_period=True, keep_ampersand=True).upper(),
+        'sales_staff': normalized_sales_staff(raw_row.get('sales_staff')),
+        'particular': clean_text(raw_row.get('particular'), keep_period=True, keep_ampersand=True).upper(),
+        'unit_cost': _optional_upload_amount(raw_row.get('unit_cost')),
+        'selling_price': _optional_upload_amount(raw_row.get('selling_price')),
+        'total_revenue': _optional_upload_amount(raw_row.get('total_revenue')),
+        'total_cost': _optional_upload_amount(raw_row.get('total_cost')),
+    }
+    quantity_raw = raw_row.get('quantity')
+    try:
+        quantity_float = float(quantity_raw)
+        row['quantity'] = int(quantity_float) if quantity_float.is_integer() else quantity_float
+    except (TypeError, ValueError):
+        row['quantity'] = None
+    row['order_date'] = row['order_date'].isoformat() if row['order_date'] else None
+    if row['total_revenue'] is None and isinstance(row['quantity'], int) and row['selling_price'] is not None:
+        row['total_revenue'] = round(row['quantity'] * row['selling_price'], 2)
+    if row['total_cost'] is None and isinstance(row['quantity'], int) and row['unit_cost'] is not None:
+        row['total_cost'] = round(row['quantity'] * row['unit_cost'], 2)
+    row['compound_key'] = compiled_sales_order_key(row['so_number'], row['sales_staff'])
+    row['branch_key'] = normalized_branch_key(row['store_branch'])
+    return row
+
 PURCHASE_ORDER_DEBIT_COLUMNS = {
     'input_vat': 'Input VAT',
     'cost_of_goods_sold': 'Cost of Goods Sold',
@@ -3533,6 +3750,230 @@ def upload_excel():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/admin/compiled-sales/preview', methods=['POST'])
+@login_required
+@role_required('admin')
+def admin_compiled_sales_preview():
+    denied = admin_required_json()
+    if denied:
+        return denied
+    upload = request.files.get('file')
+    if not upload or not upload.filename:
+        return jsonify({'success': False, 'error': 'Select the compiled Sales Order Excel file.'}), 400
+    if not upload.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({'success': False, 'error': 'The compiled Sales Order upload must be an Excel file.'}), 400
+    try:
+        workbook = pd.ExcelFile(upload)
+        if 'Compiled' not in workbook.sheet_names:
+            return jsonify({'success': False, 'error': 'The workbook must contain a sheet named Compiled.'}), 400
+        frame = pd.read_excel(workbook, sheet_name='Compiled')
+        actual_headers = [str(column).strip().upper() for column in frame.columns]
+        missing_headers = [header for header in COMPILED_SALES_HEADERS if header not in actual_headers]
+        if missing_headers:
+            return jsonify({
+                'success': False,
+                'error': f"Missing required columns: {', '.join(missing_headers)}"
+            }), 400
+        frame.columns = actual_headers
+        frame = frame[list(COMPILED_SALES_HEADERS)].dropna(how='all')
+        rows = [
+            _compiled_sales_row(record, row_number)
+            for row_number, record in enumerate(frame.to_dict('records'), start=2)
+        ]
+        validate_compiled_sales_rows(rows)
+        groups = group_compiled_sales_rows(rows)
+        existing = existing_compiled_sales_orders()
+        duplicate_orders = [
+            {
+                'compound_key': group['compound_key'],
+                'so_number': group['so_number'],
+                'sales_staff': group['sales_staff'],
+                'existing_id': existing[group['compound_key']].id,
+            }
+            for group in groups if group['compound_key'] in existing
+        ]
+        registry = build_client_registry()
+        client_resolutions = []
+        seen_companies = set()
+        for row in rows:
+            company_key = normalize_client_match_key(row['company_name'])
+            if company_key in seen_companies:
+                continue
+            seen_companies.add(company_key)
+            resolution = resolve_client_name(
+                row['company_name'],
+                create_client=False,
+                registry=registry,
+            )
+            if resolution['status'] in ('needs_choice', 'create_new'):
+                client_resolutions.append(client_resolution_public(resolution))
+
+        invalid_rows = [row for row in rows if row['blocking_issues']]
+        warning_rows = [row for row in rows if row['issues'] and not row['blocking_issues']]
+        return jsonify({
+            'success': True,
+            'filename': upload.filename,
+            'rows': rows,
+            'summary': {
+                'source_rows': len(rows),
+                'sales_orders': len(groups),
+                'branches': sum(len(group['branches']) for group in groups),
+                'multi_branch_orders': sum(len(group['branches']) > 1 for group in groups),
+                'invalid_rows': len(invalid_rows),
+                'warning_rows': len(warning_rows),
+                'duplicate_orders': len(duplicate_orders),
+                'new_orders': len(groups) - len(duplicate_orders),
+            },
+            'duplicate_orders': duplicate_orders,
+            'client_resolutions': client_resolutions,
+        })
+    except Exception as exc:
+        app.logger.exception('Compiled Sales Order preview failed')
+        return jsonify({'success': False, 'error': str(exc)}), 400
+
+@app.route('/admin/compiled-sales/commit', methods=['POST'])
+@login_required
+@role_required('admin')
+def admin_compiled_sales_commit():
+    denied = admin_required_json()
+    if denied:
+        return denied
+    payload = request.get_json() or {}
+    submitted_rows = payload.get('rows') or []
+    if not submitted_rows:
+        return jsonify({'success': False, 'error': 'No compiled Sales Order rows are ready.'}), 400
+    try:
+        rows = [normalize_submitted_compiled_row(row) for row in submitted_rows]
+        validate_compiled_sales_rows(rows)
+        included_rows = [row for row in rows if row.get('included', True)]
+        invalid_rows = [row for row in included_rows if row['blocking_issues']]
+        if invalid_rows:
+            return jsonify({
+                'success': False,
+                'error': 'Fix or exclude every invalid row before importing.',
+                'invalid_rows': invalid_rows[:100],
+            }), 400
+        groups = group_compiled_sales_rows(rows)
+        resolutions = parse_resolution_payload(payload)
+        registry = build_client_registry()
+        unresolved = []
+        seen_companies = set()
+        for group in groups:
+            company_key = normalize_client_match_key(group['company_name'])
+            if company_key in seen_companies:
+                continue
+            seen_companies.add(company_key)
+            resolution = resolve_client_name(
+                group['company_name'],
+                resolutions,
+                create_client=False,
+                registry=registry,
+            )
+            if resolution['status'] == 'needs_choice':
+                unresolved.append(client_resolution_public(resolution))
+        if unresolved:
+            return jsonify({
+                'success': False,
+                'needs_resolution': True,
+                'error': 'Choose how to resolve the similar company names before importing.',
+                'client_resolutions': unresolved,
+            }), 409
+
+        existing = existing_compiled_sales_orders()
+        created_orders = 0
+        created_branches = 0
+        created_items = 0
+        skipped_duplicates = []
+        created_clients = 0
+        for group in groups:
+            if group['compound_key'] in existing:
+                skipped_duplicates.append({
+                    'compound_key': group['compound_key'],
+                    'so_number': group['so_number'],
+                    'sales_staff': group['sales_staff'],
+                    'existing_id': existing[group['compound_key']].id,
+                })
+                continue
+            resolution = resolve_client_name(
+                group['company_name'],
+                resolutions,
+                create_client=True,
+            )
+            if resolution['status'] == 'ignored':
+                continue
+            if resolution['status'] == 'created':
+                created_clients += 1
+            client = resolution['client']
+            branch_names = list(group['branches'].values())
+            total_amount = round(sum(float(row['total_revenue'] or 0) for row in group['rows']), 2)
+            order = SalesOrder(
+                so_number=group['so_number'],
+                client_id=client.id,
+                company_name=resolution['client_name'],
+                official_client_name=resolution['client_name'],
+                original_entered_client_name=resolution.get('original_entered_client_name') or group['company_name'],
+                store_name=group['store_name'],
+                store_branch=branch_names[0] if len(branch_names) == 1 else 'MULTIPLE BRANCHES',
+                order_date=parse_date_value(group['order_date'], default_today=False),
+                sales_staff=group['sales_staff'],
+                terms=30,
+                total_amount=total_amount,
+                status='PENDING',
+                notes=f"Compiled Excel import: {payload.get('filename') or 'uploaded workbook'}",
+            )
+            db.session.add(order)
+            db.session.flush()
+            branches = {}
+            for branch_key, branch_name in group['branches'].items():
+                branch = SalesOrderBranch(
+                    sales_order_id=order.id,
+                    branch_name=branch_name,
+                    normalized_branch_key=branch_key,
+                )
+                db.session.add(branch)
+                db.session.flush()
+                branches[branch_key] = branch
+                created_branches += 1
+            for row in group['rows']:
+                db.session.add(SalesOrderItem(
+                    sales_order_id=order.id,
+                    sales_order_branch_id=branches[row['branch_key']].id,
+                    particular=row['particular'],
+                    quantity=row['quantity'],
+                    unit_cost=float(row['unit_cost']),
+                    selling_price=float(row['selling_price']),
+                    total=float(row['total_revenue']),
+                ))
+                created_items += 1
+            created_orders += 1
+
+        excluded_rows = len(rows) - len(included_rows)
+        log_audit('UPLOAD_COMPILED_SALES', 'sales_orders', None, None, {
+            'filename': payload.get('filename'),
+            'created_orders': created_orders,
+            'created_branches': created_branches,
+            'created_items': created_items,
+            'created_clients': created_clients,
+            'skipped_duplicates': len(skipped_duplicates),
+            'excluded_rows': excluded_rows,
+        })
+        refresh_client_financials()
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': f'Imported {created_orders} Sales Orders and {created_items} items.',
+            'created_orders': created_orders,
+            'created_branches': created_branches,
+            'created_items': created_items,
+            'created_clients': created_clients,
+            'skipped_duplicates': skipped_duplicates,
+            'excluded_rows': excluded_rows,
+        })
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception('Compiled Sales Order import failed')
+        return jsonify({'success': False, 'error': str(exc)}), 400
+
 @app.route('/admin/upload-preview/<interface>', methods=['POST'])
 @login_required
 @role_required('admin')
@@ -3678,8 +4119,15 @@ def admin_upload_commit(interface):
                     continue
                 client = resolution['client']
                 client_name = resolution['client_name']
-                so_number = row.get('so_number') or f"SO-{SalesOrder.query.count() + created + 1:06d}"
+                so_number = normalize_sales_order_number(
+                    row.get('so_number') or f"SO-{SalesOrder.query.count() + created + 1:06d}"
+                )
                 store_name = clean_text(row.get('store_name', '')) or clean_text(original_company_name, keep_period=True, keep_ampersand=True)
+                branch_name = (clean_text(row.get('store_branch', '')) or DEFAULT_STORE_BRANCH).upper()
+                sales_staff = normalized_sales_staff(row.get('sales_staff') or session.get('username', ''))
+                duplicate = existing_compiled_sales_orders().get(compiled_sales_order_key(so_number, sales_staff))
+                if duplicate:
+                    continue
                 order = SalesOrder(
                     so_number=so_number,
                     client_id=client.id,
@@ -3687,18 +4135,26 @@ def admin_upload_commit(interface):
                     official_client_name=client_name,
                     original_entered_client_name=resolution.get('original_entered_client_name') or clean_text(original_company_name, keep_period=True, keep_ampersand=True).upper(),
                     store_name=store_name.upper(),
-                    store_branch=(clean_text(row.get('store_branch', '')) or DEFAULT_STORE_BRANCH).upper(),
+                    store_branch=branch_name,
                     order_date=parse_date_value(row.get('order_date')),
-                    sales_staff=row.get('sales_staff') or session.get('username', ''),
+                    sales_staff=sales_staff,
                     terms=int(row.get('terms') or 30),
                     total_amount=float(row.get('total_amount') or 0),
                     status='PENDING'
                 )
                 db.session.add(order)
                 db.session.flush()
+                branch = SalesOrderBranch(
+                    sales_order_id=order.id,
+                    branch_name=branch_name,
+                    normalized_branch_key=normalized_branch_key(branch_name),
+                )
+                db.session.add(branch)
+                db.session.flush()
                 price = float(row.get('selling_price') or row.get('total_amount') or 0)
                 db.session.add(SalesOrderItem(
                     sales_order_id=order.id,
+                    sales_order_branch_id=branch.id,
                     particular=row.get('particular') or 'UPLOADED ITEM',
                     quantity=qty,
                     unit_cost=float(row.get('unit_cost') or 0),
@@ -3988,6 +4444,15 @@ def create_sales_order():
             last_so = SalesOrder.query.order_by(SalesOrder.id.desc()).first()
             last_id = last_so.id if last_so else 0
             so_number = f"SO-{last_id + 1:06d}"
+        so_number = normalize_sales_order_number(so_number)
+        sales_staff = normalized_sales_staff(data.get('sales_staff') or session.get('username', ''))
+        duplicate_key = compiled_sales_order_key(so_number, sales_staff)
+        duplicate_order = existing_compiled_sales_orders().get(duplicate_key)
+        if duplicate_order:
+            return jsonify({
+                'success': False,
+                'error': f'This SO Number and Sales Staff combination already exists as record #{duplicate_order.id}.'
+            }), 409
         
         # Create sales order
         store_name = clean_text(data.get('store_name', '')) or clean_text(company_name or client_name, keep_period=True, keep_ampersand=True)
@@ -3995,6 +4460,7 @@ def create_sales_order():
         terms_days = int(parse_amount(data.get('terms_days') or data.get('terms')) or 30)
         if terms_days <= 0:
             terms_days = 30
+        branch_name = (clean_text(data.get('store_branch', '')) or DEFAULT_STORE_BRANCH).upper()
         sales_order = SalesOrder(
             so_number=so_number,
             order_date=order_date,
@@ -4003,8 +4469,8 @@ def create_sales_order():
             official_client_name=client_name,
             original_entered_client_name=original_company_name,
             store_name=store_name.upper(),
-            store_branch=(clean_text(data.get('store_branch', '')) or DEFAULT_STORE_BRANCH).upper(),
-            sales_staff=data.get('sales_staff') or session.get('username', ''),
+            store_branch=branch_name,
+            sales_staff=sales_staff,
             total_amount=total_amount,
             terms=terms_days,
             notes=data.get('notes', ''),
@@ -4013,11 +4479,19 @@ def create_sales_order():
         
         db.session.add(sales_order)
         db.session.flush()
+        sales_order_branch = SalesOrderBranch(
+            sales_order_id=sales_order.id,
+            branch_name=branch_name,
+            normalized_branch_key=normalized_branch_key(branch_name),
+        )
+        db.session.add(sales_order_branch)
+        db.session.flush()
         
         # Add items
         for item in valid_items:
             order_item = SalesOrderItem(
                 sales_order_id=sales_order.id,
+                sales_order_branch_id=sales_order_branch.id,
                 particular=item['particular'],
                 quantity=item['quantity'],
                 unit_cost=item['unit_cost'],
@@ -5242,6 +5716,78 @@ def admin_db_maintenance():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/transaction-reset', methods=['GET'])
+@login_required
+@role_required('admin')
+def admin_transaction_reset_counts():
+    return jsonify({
+        'success': True,
+        'counts': {
+            'sales_orders': SalesOrder.query.count(),
+            'sales_order_items': SalesOrderItem.query.count(),
+            'sales_order_branches': SalesOrderBranch.query.count(),
+            'invoices': Invoice.query.count(),
+            'expenses': PurchaseOrder.query.count(),
+            'expense_debits': PurchaseOrderDebit.query.count(),
+        }
+    })
+
+@app.route('/admin/transaction-reset', methods=['POST'])
+@login_required
+@role_required('admin')
+def admin_transaction_reset():
+    denied = admin_required_json()
+    if denied:
+        return denied
+    payload = request.get_json() or {}
+    selected = set(payload.get('areas') or [])
+    allowed = {'sales_orders', 'invoices', 'expenses'}
+    if not selected or not selected.issubset(allowed):
+        return jsonify({'success': False, 'error': 'Select at least one valid transaction area.'}), 400
+    if 'sales_orders' in selected and 'invoices' not in selected:
+        return jsonify({
+            'success': False,
+            'error': 'Invoices must also be selected when resetting Sales Orders.'
+        }), 409
+    if str(payload.get('confirmation') or '').strip().upper() != 'RESET TRANSACTIONS':
+        return jsonify({
+            'success': False,
+            'error': 'Type RESET TRANSACTIONS to confirm this operation.'
+        }), 400
+    try:
+        deleted = {}
+        if 'invoices' in selected:
+            deleted['invoices'] = Invoice.query.count()
+            Invoice.query.delete(synchronize_session=False)
+        if 'sales_orders' in selected:
+            deleted['sales_order_items'] = SalesOrderItem.query.count()
+            deleted['sales_order_branches'] = SalesOrderBranch.query.count()
+            deleted['sales_orders'] = SalesOrder.query.count()
+            SalesOrderItem.query.delete(synchronize_session=False)
+            SalesOrderBranch.query.delete(synchronize_session=False)
+            SalesOrder.query.delete(synchronize_session=False)
+        if 'expenses' in selected:
+            deleted['expense_debits'] = PurchaseOrderDebit.query.count()
+            deleted['expenses'] = PurchaseOrder.query.count()
+            PurchaseOrderDebit.query.delete(synchronize_session=False)
+            PurchaseOrder.query.delete(synchronize_session=False)
+        if {'sales_orders', 'invoices'} & selected:
+            refresh_client_financials()
+        log_audit('RESET_TRANSACTIONS', 'database', None, None, {
+            'areas': sorted(selected),
+            'deleted': deleted,
+        })
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'Selected transaction records were reset.',
+            'deleted': deleted,
+        })
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.exception('Transaction reset failed')
+        return jsonify({'success': False, 'error': str(exc)}), 400
 
 @app.route('/admin/schema')
 @login_required

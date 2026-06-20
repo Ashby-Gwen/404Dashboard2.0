@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import inspect, text
 
 
-DEFENSE_MIGRATION_ID = "2026-06-18-defense-readiness"
+DEFENSE_MIGRATION_ID = "2026-06-20-compiled-sales-import"
 SUPABASE_MIGRATION_PATH = "docs/supabase_defense_readiness_migration.sql"
 
 REQUIRED_COLUMNS = {
@@ -21,6 +21,9 @@ REQUIRED_COLUMNS = {
     "evaluation_sessions": {
         "user_id": "INTEGER REFERENCES users(id)",
     },
+    "sales_order_items": {
+        "sales_order_branch_id": "INTEGER REFERENCES sales_order_branches(id)",
+    },
 }
 
 SQLITE_INDEXES = (
@@ -30,7 +33,24 @@ SQLITE_INDEXES = (
     "ON invoices (amount_paid, invoice_date)",
     "CREATE INDEX IF NOT EXISTS idx_invoices_balance_date "
     "ON invoices (balance, invoice_date)",
+    "CREATE INDEX IF NOT EXISTS idx_sales_order_items_branch_id "
+    "ON sales_order_items (sales_order_branch_id)",
+    "CREATE INDEX IF NOT EXISTS idx_sales_orders_number_staff "
+    "ON sales_orders (so_number, sales_staff)",
+    "CREATE INDEX IF NOT EXISTS idx_sales_order_branches_order_id "
+    "ON sales_order_branches (sales_order_id)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_order_branch_key "
+    "ON sales_order_branches (sales_order_id, normalized_branch_key)",
 )
+
+def _apply_sqlite_indexes(db: Any, connection: Any) -> None:
+    inspector = inspect(connection)
+    table_names = set(inspector.get_table_names())
+    for statement in SQLITE_INDEXES:
+        table_name = statement.split(" ON ", 1)[1].split(" ", 1)[0]
+        if table_name not in table_names:
+            continue
+        connection.execute(text(statement))
 
 
 def _missing_columns(db: Any) -> dict[str, list[str]]:
@@ -77,8 +97,7 @@ def ensure_defense_schema(db: Any) -> dict[str, Any]:
                     connection.execute(
                         text(f'ALTER TABLE "{table_name}" ADD COLUMN "{column_name}" {definition}')
                     )
-            for statement in SQLITE_INDEXES:
-                connection.execute(text(statement))
+            _apply_sqlite_indexes(db, connection)
         missing = _missing_columns(db)
 
     if missing:
@@ -92,8 +111,7 @@ def ensure_defense_schema(db: Any) -> dict[str, Any]:
 
     if dialect == "sqlite":
         with db.engine.begin() as connection:
-            for statement in SQLITE_INDEXES:
-                connection.execute(text(statement))
+            _apply_sqlite_indexes(db, connection)
 
     return {
         "migration_id": DEFENSE_MIGRATION_ID,

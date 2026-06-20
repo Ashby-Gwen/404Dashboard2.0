@@ -309,6 +309,40 @@
             --preset-border: #D4AF37;
         }
 
+        .compiled-import-steps,
+        .compiled-import-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .compiled-import-step,
+        .compiled-summary-card {
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 0.85rem;
+            background: var(--surface);
+        }
+
+        .compiled-import-step strong,
+        .compiled-summary-card strong {
+            display: block;
+        }
+
+        .compiled-exception-table input {
+            min-width: 90px;
+        }
+
+        .compiled-exception-table .compiled-text-input {
+            min-width: 190px;
+        }
+
+        .transaction-reset-box {
+            border: 1px solid rgba(220, 53, 69, 0.45);
+            border-radius: 0.85rem;
+            padding: 1rem;
+        }
+
         .theme-advanced {
             margin-top: 1rem;
         }
@@ -439,6 +473,9 @@
             <li class="nav-item" role="presentation"><button class="nav-link" id="clientsTab" role="tab"
                     aria-controls="clientListPane" aria-selected="false" data-bs-toggle="tab" data-bs-target="#clientListPane"
                     type="button" onclick="loadAdminClientList()">Clients</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" id="compiledSalesTab" role="tab"
+                    aria-controls="compiledSalesPane" aria-selected="false" data-bs-toggle="tab" data-bs-target="#compiledSalesPane"
+                    type="button">Compiled Sales Import</button></li>
             <li class="nav-item" role="presentation"><button class="nav-link" id="notificationsTab" role="tab"
                     aria-controls="notificationsPane" aria-selected="false" data-bs-toggle="tab" data-bs-target="#notificationsPane"
                     type="button" onclick="loadNotifications()">Requests
@@ -532,6 +569,87 @@
                 </div>
             </section>
 
+            <section class="tab-pane fade" id="compiledSalesPane" role="tabpanel" aria-labelledby="compiledSalesTab" tabindex="0">
+                <div class="admin-card">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                        <div>
+                            <h2>Compiled Sales Import</h2>
+                            <p class="text-muted mb-0">Creates one Sales Order for each SO Number + Sales Staff combination, with child branches and item rows.</p>
+                        </div>
+                        <span class="badge text-bg-secondary">Admin only</span>
+                    </div>
+                    <div class="compiled-import-steps mb-4" aria-label="Import stages">
+                        <div class="compiled-import-step"><strong>1. Upload</strong><span>Select the cleaned compiled workbook.</span></div>
+                        <div class="compiled-import-step"><strong>2. Validate</strong><span>Review quantities, prices, totals, and duplicate lines.</span></div>
+                        <div class="compiled-import-step"><strong>3. Match Clients</strong><span>Approve similar company names or create new clients.</span></div>
+                        <div class="compiled-import-step"><strong>4. Commit</strong><span>Existing compound orders are skipped and reported.</span></div>
+                    </div>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-lg-8">
+                            <label class="form-label" for="compiledSalesFile">Compiled Excel workbook</label>
+                            <input class="form-control" id="compiledSalesFile" type="file" accept=".xlsx,.xls">
+                        </div>
+                        <div class="col-lg-4 d-flex gap-2">
+                            <button class="btn btn-primary flex-grow-1" type="button" onclick="previewCompiledSales()">Preview and Validate</button>
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearCompiledSales()">Clear</button>
+                        </div>
+                    </div>
+                    <div id="compiledSalesStatus" class="text-muted mt-3">No workbook loaded.</div>
+                    <div id="compiledSalesSummary" class="compiled-import-summary mt-3"></div>
+                </div>
+
+                <div class="admin-card mt-3" id="compiledRepairCard" hidden>
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                        <div>
+                            <h3 class="fs-5 mb-1">Validation and Repair</h3>
+                            <p class="text-muted mb-0">Edit invalid rows directly or exclude rows that should not be imported.</p>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 align-items-end">
+                            <div>
+                                <label class="form-label mb-1" for="compiledReplaceQuantity">Replace every quantity 0 with</label>
+                                <input class="form-control" id="compiledReplaceQuantity" type="number" min="1" step="1" value="1" style="width:110px">
+                            </div>
+                            <button class="btn btn-outline-primary" type="button" onclick="replaceCompiledZeroQuantities()">Replace</button>
+                            <select class="form-select" id="compiledIssueFilter" onchange="renderCompiledExceptions()" style="width:180px">
+                                <option value="issues">Rows with issues</option>
+                                <option value="included">All included rows</option>
+                                <option value="excluded">Excluded rows</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle compiled-exception-table" id="compiledExceptionTable"></table>
+                    </div>
+                </div>
+
+                <div class="admin-card mt-3" id="compiledClientCard" hidden>
+                    <h3 class="fs-5">Client Matching</h3>
+                    <p class="text-muted">Similar company names require an explicit choice. Unmatched names default to creating a new client.</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle" id="compiledClientTable"></table>
+                    </div>
+                </div>
+
+                <div class="admin-card mt-3" id="compiledDuplicateCard" hidden>
+                    <h3 class="fs-5">Existing Sales Orders</h3>
+                    <p class="text-muted">These SO Number + Sales Staff combinations already exist and will be skipped.</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm" id="compiledDuplicateTable"></table>
+                    </div>
+                </div>
+
+                <div class="admin-card mt-3" id="compiledCommitCard" hidden>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div>
+                            <h3 class="fs-5 mb-1">Commit Import</h3>
+                            <p class="text-muted mb-0">Only included, valid rows from new compound Sales Orders will be saved.</p>
+                        </div>
+                        <button class="btn btn-success" id="compiledCommitButton" type="button" onclick="commitCompiledSales()">Import Compiled Sales</button>
+                    </div>
+                    <div id="compiledCommitResult" class="mt-3"></div>
+                </div>
+            </section>
+
             <section class="tab-pane fade" id="clientListPane" role="tabpanel" aria-labelledby="clientsTab" tabindex="0">
                 <div class="client-list-layout">
                     <div class="admin-card client-list-panel">
@@ -574,6 +692,28 @@
                     </div>
                     <button class="btn btn-warning" onclick="runMaintenance('VACUUM')">Run VACUUM</button>
                     <button class="btn btn-warning" onclick="runMaintenance('ANALYZE')">Run ANALYZE</button>
+                </div>
+                <div class="admin-card mt-3">
+                    <div class="transaction-reset-box">
+                        <h2 class="fs-5 text-danger">Reset Transaction Records</h2>
+                        <p class="text-muted">For controlled testing only. Clients, aliases, users, settings, and audit logs are preserved.</p>
+                        <div id="transactionResetCounts" class="text-muted mb-3">Open Database Maintenance to load record counts.</div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="resetSalesOrders" onchange="syncTransactionResetDependencies()">
+                            <label class="form-check-label" for="resetSalesOrders">Sales Orders, Sales Order Items, and Sales Order Branches</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="resetInvoices">
+                            <label class="form-check-label" for="resetInvoices">Invoices</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="resetExpenses">
+                            <label class="form-check-label" for="resetExpenses">Expenses and Expense Debit Details</label>
+                        </div>
+                        <label class="form-label" for="transactionResetConfirm">Type <strong>RESET TRANSACTIONS</strong> to confirm</label>
+                        <input class="form-control mb-3" id="transactionResetConfirm" autocomplete="off">
+                        <button class="btn btn-danger" type="button" onclick="resetTransactions()">Reset Selected Transactions</button>
+                    </div>
                 </div>
             </section>
 
@@ -745,6 +885,10 @@
         let adminClients = [];
         let selectedAdminClientId = null;
         let clientMatchTimers = {};
+        let compiledSalesRows = [];
+        let compiledSalesFilename = '';
+        let compiledSalesResolutions = {};
+        let compiledSalesPreview = null;
         const businessColumns = {
             users: ['id', 'username', 'email', 'role_id', 'status', 'created_at'],
             roles: ['id', 'role_name', 'description'],
@@ -1279,12 +1423,252 @@
                 .catch(error => showToast(error.message, 'error'));
         }
 
+        async function previewCompiledSales() {
+            const input = document.getElementById('compiledSalesFile');
+            if (!input?.files?.length) return showToast('Select the compiled Sales Order workbook first.', 'error');
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+            compiledSalesStatus.textContent = 'Reading and validating the workbook...';
+            compiledCommitButton.disabled = true;
+            try {
+                const response = await fetch('/admin/compiled-sales/preview', { method: 'POST', body: formData });
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error || 'Preview failed.');
+                compiledSalesRows = data.rows || [];
+                compiledSalesFilename = data.filename || input.files[0].name;
+                compiledSalesPreview = data;
+                compiledSalesResolutions = {};
+                (data.client_resolutions || []).forEach(item => {
+                    if (item.status === 'create_new') {
+                        compiledSalesResolutions[item.resolution_key] = { action: 'create_new' };
+                    }
+                });
+                compiledSalesStatus.textContent = `${compiledSalesFilename} is ready for review.`;
+                renderCompiledSummary(data.summary || {});
+                renderCompiledExceptions();
+                renderCompiledClients(data.client_resolutions || []);
+                renderCompiledDuplicates(data.duplicate_orders || []);
+                compiledRepairCard.hidden = false;
+                compiledCommitCard.hidden = false;
+                updateCompiledCommitState();
+            } catch (error) {
+                compiledSalesStatus.textContent = 'The workbook could not be prepared.';
+                showToast(error.message || 'Compiled Sales preview failed.', 'error');
+            }
+        }
+
+        function clearCompiledSales() {
+            compiledSalesRows = [];
+            compiledSalesFilename = '';
+            compiledSalesResolutions = {};
+            compiledSalesPreview = null;
+            compiledSalesFile.value = '';
+            compiledSalesStatus.textContent = 'No workbook loaded.';
+            compiledSalesSummary.innerHTML = '';
+            compiledExceptionTable.innerHTML = '';
+            compiledClientTable.innerHTML = '';
+            compiledDuplicateTable.innerHTML = '';
+            compiledRepairCard.hidden = true;
+            compiledClientCard.hidden = true;
+            compiledDuplicateCard.hidden = true;
+            compiledCommitCard.hidden = true;
+            compiledCommitResult.innerHTML = '';
+        }
+
+        function renderCompiledSummary(summary) {
+            const cards = [
+                ['Source item rows', summary.source_rows || 0],
+                ['Compound Sales Orders', summary.sales_orders || 0],
+                ['Branch records', summary.branches || 0],
+                ['Multi-branch orders', summary.multi_branch_orders || 0],
+                ['Invalid rows', summary.invalid_rows || 0],
+                ['Existing orders skipped', summary.duplicate_orders || 0],
+                ['New orders', summary.new_orders || 0],
+            ];
+            compiledSalesSummary.innerHTML = cards.map(([labelText, value]) =>
+                `<div class="compiled-summary-card"><span>${escapeHtml(labelText)}</span><strong>${escapeHtml(value)}</strong></div>`
+            ).join('');
+        }
+
+        function compiledRowBlockingIssues(row) {
+            const issues = [];
+            const requiredText = ['order_date', 'so_number', 'company_name', 'store_name', 'store_branch', 'sales_staff', 'particular'];
+            requiredText.forEach(field => {
+                if (!String(row[field] ?? '').trim()) issues.push(`${label(field)} is required.`);
+            });
+            const quantity = Number(row.quantity);
+            if (!Number.isInteger(quantity) || quantity <= 0) issues.push('Quantity must be a positive whole number.');
+            const cost = Number(row.unit_cost);
+            const price = Number(row.selling_price);
+            const revenue = Number(row.total_revenue);
+            const totalCost = Number(row.total_cost);
+            if (row.unit_cost === null || row.unit_cost === '' || !Number.isFinite(cost) || cost < 0) issues.push('Cost is required.');
+            if (row.selling_price === null || row.selling_price === '' || !Number.isFinite(price) || price < 0) issues.push('Selling Price is required.');
+            if (row.total_revenue === null || row.total_revenue === '' || !Number.isFinite(revenue)) issues.push('Total Revenue is required.');
+            if (row.total_cost === null || row.total_cost === '' || !Number.isFinite(totalCost)) issues.push('Total Cost is required.');
+            if (Number.isInteger(quantity) && quantity > 0 && Number.isFinite(price) && Number.isFinite(revenue) && Math.abs(quantity * price - revenue) > 0.01) {
+                issues.push('Total Revenue does not equal Quantity × Selling Price.');
+            }
+            if (Number.isInteger(quantity) && quantity > 0 && Number.isFinite(cost) && Number.isFinite(totalCost) && Math.abs(quantity * cost - totalCost) > 0.01) {
+                issues.push('Total Cost does not equal Quantity × Cost.');
+            }
+            return issues;
+        }
+
+        function compiledRowIssues(row) {
+            return [...new Set([...(row.issues || []).filter(issue => String(issue).startsWith('Possible duplicate')), ...compiledRowBlockingIssues(row)])];
+        }
+
+        function updateCompiledRow(rowId, field, value) {
+            const row = compiledSalesRows.find(item => String(item.row_id) === String(rowId));
+            if (!row) return;
+            if (field === 'included') {
+                row.included = Boolean(value);
+            } else if (['quantity', 'unit_cost', 'selling_price', 'total_revenue', 'total_cost'].includes(field)) {
+                row[field] = value === '' ? null : Number(value);
+                if (['quantity', 'unit_cost', 'selling_price'].includes(field)) {
+                    const quantity = Number(row.quantity);
+                    if (Number.isInteger(quantity) && quantity > 0) {
+                        if (Number.isFinite(Number(row.selling_price))) row.total_revenue = Number((quantity * Number(row.selling_price)).toFixed(2));
+                        if (Number.isFinite(Number(row.unit_cost))) row.total_cost = Number((quantity * Number(row.unit_cost)).toFixed(2));
+                    }
+                }
+            } else {
+                row[field] = value;
+            }
+            renderCompiledExceptions();
+            updateCompiledCommitState();
+        }
+
+        function replaceCompiledZeroQuantities() {
+            const replacement = Number(compiledReplaceQuantity.value);
+            if (!Number.isInteger(replacement) || replacement <= 0) return showToast('Replacement quantity must be a positive whole number.', 'error');
+            let changed = 0;
+            compiledSalesRows.forEach(row => {
+                if (row.included !== false && Number(row.quantity) === 0) {
+                    row.quantity = replacement;
+                    if (Number.isFinite(Number(row.selling_price))) row.total_revenue = Number((replacement * Number(row.selling_price)).toFixed(2));
+                    if (Number.isFinite(Number(row.unit_cost))) row.total_cost = Number((replacement * Number(row.unit_cost)).toFixed(2));
+                    changed += 1;
+                }
+            });
+            renderCompiledExceptions();
+            updateCompiledCommitState();
+            showToast(`Updated ${changed} zero-quantity row(s).`, 'success');
+        }
+
+        function renderCompiledExceptions() {
+            const mode = compiledIssueFilter?.value || 'issues';
+            const rows = compiledSalesRows.filter(row => {
+                if (mode === 'excluded') return row.included === false;
+                if (mode === 'included') return row.included !== false;
+                return row.included !== false && compiledRowIssues(row).length;
+            });
+            const header = `<thead><tr><th>Include</th><th>Row</th><th>SO / Staff</th><th>Branch</th><th>Particular</th><th>Qty</th><th>Cost</th><th>Selling Price</th><th>Total Revenue</th><th>Total Cost</th><th>Issues</th></tr></thead>`;
+            const body = rows.length ? rows.map(row => {
+                const issues = compiledRowIssues(row);
+                return `<tr class="${issues.length ? 'table-warning' : ''}">
+                    <td><input type="checkbox" ${row.included !== false ? 'checked' : ''} aria-label="Include source row ${row.source_row}" onchange="updateCompiledRow('${row.row_id}', 'included', this.checked)"></td>
+                    <td>${escapeHtml(row.source_row)}</td>
+                    <td><strong>${escapeHtml(row.so_number)}</strong><br><small>${escapeHtml(row.sales_staff)}</small></td>
+                    <td><input class="form-control form-control-sm compiled-text-input" value="${escapeHtml(row.store_branch)}" onchange="updateCompiledRow('${row.row_id}', 'store_branch', this.value)"></td>
+                    <td><input class="form-control form-control-sm compiled-text-input" value="${escapeHtml(row.particular)}" onchange="updateCompiledRow('${row.row_id}', 'particular', this.value)"></td>
+                    <td><input class="form-control form-control-sm" type="number" min="1" step="1" value="${row.quantity ?? ''}" onchange="updateCompiledRow('${row.row_id}', 'quantity', this.value)"></td>
+                    <td><input class="form-control form-control-sm" type="number" min="0" step="0.01" value="${row.unit_cost ?? ''}" onchange="updateCompiledRow('${row.row_id}', 'unit_cost', this.value)"></td>
+                    <td><input class="form-control form-control-sm" type="number" min="0" step="0.01" value="${row.selling_price ?? ''}" onchange="updateCompiledRow('${row.row_id}', 'selling_price', this.value)"></td>
+                    <td><input class="form-control form-control-sm" type="number" min="0" step="0.01" value="${row.total_revenue ?? ''}" onchange="updateCompiledRow('${row.row_id}', 'total_revenue', this.value)"></td>
+                    <td><input class="form-control form-control-sm" type="number" min="0" step="0.01" value="${row.total_cost ?? ''}" onchange="updateCompiledRow('${row.row_id}', 'total_cost', this.value)"></td>
+                    <td>${issues.length ? issues.map(issue => `<div>${escapeHtml(issue)}</div>`).join('') : '<span class="text-success">Ready</span>'}</td>
+                </tr>`;
+            }).join('') : '<tr><td colspan="11" class="text-center text-muted">No rows match this filter.</td></tr>';
+            compiledExceptionTable.innerHTML = header + `<tbody>${body}</tbody>`;
+        }
+
+        function renderCompiledClients(resolutions) {
+            compiledClientCard.hidden = !resolutions.length;
+            if (!resolutions.length) {
+                compiledClientTable.innerHTML = '';
+                return;
+            }
+            compiledClientTable.innerHTML = `<thead><tr><th>Uploaded Company</th><th>Suggested Client</th><th>Match</th><th>Decision</th></tr></thead><tbody>${resolutions.map(item => {
+                const createOnly = item.status === 'create_new';
+                return `<tr>
+                    <td>${escapeHtml(item.uploaded_name)}</td>
+                    <td>${escapeHtml(item.suggested_client_name || 'No close match')}</td>
+                    <td>${item.match_percent ? Number(item.match_percent).toFixed(1) + '%' : '-'}</td>
+                    <td><select class="form-select form-select-sm" onchange="setCompiledClientResolution('${escapeHtml(item.resolution_key)}', this.value)">
+                        ${createOnly ? '' : '<option value="">Choose...</option>'}
+                        ${item.suggested_client_name ? '<option value="use_suggested">Use suggested client</option>' : ''}
+                        <option value="create_new" ${createOnly ? 'selected' : ''}>Create new client</option>
+                    </select></td>
+                </tr>`;
+            }).join('')}</tbody>`;
+        }
+
+        function setCompiledClientResolution(key, action) {
+            const item = (compiledSalesPreview?.client_resolutions || []).find(candidate => candidate.resolution_key === key) || {};
+            if (!action) delete compiledSalesResolutions[key];
+            else compiledSalesResolutions[key] = {
+                action,
+                client_id: item.suggested_client_id || null,
+                client_name: item.suggested_client_name || null,
+                match_percent: item.match_percent || null,
+            };
+            updateCompiledCommitState();
+        }
+
+        function renderCompiledDuplicates(duplicates) {
+            compiledDuplicateCard.hidden = !duplicates.length;
+            compiledDuplicateTable.innerHTML = duplicates.length
+                ? `<thead><tr><th>SO Number</th><th>Sales Staff</th><th>Existing Record</th></tr></thead><tbody>${duplicates.map(item => `<tr><td>${escapeHtml(item.so_number)}</td><td>${escapeHtml(item.sales_staff)}</td><td>#${escapeHtml(item.existing_id)}</td></tr>`).join('')}</tbody>`
+                : '';
+        }
+
+        function updateCompiledCommitState() {
+            const blocking = compiledSalesRows.some(row => row.included !== false && compiledRowBlockingIssues(row).length);
+            const unresolved = (compiledSalesPreview?.client_resolutions || []).some(item =>
+                item.status === 'needs_choice' && !compiledSalesResolutions[item.resolution_key]
+            );
+            compiledCommitButton.disabled = !compiledSalesRows.length || blocking || unresolved;
+            if (blocking) compiledCommitResult.innerHTML = '<div class="alert alert-warning mb-0">Fix or exclude all invalid rows before importing.</div>';
+            else if (unresolved) compiledCommitResult.innerHTML = '<div class="alert alert-warning mb-0">Complete every required client-matching decision.</div>';
+            else compiledCommitResult.innerHTML = '<div class="alert alert-success mb-0">Validation is complete. The import is ready.</div>';
+        }
+
+        async function commitCompiledSales() {
+            updateCompiledCommitState();
+            if (compiledCommitButton.disabled) return showToast('Resolve the remaining validation items first.', 'error');
+            compiledCommitButton.disabled = true;
+            compiledCommitResult.innerHTML = '<div class="alert alert-info mb-0">Importing Sales Orders, branches, and items...</div>';
+            try {
+                const response = await fetch('/admin/compiled-sales/commit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filename: compiledSalesFilename,
+                        rows: compiledSalesRows,
+                        resolutions: compiledSalesResolutions,
+                    }),
+                });
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error || 'Import failed.');
+                compiledCommitResult.innerHTML = `<div class="alert alert-success mb-0">${escapeHtml(data.message)} Created ${data.created_branches} branch record(s); skipped ${data.skipped_duplicates.length} existing order(s).</div>`;
+                showToast(data.message, 'success');
+                loadGrid();
+            } catch (error) {
+                compiledCommitResult.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(error.message)}</div>`;
+                showToast(error.message || 'Compiled Sales import failed.', 'error');
+                updateCompiledCommitState();
+            }
+        }
+
         function loadHealth() {
             fetch('/admin/db-health').then(r => r.json()).then(data => {
                 if (!data.success) throw new Error(data.error);
                 dbSize.textContent = data.health.database_size_mb + ' MB';
                 lastBackup.textContent = data.health.last_backup ? new Date(data.health.last_backup).toLocaleString() : 'No backup detected';
             }).catch(error => showToast(error.message, 'error'));
+            loadTransactionResetCounts();
         }
 
         function runMaintenance(command) {
@@ -1297,6 +1681,50 @@
                 showToast(data.message, 'success');
                 loadHealth();
             }).catch(error => showToast(error.message || 'Database maintenance failed.', 'error'));
+        }
+
+        function loadTransactionResetCounts() {
+            fetch('/admin/transaction-reset').then(response => response.json()).then(data => {
+                if (!data.success) throw new Error(data.error);
+                const counts = data.counts || {};
+                transactionResetCounts.innerHTML = `Sales Orders: <strong>${counts.sales_orders || 0}</strong> · Items: <strong>${counts.sales_order_items || 0}</strong> · Branches: <strong>${counts.sales_order_branches || 0}</strong> · Invoices: <strong>${counts.invoices || 0}</strong> · Expenses: <strong>${counts.expenses || 0}</strong> · Expense details: <strong>${counts.expense_debits || 0}</strong>`;
+            }).catch(error => {
+                transactionResetCounts.textContent = error.message || 'Unable to load transaction counts.';
+            });
+        }
+
+        function syncTransactionResetDependencies() {
+            if (resetSalesOrders.checked) resetInvoices.checked = true;
+        }
+
+        async function resetTransactions() {
+            const areas = [];
+            if (resetSalesOrders.checked) areas.push('sales_orders');
+            if (resetInvoices.checked) areas.push('invoices');
+            if (resetExpenses.checked) areas.push('expenses');
+            if (!areas.length) return showToast('Select at least one transaction area.', 'error');
+            if (transactionResetConfirm.value.trim().toUpperCase() !== 'RESET TRANSACTIONS') {
+                return showToast('Type RESET TRANSACTIONS to confirm.', 'error');
+            }
+            if (!window.confirm('Delete the selected transaction records? This cannot be undone.')) return;
+            try {
+                const response = await fetch('/admin/transaction-reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ areas, confirmation: transactionResetConfirm.value }),
+                });
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error || 'Transaction reset failed.');
+                showToast(data.message, 'success');
+                resetSalesOrders.checked = false;
+                resetInvoices.checked = false;
+                resetExpenses.checked = false;
+                transactionResetConfirm.value = '';
+                loadTransactionResetCounts();
+                loadGrid();
+            } catch (error) {
+                showToast(error.message || 'Transaction reset failed.', 'error');
+            }
         }
 
         function loadSchema() {

@@ -28,6 +28,18 @@ ALTER TABLE public.users
 ALTER TABLE public.evaluation_sessions
     ADD COLUMN IF NOT EXISTS user_id integer REFERENCES public.users(id);
 
+CREATE TABLE IF NOT EXISTS public.sales_order_branches (
+    id serial PRIMARY KEY,
+    sales_order_id integer NOT NULL REFERENCES public.sales_orders(id) ON DELETE CASCADE,
+    branch_name varchar(200) NOT NULL,
+    normalized_branch_key varchar(200) NOT NULL,
+    CONSTRAINT uq_sales_order_branch_key UNIQUE (sales_order_id, normalized_branch_key)
+);
+
+ALTER TABLE public.sales_order_items
+    ADD COLUMN IF NOT EXISTS sales_order_branch_id integer
+    REFERENCES public.sales_order_branches(id) ON DELETE SET NULL;
+
 CREATE TABLE IF NOT EXISTS public.system_settings (
     key varchar(100) PRIMARY KEY,
     value text NOT NULL,
@@ -48,6 +60,18 @@ CREATE INDEX IF NOT EXISTS idx_sales_orders_client_order_date
 
 CREATE INDEX IF NOT EXISTS idx_sales_order_items_sales_order_id
     ON public.sales_order_items (sales_order_id);
+
+CREATE INDEX IF NOT EXISTS idx_sales_order_items_branch_id
+    ON public.sales_order_items (sales_order_branch_id);
+
+CREATE INDEX IF NOT EXISTS idx_sales_order_branches_order_id
+    ON public.sales_order_branches (sales_order_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_order_branch_key
+    ON public.sales_order_branches (sales_order_id, normalized_branch_key);
+
+CREATE INDEX IF NOT EXISTS idx_sales_orders_number_staff
+    ON public.sales_orders (so_number, sales_staff);
 
 CREATE INDEX IF NOT EXISTS idx_invoices_sales_order_id
     ON public.invoices (sales_order_id);
