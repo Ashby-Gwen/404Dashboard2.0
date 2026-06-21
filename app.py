@@ -1,6 +1,6 @@
 # store name ang focus hindi company name.
 try:
-    from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, Response  # type: ignore[import]
+    from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, Response, has_request_context  # type: ignore[import]
     # from flask_login import login_required
     from flask_sqlalchemy import SQLAlchemy  # type: ignore[import]
     from werkzeug.security import generate_password_hash, check_password_hash  # type: ignore[import]
@@ -227,6 +227,44 @@ class Invoice(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     sales_order = db.relationship('SalesOrder', backref='invoices')
+
+class CollectionReceipt(db.Model):
+    __tablename__ = 'collection_receipts'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'invoice_id',
+            'normalized_cr_number',
+            name='uq_collection_receipts_invoice_cr',
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(
+        db.Integer,
+        db.ForeignKey('invoices.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    receipt_date = db.Column(db.Date, nullable=False)
+    cr_number = db.Column(db.String(50), nullable=False)
+    normalized_cr_number = db.Column(db.String(50), nullable=False)
+    payment_type = db.Column(db.String(20), nullable=False)
+    payment_amount = db.Column(db.Float, nullable=False, default=0.0)
+    tax_amount_paid = db.Column(db.Float, nullable=False, default=0.0)
+    is_2307_checked = db.Column(db.Boolean, default=False, nullable=False)
+    collected_total = db.Column(db.Float, nullable=False, default=0.0)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    recorded_by = db.Column(db.String(80), nullable=False, default='system')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    invoice = db.relationship(
+        'Invoice',
+        backref=db.backref(
+            'collection_receipts',
+            cascade='all, delete-orphan',
+            order_by='CollectionReceipt.receipt_date, CollectionReceipt.id',
+        ),
+    )
+    created_by = db.relationship('User', foreign_keys=[created_by_user_id])
 
 class PurchaseOrder(db.Model):
     __tablename__ = 'purchase_orders'
@@ -504,6 +542,7 @@ def app_models():
         'SalesOrderBranch': SalesOrderBranch,
         'SalesOrderItem': SalesOrderItem,
         'Invoice': Invoice,
+        'CollectionReceipt': CollectionReceipt,
         'PurchaseOrder': PurchaseOrder,
         'PurchaseOrderDebit': PurchaseOrderDebit,
         'SessionRecord': SessionRecord,
@@ -1709,7 +1748,7 @@ def refresh_client_financials(client=None):
             financials[sales_order.client_id]['sales_revenue'] += line_total if line_total else float(sales_order.total_amount or 0)
 
     linked_invoices = (
-        Invoice.query
+        Invoice.query.options(selectinload(Invoice.collection_receipts))
         .join(SalesOrder, Invoice.sales_order_id == SalesOrder.id)
         .all()
     )
@@ -1723,11 +1762,20 @@ def refresh_client_financials(client=None):
             if current_last is None or invoice.invoice_date > current_last:
                 financials[client_id]['last_invoice_date'] = invoice.invoice_date
             if (invoice.amount_paid or 0) > 0:
+                payment_date = max(
+                    (receipt.receipt_date for receipt in invoice.collection_receipts if receipt.receipt_date),
+                    default=invoice.invoice_date,
+                )
                 current_payment_last = financials[client_id]['last_payment_date']
-                if current_payment_last is None or invoice.invoice_date > current_payment_last:
-                    financials[client_id]['last_payment_date'] = invoice.invoice_date
+                if payment_date and (current_payment_last is None or payment_date > current_payment_last):
+                    financials[client_id]['last_payment_date'] = payment_date
 
-    admin_invoices = Invoice.query.filter(Invoice.sales_order_id.is_(None)).filter(Invoice.uploaded_client_name.isnot(None)).all()
+    admin_invoices = (
+        Invoice.query.options(selectinload(Invoice.collection_receipts))
+        .filter(Invoice.sales_order_id.is_(None))
+        .filter(Invoice.uploaded_client_name.isnot(None))
+        .all()
+    )
     for invoice in admin_invoices:
         matched_client = resolve_existing_client_for_summary(invoice.uploaded_client_name, registry)
         if not matched_client or matched_client.id not in financials:
@@ -1738,9 +1786,13 @@ def refresh_client_financials(client=None):
             if current_last is None or invoice.invoice_date > current_last:
                 financials[matched_client.id]['last_invoice_date'] = invoice.invoice_date
             if (invoice.amount_paid or 0) > 0:
+                payment_date = max(
+                    (receipt.receipt_date for receipt in invoice.collection_receipts if receipt.receipt_date),
+                    default=invoice.invoice_date,
+                )
                 current_payment_last = financials[matched_client.id]['last_payment_date']
-                if current_payment_last is None or invoice.invoice_date > current_payment_last:
-                    financials[matched_client.id]['last_payment_date'] = invoice.invoice_date
+                if payment_date and (current_payment_last is None or payment_date > current_payment_last):
+                    financials[matched_client.id]['last_payment_date'] = payment_date
 
     for row in AnalyticsData.query.filter_by(source_type='HISTORICAL_UPLOAD', flow_direction='INFLOW').all():
         matched_client = resolve_existing_client_for_summary(row.party_name, registry)
@@ -1787,6 +1839,8 @@ def report_available_years():
         .union(
             db.session.query(db_year(Invoice.invoice_date).label('year'))
             .filter(Invoice.invoice_date.isnot(None)),
+            db.session.query(db_year(CollectionReceipt.receipt_date).label('year'))
+            .filter(CollectionReceipt.receipt_date.isnot(None)),
             db.session.query(db_year(PurchaseOrder.date).label('year'))
             .filter(PurchaseOrder.date.isnot(None))
         )
@@ -1856,31 +1910,58 @@ def date_range_filter(query, column, filters):
 
 def revenue_report_rows(filters=None):
     query = (
-        db.session.query(Invoice, SalesOrder, Client)
-        .select_from(Invoice)
+        db.session.query(CollectionReceipt, Invoice, SalesOrder, Client)
+        .select_from(CollectionReceipt)
+        .join(Invoice, CollectionReceipt.invoice_id == Invoice.id)
         .join(SalesOrder, Invoice.sales_order_id == SalesOrder.id, isouter=True)
         .join(Client, SalesOrder.client_id == Client.id, isouter=True)
-        .filter(Invoice.amount_paid > 0)
     )
     if filters:
-        query = date_range_filter(query, Invoice.invoice_date, filters)
-    rows = query.order_by(Invoice.invoice_date.asc(), Invoice.id.asc()).all()
-    return [
+        query = date_range_filter(query, CollectionReceipt.receipt_date, filters)
+    rows = query.order_by(
+        CollectionReceipt.receipt_date.asc(),
+        Invoice.id.asc(),
+        CollectionReceipt.id.asc(),
+    ).all()
+    result = [
         {
-            'invoice_date': invoice.invoice_date.isoformat() if invoice.invoice_date else None,
+            'invoice_date': receipt.receipt_date.isoformat() if receipt.receipt_date else None,
             'invoice_number': clean_code(invoice.invoice_number).upper(),
             'so_number': order.so_number if order else '',
             'client_name': client.client_name if client else (invoice.uploaded_client_name or 'Admin Upload'),
             'invoice_type': canonical_invoice_type(invoice.invoice_number, invoice.invoice_type),
-            'payment_type': invoice.payment_type,
-            'cr_number': invoice.cr_number,
+            'payment_type': receipt.payment_type,
+            'cr_number': receipt.cr_number,
             'total_amount': float(invoice.total_amount or 0),
-            'amount_paid': float(invoice.amount_paid or 0),
+            'amount_paid': float(receipt.collected_total or 0),
             'balance': float(invoice.balance or 0),
             'status': invoice.status,
         }
-        for invoice, order, client in rows
+        for receipt, invoice, order, client in rows
     ]
+    legacy_query = (
+        db.session.query(Invoice, SalesOrder, Client)
+        .select_from(Invoice)
+        .join(SalesOrder, Invoice.sales_order_id == SalesOrder.id, isouter=True)
+        .join(Client, SalesOrder.client_id == Client.id, isouter=True)
+        .filter(Invoice.amount_paid > 0, ~Invoice.collection_receipts.any())
+    )
+    if filters:
+        legacy_query = date_range_filter(legacy_query, Invoice.invoice_date, filters)
+    result.extend({
+        'invoice_date': invoice.invoice_date.isoformat() if invoice.invoice_date else None,
+        'invoice_number': clean_code(invoice.invoice_number).upper(),
+        'so_number': order.so_number if order else '',
+        'client_name': client.client_name if client else (invoice.uploaded_client_name or 'Admin Upload'),
+        'invoice_type': canonical_invoice_type(invoice.invoice_number, invoice.invoice_type),
+        'payment_type': invoice.payment_type,
+        'cr_number': invoice.cr_number,
+        'total_amount': float(invoice.total_amount or 0),
+        'amount_paid': float(invoice.amount_paid or 0),
+        'balance': float(invoice.balance or 0),
+        'status': invoice.status,
+    } for invoice, order, client in legacy_query.all())
+    return sorted(result, key=lambda item: (item['invoice_date'] or '', item['invoice_number']))
 
 def sales_report_itemized_rows(filters=None):
     query = (
@@ -2191,12 +2272,151 @@ def collected_payment_amount(cr_number, payment_amount, tax_amount_paid, is_2307
         raise ValueError('CR number is required when recording a payment.')
     return payment, tax, collected
 
+def normalize_cr_number(value):
+    return clean_code(value).upper()
+
+def collection_receipt_payload(receipt):
+    return {
+        'id': receipt.id,
+        'invoice_id': receipt.invoice_id,
+        'receipt_date': receipt.receipt_date.isoformat() if receipt.receipt_date else None,
+        'cr_number': receipt.cr_number,
+        'payment_type': receipt.payment_type,
+        'payment_amount': float(receipt.payment_amount or 0),
+        'tax_amount_paid': float(receipt.tax_amount_paid or 0),
+        'is_2307_checked': bool(receipt.is_2307_checked),
+        'collected_total': float(receipt.collected_total or 0),
+        'recorded_by': receipt.recorded_by or 'system',
+        'created_at': receipt.created_at.isoformat() if receipt.created_at else None,
+    }
+
+def receipt_total_for_invoice(invoice):
+    if invoice.collection_receipts:
+        return round(sum(float(item.collected_total or 0) for item in invoice.collection_receipts), 2)
+    return round(float(invoice.amount_paid or 0), 2)
+
+def ensure_invoice_legacy_receipt(invoice):
+    if invoice.collection_receipts or float(invoice.amount_paid or 0) <= MONEY_TOLERANCE:
+        return None
+    legacy_cr = clean_code(invoice.cr_number) or f'LEGACY-{invoice.id}'
+    legacy_receipt = CollectionReceipt(
+        invoice=invoice,
+        receipt_date=invoice.invoice_date or date.today(),
+        cr_number=legacy_cr,
+        normalized_cr_number=normalize_cr_number(legacy_cr),
+        payment_type=(
+            'FULL'
+            if str(invoice.payment_type or '').upper() == 'FULL'
+            or float(invoice.balance or 0) <= MONEY_TOLERANCE
+            else 'DOWNPAYMENT'
+        ),
+        payment_amount=(
+            float(invoice.payment_amount or 0)
+            if float(invoice.payment_amount or 0) > 0
+            else float(invoice.amount_paid or 0)
+        ),
+        tax_amount_paid=float(invoice.tax_amount_paid or 0),
+        is_2307_checked=bool(invoice.is_2307_checked),
+        collected_total=float(invoice.amount_paid or 0),
+        recorded_by='legacy migration',
+    )
+    db.session.add(legacy_receipt)
+    db.session.flush()
+    return legacy_receipt
+
+def synchronize_invoice_receipt_state(invoice):
+    amount_paid = receipt_total_for_invoice(invoice)
+    invoice.amount_paid = amount_paid
+    invoice.status, invoice.balance = payment_state(invoice.total_amount, amount_paid)
+    return {
+        'amount_paid': amount_paid,
+        'balance': invoice.balance,
+        'invoice_status': invoice.status,
+    }
+
+def append_collection_receipt(
+    invoice,
+    data,
+    *,
+    allow_legacy=False,
+    recorded_by=None,
+    existing_paid=None,
+    prevalidated=False,
+):
+    if not prevalidated:
+        ensure_invoice_legacy_receipt(invoice)
+    receipt_date = parse_date_value(data.get('receipt_date'), default_today=False)
+    if not receipt_date:
+        raise ValueError('Collection Receipt date is required.')
+
+    raw_cr_number = clean_code(data.get('cr_number'))
+    if not raw_cr_number and not allow_legacy:
+        raise ValueError('CR number is required when recording a payment.')
+    cr_number = raw_cr_number or f'LEGACY-{invoice.id}'
+    normalized_cr_number = normalize_cr_number(cr_number)
+    if not prevalidated:
+        duplicate = CollectionReceipt.query.filter_by(
+            invoice_id=invoice.id,
+            normalized_cr_number=normalized_cr_number,
+        ).first()
+        if duplicate:
+            raise ValueError(f'CR number {cr_number} is already recorded for this invoice.')
+
+    payment_type = clean_code(data.get('payment_type')).upper()
+    if allow_legacy and payment_type not in {'DOWNPAYMENT', 'FULL'}:
+        payment_type = 'FULL' if float(data.get('collected_total') or 0) >= float(invoice.total_amount or 0) else 'DOWNPAYMENT'
+    if payment_type not in {'DOWNPAYMENT', 'FULL'}:
+        raise ValueError('Payment type must be DOWNPAYMENT or FULL.')
+
+    is_2307_checked = bool(data.get('is_2307_checked'))
+    payment_amount, tax_amount_paid, collected_total = collected_payment_amount(
+        cr_number,
+        data.get('payment_amount'),
+        data.get('tax_amount_paid'),
+        is_2307_checked,
+    )
+    if collected_total <= MONEY_TOLERANCE:
+        raise ValueError('Collection Receipt amount must be greater than zero.')
+
+    current_paid = (
+        float(existing_paid)
+        if existing_paid is not None
+        else receipt_total_for_invoice(invoice)
+    )
+    remaining = max(float(invoice.total_amount or 0) - current_paid, 0)
+    if collected_total > remaining + MONEY_TOLERANCE:
+        raise ValueError(f'Payment exceeds the remaining invoice balance of {remaining:.2f}.')
+    if payment_type == 'FULL' and abs(collected_total - remaining) > MONEY_TOLERANCE:
+        raise ValueError(f'Full Payment must exactly settle the remaining invoice balance of {remaining:.2f}.')
+
+    receipt = CollectionReceipt(
+        invoice=invoice,
+        receipt_date=receipt_date,
+        cr_number=cr_number,
+        normalized_cr_number=normalized_cr_number,
+        payment_type=payment_type,
+        payment_amount=payment_amount,
+        tax_amount_paid=tax_amount_paid,
+        is_2307_checked=is_2307_checked,
+        collected_total=collected_total,
+        created_by_user_id=session.get('user_id') if has_request_context() else None,
+        recorded_by=recorded_by or (session.get('username') if has_request_context() else 'system') or 'system',
+    )
+    db.session.add(receipt)
+    if not prevalidated:
+        db.session.flush()
+    invoice.amount_paid = round(current_paid + collected_total, 2)
+    invoice.status, invoice.balance = payment_state(invoice.total_amount, invoice.amount_paid)
+    return receipt
+
 def sales_order_total(sales_order):
     line_total = sum(float(item.total or 0) for item in getattr(sales_order, 'items', []) or [])
     return round(line_total if line_total > 0 else float(sales_order.total_amount or 0), 2)
 
 def synchronize_sales_order_payment_state(sales_order):
     total = sales_order_total(sales_order)
+    for invoice in sales_order.invoices:
+        synchronize_invoice_receipt_state(invoice)
     paid = round(sum(float(invoice.amount_paid or 0) for invoice in sales_order.invoices), 2)
     if paid > total + MONEY_TOLERANCE:
         raise ValueError(f'Payment exceeds the Sales Order balance by {paid - total:.2f}.')
@@ -2660,6 +2880,8 @@ def invoice_upload_schema_status():
     missing = []
     if 'sales_order_branches' not in tables:
         missing.append('sales_order_branches')
+    if 'collection_receipts' not in tables:
+        missing.append('collection_receipts')
     if 'sales_order_items' not in tables:
         missing.append('sales_order_items')
     else:
@@ -2760,6 +2982,7 @@ def prepare_invoice_upload_rows(rows):
                 'collection_dates': {row['invoice_date']},
                 'cr_numbers': {row['cr_number']} if row['cr_number'] else set(),
                 'summaries': {row['summary']} if row['summary'] else set(),
+                'receipts': [dict(row)],
             }
             continue
         current = grouped[key]
@@ -2773,6 +2996,7 @@ def prepare_invoice_upload_rows(rows):
             current['cr_numbers'].add(row['cr_number'])
         if row['summary']:
             current['summaries'].add(row['summary'])
+        current['receipts'].append(dict(row))
     return list(grouped.values()), conflicts
 
 def invoice_collection_note(row, matched):
@@ -2807,7 +3031,11 @@ def resolve_invoice_upload_client(client_name, registry, clients_by_id):
     return None
 
 def invoice_receipt_numbers(invoice):
-    receipt_numbers = set()
+    receipt_numbers = {
+        normalize_cr_number(item.cr_number)
+        for item in getattr(invoice, 'collection_receipts', []) or []
+        if normalize_cr_number(item.cr_number)
+    }
     direct_receipt = clean_code(invoice.cr_number).upper()
     if direct_receipt:
         receipt_numbers.add(direct_receipt)
@@ -2828,10 +3056,10 @@ def existing_invoice_client_key(invoice):
     return invoice_upload_client_key(invoice.uploaded_client_name)
 
 def filter_existing_invoice_receipts(rows, existing_invoices):
-    invoices_by_receipt = defaultdict(list)
-    for invoice in existing_invoices:
-        for receipt_number in invoice_receipt_numbers(invoice):
-            invoices_by_receipt[receipt_number].append(invoice)
+    existing_by_number = {
+        normalize_invoice_number(invoice.invoice_number).upper(): invoice
+        for invoice in existing_invoices
+    }
 
     accepted_rows = []
     skipped_receipts = []
@@ -2840,54 +3068,26 @@ def filter_existing_invoice_receipts(rows, existing_invoices):
         if row.get('included') is False:
             accepted_rows.append(row)
             continue
-        receipt_number = clean_code(row.get('cr_number')).upper()
-        if not receipt_number or receipt_number not in invoices_by_receipt:
-            accepted_rows.append(row)
-            continue
-
-        incoming_client_key = invoice_upload_client_key(row.get('uploaded_client_name'))
+        receipt_number = normalize_cr_number(row.get('cr_number'))
         incoming_invoice_number = normalize_invoice_number(
             row.get('invoice_number'),
             receipt_number,
         ).upper()
-        matching_invoice = None
-        for existing_invoice in invoices_by_receipt[receipt_number]:
-            existing_number = normalize_invoice_number(existing_invoice.invoice_number).upper()
-            legacy_blank_number = (
-                incoming_invoice_number == f'CR-{receipt_number}'
-                and existing_number.startswith('INV-')
-            )
-            if (
-                existing_invoice_client_key(existing_invoice) == incoming_client_key
-                and (existing_number == incoming_invoice_number or legacy_blank_number)
-            ):
-                matching_invoice = existing_invoice
-                break
+        existing_invoice = existing_by_number.get(incoming_invoice_number)
+        if not receipt_number or not existing_invoice:
+            accepted_rows.append(row)
+            continue
 
         source_row = row.get('_source_row') or row.get('source_row') or index
-        if matching_invoice:
+        if receipt_number in invoice_receipt_numbers(existing_invoice):
             skipped_receipts.append({
                 'cr_number': receipt_number,
                 'invoice_number': incoming_invoice_number,
-                'existing_invoice_id': matching_invoice.id,
+                'existing_invoice_id': existing_invoice.id,
                 'source_row': source_row,
             })
             continue
-
-        receipt_conflicts.append({
-            'cr_number': receipt_number,
-            'invoice_number': incoming_invoice_number,
-            'uploaded_client_name': clean_text(row.get('uploaded_client_name')).upper(),
-            'existing_invoices': [
-                {
-                    'id': invoice.id,
-                    'invoice_number': invoice.invoice_number,
-                    'uploaded_client_name': invoice.uploaded_client_name,
-                }
-                for invoice in invoices_by_receipt[receipt_number]
-            ],
-            'source_row': source_row,
-        })
+        accepted_rows.append(row)
     return accepted_rows, skipped_receipts, receipt_conflicts
 
 def commit_invoice_upload_batch(rows):
@@ -2907,6 +3107,7 @@ def commit_invoice_upload_batch(rows):
         Invoice.query
         .options(
             selectinload(Invoice.sales_order).selectinload(SalesOrder.client),
+            selectinload(Invoice.collection_receipts),
         )
         .all()
     )
@@ -2920,6 +3121,36 @@ def commit_invoice_upload_batch(rows):
             'needs_review': True,
             'error': 'Some CR numbers already exist under a different invoice or Uploaded Client Name.',
             'receipt_conflicts': receipt_conflicts,
+        }), 409
+
+    seen_import_receipts = {}
+    duplicate_import_receipts = []
+    for index, row in enumerate(accepted_rows, start=1):
+        if row.get('included') is False:
+            continue
+        receipt_number = normalize_cr_number(row.get('cr_number'))
+        if not receipt_number:
+            continue
+        invoice_number = normalize_invoice_number(
+            row.get('invoice_number'),
+            receipt_number,
+        ).upper()
+        receipt_key = (invoice_number, receipt_number)
+        source_row = row.get('_source_row') or row.get('source_row') or index
+        if receipt_key in seen_import_receipts:
+            duplicate_import_receipts.append({
+                'invoice_number': invoice_number,
+                'cr_number': receipt_number,
+                'source_rows': [seen_import_receipts[receipt_key], source_row],
+            })
+        else:
+            seen_import_receipts[receipt_key] = source_row
+    if duplicate_import_receipts:
+        return jsonify({
+            'success': False,
+            'needs_review': True,
+            'error': 'A CR number can appear only once within the same invoice.',
+            'receipt_conflicts': duplicate_import_receipts,
         }), 409
 
     grouped_rows, conflicts = prepare_invoice_upload_rows(accepted_rows)
@@ -3090,8 +3321,7 @@ def commit_invoice_upload_batch(rows):
                 f'{collection_note} | Uploaded Client Name matched a client, '
                 'but no single Sales Order had enough available balance.'
             )
-        receipt_numbers = sorted(row['cr_numbers'])
-        cr_number = receipt_numbers[-1] if receipt_numbers else None
+        first_receipt = row['receipts'][0]
         summary = '; '.join(sorted(row['summaries'])) or ('Admin Upload' if not matched else None)
         invoice_type = canonical_invoice_type(
             row['invoice_number'],
@@ -3100,64 +3330,69 @@ def commit_invoice_upload_batch(rows):
         if matched and invoice_type == 'ADMIN UPLOAD':
             invoice_type = 'SALES'
         if existing_invoice:
-            existing_invoice.invoice_number = row['invoice_number']
-            existing_invoice.invoice_type = invoice_type
-            existing_invoice.invoice_date = max(existing_invoice.invoice_date, row['invoice_date'])
-            existing_invoice.payment_amount = round(
-                float(existing_invoice.payment_amount or 0) + float(row['payment_amount'] or 0),
-                2,
-            )
-            existing_invoice.amount_paid = round(
-                float(existing_invoice.amount_paid or 0) + float(row['amount_paid'] or 0),
-                2,
-            )
-            existing_invoice.tax_amount_paid = round(
-                float(existing_invoice.tax_amount_paid or 0) + float(row['tax_amount_paid'] or 0),
-                2,
-            )
-            existing_invoice.cr_number = cr_number or existing_invoice.cr_number
-            existing_invoice.summary = summary or existing_invoice.summary
-            existing_invoice.uploaded_client_name = row['uploaded_client_name']
-            existing_invoice.upload_source = existing_invoice.upload_source or 'admin_upload'
-            existing_invoice.admin_upload_note = collection_note
-            if sales_order and existing_invoice.sales_order_id is None:
-                existing_invoice.sales_order = sales_order
-            if sales_order:
-                existing_invoice.total_amount = sales_order_total(sales_order)
-                existing_invoice.balance = max(existing_invoice.total_amount - existing_invoice.amount_paid, 0)
-                existing_invoice.status = 'PAID' if existing_invoice.balance <= MONEY_TOLERANCE else 'PARTIAL'
-                affected_orders[sales_order.id] = sales_order
+            if existing_invoice.total_amount is None:
+                existing_invoice.total_amount = round(
+                    float(existing_invoice.amount_paid or 0) + float(row['amount_paid'] or 0),
+                    2,
+                )
+            running_paid = float(existing_invoice.amount_paid or 0)
+            for receipt_row in row['receipts']:
+                receipt = append_collection_receipt(existing_invoice, {
+                    'receipt_date': receipt_row['invoice_date'].isoformat(),
+                    'cr_number': receipt_row['cr_number'] or f"LEGACY-{existing_invoice.id}-{receipt_row['source_row']}",
+                    'payment_type': receipt_row['payment_type'],
+                    'payment_amount': receipt_row['payment_amount'],
+                    'tax_amount_paid': receipt_row['tax_amount_paid'],
+                    'is_2307_checked': bool(receipt_row.get('tax_amount_paid')),
+                }, allow_legacy=True, recorded_by='admin upload',
+                    existing_paid=running_paid, prevalidated=True)
+                running_paid += float(receipt.collected_total or 0)
+            if existing_invoice.sales_order:
+                affected_orders[existing_invoice.sales_order.id] = existing_invoice.sales_order
                 linked += 1
             else:
-                existing_invoice.status = 'Admin Upload'
                 standalone += 1
             updated += 1
             continue
 
-        total = sales_order_total(sales_order) if sales_order else row['total_amount']
-        balance = max(total - row['amount_paid'], 0) if total is not None else None
+        total = (
+            sales_order_total(sales_order)
+            if sales_order
+            else (row['total_amount'] if row['total_amount'] is not None else row['amount_paid'])
+        )
         invoice = Invoice(
             invoice_number=row['invoice_number'],
             sales_order_id=sales_order.id if sales_order else None,
             invoice_type=invoice_type,
             invoice_date=row['invoice_date'],
             summary=summary,
-            payment_type='Admin Upload' if not matched else row['payment_type'],
-            cr_number=cr_number,
-            payment_amount=row['payment_amount'],
-            tax_amount_paid=row['tax_amount_paid'],
+            payment_type=first_receipt['payment_type'],
+            cr_number=first_receipt['cr_number'],
+            payment_amount=first_receipt['payment_amount'],
+            tax_amount_paid=first_receipt['tax_amount_paid'],
+            is_2307_checked=bool(first_receipt.get('tax_amount_paid')),
             total_amount=total,
-            amount_paid=row['amount_paid'],
-            balance=balance,
-            status=(
-                'Admin Upload' if not matched
-                else ('PAID' if balance is not None and balance <= MONEY_TOLERANCE else 'PARTIAL')
-            ),
+            amount_paid=0,
+            balance=total,
+            status='UNPAID',
             uploaded_client_name=row['uploaded_client_name'],
             upload_source='admin_upload',
             admin_upload_note=collection_note,
         )
         db.session.add(invoice)
+        db.session.flush()
+        running_paid = 0.0
+        for receipt_row in row['receipts']:
+            receipt = append_collection_receipt(invoice, {
+                'receipt_date': receipt_row['invoice_date'].isoformat(),
+                'cr_number': receipt_row['cr_number'] or f"LEGACY-{invoice.id}-{receipt_row['source_row']}",
+                'payment_type': receipt_row['payment_type'],
+                'payment_amount': receipt_row['payment_amount'],
+                'tax_amount_paid': receipt_row['tax_amount_paid'],
+                'is_2307_checked': bool(receipt_row.get('tax_amount_paid')),
+            }, allow_legacy=True, recorded_by='admin upload',
+                existing_paid=running_paid, prevalidated=True)
+            running_paid += float(receipt.collected_total or 0)
         if sales_order:
             affected_orders[sales_order.id] = sales_order
             linked += 1
@@ -3317,12 +3552,14 @@ def seed_evaluation_questions():
 
 def init_db():
     with app.app_context():
+        pre_schema_status = ensure_defense_schema(db)
         db.create_all()
         schema_status = ensure_defense_schema(db)
-        if schema_status.get('backup_path'):
+        backup_path = pre_schema_status.get('backup_path') or schema_status.get('backup_path')
+        if backup_path:
             app.logger.warning(
                 'SQLite database backed up before defense migration: %s',
-                schema_status['backup_path'],
+                backup_path,
             )
         
         # Create default roles if they don't exist
@@ -3621,22 +3858,21 @@ def dashboard():
     # Revenue and profit
     revenue_totals = (
         db.session.query(
-            func.coalesce(func.sum(Invoice.amount_paid), 0).label('total_revenue'),
+            func.coalesce(func.sum(CollectionReceipt.collected_total), 0).label('total_revenue'),
             func.coalesce(
                 func.sum(
                     case(
-                        (Invoice.is_2307_checked.is_(True), Invoice.tax_amount_paid),
+                        (CollectionReceipt.is_2307_checked.is_(True), CollectionReceipt.tax_amount_paid),
                         else_=0
                     )
                 ),
                 0
             ).label('total_tax_collected'),
-            func.count(Invoice.id).label('payment_count')
+            func.count(CollectionReceipt.id).label('payment_count')
         )
         .filter(
-            Invoice.amount_paid > 0,
-            Invoice.invoice_date >= year_start,
-            Invoice.invoice_date < next_year_start
+            CollectionReceipt.receipt_date >= year_start,
+            CollectionReceipt.receipt_date < next_year_start
         )
         .one()
     )
@@ -3644,6 +3880,26 @@ def dashboard():
     total_revenue = float(revenue_totals.total_revenue or 0)
     total_tax_collected = float(revenue_totals.total_tax_collected or 0)
     payment_count = int(revenue_totals.payment_count or 0)
+    legacy_revenue = (
+        db.session.query(
+            func.coalesce(func.sum(Invoice.amount_paid), 0),
+            func.coalesce(func.sum(case(
+                (Invoice.is_2307_checked.is_(True), Invoice.tax_amount_paid),
+                else_=0,
+            )), 0),
+            func.count(Invoice.id),
+        )
+        .filter(
+            Invoice.amount_paid > 0,
+            ~Invoice.collection_receipts.any(),
+            Invoice.invoice_date >= year_start,
+            Invoice.invoice_date < next_year_start,
+        )
+        .one()
+    )
+    total_revenue += float(legacy_revenue[0] or 0)
+    total_tax_collected += float(legacy_revenue[1] or 0)
+    payment_count += int(legacy_revenue[2] or 0)
 
     # Expenses and available pondo
     total_expenses = (
@@ -3984,12 +4240,26 @@ def dashboard():
     ]
     invoice_cash_rows = (
         db.session.query(
+            extract('month', CollectionReceipt.receipt_date).label('month'),
+            func.coalesce(func.sum(CollectionReceipt.collected_total), 0).label('total')
+        )
+        .filter(
+            CollectionReceipt.receipt_date >= year_start,
+            CollectionReceipt.receipt_date < next_year_start
+        )
+        .group_by(extract('month', CollectionReceipt.receipt_date))
+        .all()
+    )
+    legacy_invoice_cash_rows = (
+        db.session.query(
             extract('month', Invoice.invoice_date).label('month'),
             func.coalesce(func.sum(Invoice.amount_paid), 0).label('total')
         )
         .filter(
+            Invoice.amount_paid > 0,
+            ~Invoice.collection_receipts.any(),
             Invoice.invoice_date >= year_start,
-            Invoice.invoice_date < next_year_start
+            Invoice.invoice_date < next_year_start,
         )
         .group_by(extract('month', Invoice.invoice_date))
         .all()
@@ -4008,6 +4278,8 @@ def dashboard():
     )
     for row in invoice_cash_rows:
         monthly_cashflow[int(row.month) - 1]['cash_in'] = float(row.total or 0)
+    for row in legacy_invoice_cash_rows:
+        monthly_cashflow[int(row.month) - 1]['cash_in'] += float(row.total or 0)
     for row in purchase_cash_rows:
         monthly_cashflow[int(row.month) - 1]['cash_out'] = float(row.total or 0)
 
@@ -5134,10 +5406,13 @@ def get_invoices():
         except (TypeError, ValueError):
             page_size = 50
         invoice_type = (request.args.get('invoice_type') or '').upper()
+        general_search = (request.args.get('general_search') or '').strip()
+        cr_search = (request.args.get('cr_search') or '').strip()
+        client_search = (request.args.get('client_search') or '').strip()
 
         invoice_query = db.session.query(
             Invoice.id, Invoice.invoice_number, Invoice.sales_order_id, SalesOrder.so_number,
-            Invoice.invoice_type, Invoice.invoice_date, Invoice.total_amount,
+            Invoice.invoice_type, Invoice.invoice_date, Invoice.summary, Invoice.total_amount,
             Invoice.payment_type, Invoice.cr_number, Invoice.payment_amount,
             Invoice.tax_amount_paid, Invoice.is_2307_checked,
             Invoice.amount_paid, Invoice.balance, Invoice.status, Client.client_name,
@@ -5164,6 +5439,43 @@ def get_invoices():
                 and_(~known_prefix, func.upper(Invoice.invoice_type) == 'SERVICE'),
             ))
 
+        if general_search:
+            pattern = f'%{general_search}%'
+            general_filters = [
+                Invoice.invoice_number.ilike(pattern),
+                SalesOrder.so_number.ilike(pattern),
+                Invoice.status.ilike(pattern),
+                Invoice.invoice_type.ilike(pattern),
+                Invoice.summary.ilike(pattern),
+            ]
+            parsed_general_date = parse_date_value(general_search, default_today=False)
+            if parsed_general_date:
+                general_filters.append(Invoice.invoice_date == parsed_general_date)
+            invoice_query = invoice_query.filter(or_(*general_filters))
+
+        if cr_search:
+            cr_pattern = f'%{normalize_cr_number(cr_search)}%'
+            invoice_query = invoice_query.filter(
+                Invoice.collection_receipts.any(
+                    CollectionReceipt.normalized_cr_number.ilike(cr_pattern)
+                )
+            )
+
+        if client_search:
+            client_pattern = f'%{client_search}%'
+            alias_client_ids = db.session.query(ClientAlias.client_id).filter(
+                ClientAlias.status == 'ACTIVE',
+                ClientAlias.alias_name.ilike(client_pattern),
+            )
+            invoice_query = invoice_query.filter(or_(
+                Client.client_name.ilike(client_pattern),
+                Invoice.uploaded_client_name.ilike(client_pattern),
+                SalesOrder.company_name.ilike(client_pattern),
+                SalesOrder.official_client_name.ilike(client_pattern),
+                SalesOrder.original_entered_client_name.ilike(client_pattern),
+                Client.id.in_(alias_client_ids),
+            ))
+
         invoice_count = invoice_query.count()
         invoices_list = (
             invoice_query
@@ -5172,6 +5484,20 @@ def get_invoices():
             .limit(page_size)
             .all()
         )
+        invoice_ids = [item.id for item in invoices_list]
+        receipt_rows = (
+            CollectionReceipt.query
+            .filter(CollectionReceipt.invoice_id.in_(invoice_ids))
+            .order_by(
+                CollectionReceipt.invoice_id,
+                CollectionReceipt.receipt_date.desc(),
+                CollectionReceipt.id.desc(),
+            )
+            .all()
+        ) if invoice_ids else []
+        receipts_by_invoice = defaultdict(list)
+        for receipt in receipt_rows:
+            receipts_by_invoice[receipt.invoice_id].append(collection_receipt_payload(receipt))
         
         return jsonify({
             'success': True,
@@ -5188,6 +5514,7 @@ def get_invoices():
                     'invoice_type': canonical_invoice_type(inv.invoice_number, inv.invoice_type),
                     'client_name': inv.client_name or inv.uploaded_client_name or 'Admin Upload',
                     'invoice_date': inv.invoice_date.isoformat() if inv.invoice_date else None,
+                    'summary': inv.summary,
                     'total_amount': inv.total_amount,
                     'payment_type': inv.payment_type,
                     'cr_number': inv.cr_number,
@@ -5199,7 +5526,12 @@ def get_invoices():
                     'status': inv.status,
                     'uploaded_client_name': inv.uploaded_client_name,
                     'upload_source': inv.upload_source,
-                    'admin_upload_note': inv.admin_upload_note
+                    'admin_upload_note': inv.admin_upload_note,
+                    'receipt_count': len(receipts_by_invoice[inv.id]),
+                    'latest_cr_number': (
+                        receipts_by_invoice[inv.id][0]['cr_number']
+                        if receipts_by_invoice[inv.id] else inv.cr_number
+                    ),
                 } for inv in invoices_list
             ]
         })
@@ -5347,13 +5679,22 @@ def create_invoice():
             tax_amount_paid=tax_amount_paid,
             is_2307_checked=is_2307_checked,
             total_amount=order_total,
-            amount_paid=total_paid_now,
+            amount_paid=0,
             balance=order_total,
             status='UNPAID'
         )
         
         db.session.add(invoice)
         db.session.flush()
+        if total_paid_now > MONEY_TOLERANCE:
+            append_collection_receipt(invoice, {
+                'receipt_date': data.get('receipt_date'),
+                'cr_number': cr_number,
+                'payment_type': data.get('payment_type', ''),
+                'payment_amount': payment_amount,
+                'tax_amount_paid': tax_amount_paid,
+                'is_2307_checked': is_2307_checked,
+            })
         payment_summary = synchronize_sales_order_payment_state(sales_order)
         
         refresh_client_financials(sales_order.client)
@@ -5383,71 +5724,94 @@ def create_invoice():
         app.logger.exception('Invoice creation failed')
         return jsonify({'success': False, 'error': 'The invoice could not be created. Please review the information and try again.'}), 500
 
-@app.route('/update-invoice-payment/<int:invoice_id>', methods=['POST'])
+@app.route('/invoices/<int:invoice_id>/collection-receipts', methods=['GET'])
 @login_required
 @role_required(*ACCOUNTING_ROLES)
-def update_invoice_payment(invoice_id):
+def get_invoice_collection_receipts(invoice_id):
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice:
+        return jsonify({'success': False, 'error': 'Invoice not found'}), 404
+    return jsonify({
+        'success': True,
+        'invoice': {
+            'id': invoice.id,
+            'invoice_number': invoice.invoice_number,
+            'total_amount': invoice.total_amount,
+            'amount_paid': invoice.amount_paid,
+            'balance': invoice.balance,
+            'status': invoice.status,
+        },
+        'collection_receipts': [
+            collection_receipt_payload(item)
+            for item in invoice.collection_receipts
+        ],
+    })
+
+def create_collection_receipt_for_invoice(invoice_id, data):
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice:
+        return jsonify({'success': False, 'error': 'Invoice not found'}), 404
+    payload = dict(data or {})
+    warnings = future_date_warnings({'Collection Receipt date': payload.get('receipt_date')})
+    receipt = append_collection_receipt(invoice, payload)
+    sales_order = invoice.sales_order
+    if sales_order:
+        payment_summary = synchronize_sales_order_payment_state(sales_order)
+    else:
+        payment_summary = synchronize_invoice_receipt_state(invoice)
+        payment_summary['sales_order_status'] = None
+    refresh_client_financials(sales_order.client if sales_order else None)
+    log_audit('CREATE_COLLECTION_RECEIPT', 'collection_receipts', receipt.id, None, {
+        'invoice_id': invoice.id,
+        'invoice_number': invoice.invoice_number,
+        'cr_number': receipt.cr_number,
+        'collected_total': receipt.collected_total,
+    })
+    db.session.commit()
+    return jsonify({
+        'success': True,
+        'message': 'Collection Receipt recorded successfully',
+        'collection_receipt': collection_receipt_payload(receipt),
+        'invoice_status': invoice.status,
+        'sales_order_status': sales_order.status if sales_order else None,
+        'amount_paid': payment_summary['amount_paid'],
+        'balance': payment_summary['balance'],
+        'warnings': warnings,
+    })
+
+@app.route('/invoices/<int:invoice_id>/collection-receipts', methods=['POST'])
+@login_required
+@role_required(*ACCOUNTING_ROLES)
+def create_invoice_collection_receipt(invoice_id):
     try:
-        data = request.get_json(silent=True) or {}
-        invoice = db.session.get(Invoice, invoice_id)
-        if not invoice:
-            return jsonify({'success': False, 'error': 'Invoice not found'}), 404
-
-        invoice.payment_type = data.get('payment_type', invoice.payment_type) or ''
-        invoice.cr_number = (data.get('cr_number') or '').strip()
-        invoice.is_2307_checked = bool(data.get('is_2307_checked'))
-        invoice.payment_amount, invoice.tax_amount_paid, new_amount_paid = collected_payment_amount(
-            invoice.cr_number,
-            data.get('payment_amount'),
-            data.get('tax_amount_paid'),
-            invoice.is_2307_checked,
+        return create_collection_receipt_for_invoice(
+            invoice_id,
+            request.get_json(silent=True) or {},
         )
-
-        sales_order = invoice.sales_order
-        if sales_order:
-            other_paid = round(sum(
-                float(item.amount_paid or 0)
-                for item in sales_order.invoices
-                if item.id != invoice.id
-            ), 2)
-            order_total = sales_order_total(sales_order)
-            if other_paid + new_amount_paid > order_total + MONEY_TOLERANCE:
-                db.session.rollback()
-                return jsonify({
-                    'success': False,
-                    'error': f'Payment exceeds the remaining Sales Order balance of {max(order_total - other_paid, 0):.2f}.'
-                }), 400
-            invoice.amount_paid = new_amount_paid
-            payment_summary = synchronize_sales_order_payment_state(sales_order)
-        else:
-            invoice.amount_paid = new_amount_paid
-            invoice.status, invoice.balance = payment_state(invoice.total_amount, invoice.amount_paid)
-            payment_summary = {
-                'amount_paid': invoice.amount_paid,
-                'balance': invoice.balance,
-                'invoice_status': invoice.status,
-                'sales_order_status': None,
-            }
-
-        refresh_client_financials(sales_order.client if sales_order else None)
-        log_audit('UPDATE_PAYMENT', 'invoices', invoice.id, None, {'invoice_number': invoice.invoice_number, 'amount_paid': invoice.amount_paid, 'balance': invoice.balance})
-        db.session.commit()
-        return jsonify({
-            'success': True,
-            'message': 'Invoice payment updated successfully',
-            'invoice_status': invoice.status,
-            'sales_order_status': sales_order.status if sales_order else None,
-            'amount_paid': payment_summary['amount_paid'],
-            'balance': payment_summary['balance'],
-        })
-
     except ValueError as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         db.session.rollback()
-        app.logger.exception('Invoice payment update failed')
-        return jsonify({'success': False, 'error': 'The payment could not be updated. Please review the information and try again.'}), 500
+        app.logger.exception('Collection Receipt creation failed')
+        return jsonify({'success': False, 'error': 'The Collection Receipt could not be recorded. Please review the information and try again.'}), 500
+
+@app.route('/update-invoice-payment/<int:invoice_id>', methods=['POST'])
+@login_required
+@role_required(*ACCOUNTING_ROLES)
+def update_invoice_payment(invoice_id):
+    try:
+        return create_collection_receipt_for_invoice(
+            invoice_id,
+            request.get_json(silent=True) or {},
+        )
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception:
+        db.session.rollback()
+        app.logger.exception('Invoice payment compatibility route failed')
+        return jsonify({'success': False, 'error': 'The Collection Receipt could not be recorded.'}), 500
 
 def expense_history_payload(limit=None):
     query = PurchaseOrder.query.order_by(PurchaseOrder.created_at.desc())
@@ -7555,7 +7919,13 @@ def api_analytics_comparative():
         year1 = request.args.get('year1', today.year - 1, type=int)
         year2 = request.args.get('year2', today.year, type=int)
         
-        comparison = get_comparative_analysis(db, Invoice, year1, year2)
+        comparison = get_comparative_analysis(
+            db,
+            Invoice,
+            year1,
+            year2,
+            CollectionReceipt,
+        )
         return jsonify({
             'success': True,
             'comparison': comparison

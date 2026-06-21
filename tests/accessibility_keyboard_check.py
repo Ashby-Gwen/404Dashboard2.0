@@ -99,6 +99,22 @@ def main():
             assert 'aria-label="Close Analytics Tools"' in analytics_html
             assert 'aria-label="Analytics date filter and actions"' in analytics_html
             assert {'analyticsYear', 'analyticsPeriod'} <= set(analytics_parser.controls)
+
+            invoice_html = client.get('/invoices').get_data(as_text=True)
+            invoice_parser = assert_unique_ids(invoice_html)
+            assert 'aria-label="Invoice search filters"' in invoice_html
+            assert {
+                'invoiceGeneralSearch', 'invoiceCrSearch', 'invoiceClientSearch',
+                'receiptDate', 'editReceiptDate',
+            } <= set(invoice_parser.controls)
+            assert {
+                'invoiceGeneralSearch', 'invoiceCrSearch', 'invoiceClientSearch',
+                'receiptDate', 'editReceiptDate',
+            } <= invoice_parser.labels_for
+            assert 'All Invoices' not in invoice_html
+            assert 'Sales Invoices' not in invoice_html
+            assert 'Service Invoices' not in invoice_html
+            assert 'View Receipts / Add Receipt' in invoice_html
             assert 'Print Preview' in analytics_html
             assert 'Review the active analytics tab before printing.' in analytics_html
             assert 'data-section="expenses"' in analytics_html

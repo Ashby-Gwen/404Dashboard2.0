@@ -129,22 +129,53 @@ def build_canonical_financials(
 ) -> dict[str, Any]:
     """Return the shared collected-revenue and one-balance-per-order ledger."""
     Invoice = models["Invoice"]
+    CollectionReceipt = models.get("CollectionReceipt")
     SalesOrder = models["SalesOrder"]
     lookup = _canonical_client_lookup(models)
     client_revenue: dict[str, float] = defaultdict(float)
     receivables = []
     unmapped_clients: dict[str, dict[str, Any]] = {}
 
-    invoices = _apply_date_bounds(
-        Invoice.query,
-        Invoice.invoice_date,
-        start_date,
-        end_date,
-    ).order_by(Invoice.invoice_date.asc(), Invoice.id.asc()).all()
-    for invoice in invoices:
-        paid = max(float(invoice.amount_paid or 0), 0)
-        if paid > MONEY_TOLERANCE:
-            client_revenue[_invoice_client_name(invoice, lookup)] += paid
+    if CollectionReceipt is not None:
+        receipt_query = db.session.query(CollectionReceipt, Invoice).join(
+            Invoice,
+            CollectionReceipt.invoice_id == Invoice.id,
+        )
+        receipts = _apply_date_bounds(
+            receipt_query,
+            CollectionReceipt.receipt_date,
+            start_date,
+            end_date,
+        ).order_by(CollectionReceipt.receipt_date.asc(), CollectionReceipt.id.asc()).all()
+        for receipt, invoice in receipts:
+            paid = max(float(receipt.collected_total or 0), 0)
+            if paid > MONEY_TOLERANCE:
+                client_revenue[_invoice_client_name(invoice, lookup)] += paid
+        legacy_invoices = _apply_date_bounds(
+            Invoice.query.filter(
+                Invoice.amount_paid > MONEY_TOLERANCE,
+                ~Invoice.collection_receipts.any(),
+            ),
+            Invoice.invoice_date,
+            start_date,
+            end_date,
+        ).all()
+        for invoice in legacy_invoices:
+            client_revenue[_invoice_client_name(invoice, lookup)] += max(
+                float(invoice.amount_paid or 0),
+                0,
+            )
+    else:
+        invoices = _apply_date_bounds(
+            Invoice.query,
+            Invoice.invoice_date,
+            start_date,
+            end_date,
+        ).order_by(Invoice.invoice_date.asc(), Invoice.id.asc()).all()
+        for invoice in invoices:
+            paid = max(float(invoice.amount_paid or 0), 0)
+            if paid > MONEY_TOLERANCE:
+                client_revenue[_invoice_client_name(invoice, lookup)] += paid
 
     orders = _apply_date_bounds(
         SalesOrder.query,
@@ -254,6 +285,7 @@ def build_analytics_payload(
 ) -> dict[str, Any]:
     """Build the complete manager analytics payload from current system data."""
     Invoice = models["Invoice"]
+    CollectionReceipt = models.get("CollectionReceipt")
     PurchaseOrder = models["PurchaseOrder"]
     SalesOrder = models["SalesOrder"]
     SalesOrderItem = models["SalesOrderItem"]
@@ -292,8 +324,8 @@ def build_analytics_payload(
             "pondo_remaining": numeric(pondo, 2),
             "next_month_pondo": numeric(pondo, 2),
         },
-        "weekly_cashflow": _weekly_cashflow(db, Invoice, PurchaseOrder, today),
-        "monthly_cashflow": _monthly_cashflow(db, Invoice, PurchaseOrder, today),
+        "weekly_cashflow": _weekly_cashflow(db, Invoice, PurchaseOrder, today, CollectionReceipt),
+        "monthly_cashflow": _monthly_cashflow(db, Invoice, PurchaseOrder, today, CollectionReceipt),
         "revenue_by_client": financials["revenue_by_client"][:10],
         "sales_performance": _sales_performance(SalesOrder, Invoice),
         "revenue_leakage": leakage,
@@ -333,7 +365,13 @@ def preview_excel_workbook(file_storage: Any, max_rows: int = 25) -> dict[str, A
     return {"sheets": sheets}
 
 
-def _weekly_cashflow(db: Any, Invoice: Any, PurchaseOrder: Any, today: Any) -> list[dict[str, Any]]:
+def _weekly_cashflow(
+    db: Any,
+    Invoice: Any,
+    PurchaseOrder: Any,
+    today: Any,
+    CollectionReceipt: Any = None,
+) -> list[dict[str, Any]]:
     month_start = today.replace(day=1)
     week_start = month_start
     week_number = 1
@@ -343,7 +381,7 @@ def _weekly_cashflow(db: Any, Invoice: Any, PurchaseOrder: Any, today: Any) -> l
         rows.append(
             {
                 "day": f"Week {week_number}",
-                "revenue": _invoice_revenue(db, Invoice, week_start, week_end),
+                "revenue": _invoice_revenue(db, Invoice, week_start, week_end, CollectionReceipt),
                 "expenses": _purchase_expenses(db, PurchaseOrder, week_start, week_end),
             }
         )
@@ -352,7 +390,13 @@ def _weekly_cashflow(db: Any, Invoice: Any, PurchaseOrder: Any, today: Any) -> l
     return rows
 
 
-def _monthly_cashflow(db: Any, Invoice: Any, PurchaseOrder: Any, today: Any) -> list[dict[str, Any]]:
+def _monthly_cashflow(
+    db: Any,
+    Invoice: Any,
+    PurchaseOrder: Any,
+    today: Any,
+    CollectionReceipt: Any = None,
+) -> list[dict[str, Any]]:
     rows = []
     for month in range(1, 13):
         month_start = today.replace(month=month, day=1)
@@ -363,14 +407,40 @@ def _monthly_cashflow(db: Any, Invoice: Any, PurchaseOrder: Any, today: Any) -> 
         rows.append(
             {
                 "month": month_start.strftime("%b"),
-                "revenue": _invoice_revenue(db, Invoice, month_start, month_end),
+                "revenue": _invoice_revenue(db, Invoice, month_start, month_end, CollectionReceipt),
                 "expenses": _purchase_expenses(db, PurchaseOrder, month_start, month_end),
             }
         )
     return rows
 
 
-def _invoice_revenue(db: Any, Invoice: Any, start: Any, end: Any) -> float:
+def _invoice_revenue(
+    db: Any,
+    Invoice: Any,
+    start: Any,
+    end: Any,
+    CollectionReceipt: Any = None,
+) -> float:
+    if CollectionReceipt is not None:
+        receipt_total = numeric(
+            db.session.query(func.sum(CollectionReceipt.collected_total))
+            .filter(
+                CollectionReceipt.receipt_date >= start,
+                CollectionReceipt.receipt_date <= end,
+            )
+            .scalar()
+        )
+        legacy_total = numeric(
+            db.session.query(func.sum(Invoice.amount_paid))
+            .filter(
+                Invoice.amount_paid > 0,
+                ~Invoice.collection_receipts.any(),
+                Invoice.invoice_date >= start,
+                Invoice.invoice_date <= end,
+            )
+            .scalar()
+        )
+        return numeric(receipt_total + legacy_total)
     return numeric(
         db.session.query(func.sum(Invoice.amount_paid))
         .filter(Invoice.amount_paid > 0, Invoice.invoice_date >= start, Invoice.invoice_date <= end)
@@ -1741,30 +1811,65 @@ def build_rule_based_recommendations(
     }
 
 
-def get_comparative_analysis(db: Any, Invoice: Any, year1: int, year2: int) -> dict[str, Any]:
+def get_comparative_analysis(
+    db: Any,
+    Invoice: Any,
+    year1: int,
+    year2: int,
+    CollectionReceipt: Any = None,
+) -> dict[str, Any]:
     """Get comparative analysis between two years."""
     # Monthly comparison
     monthly_data = []
     for month in range(1, 13):
+        revenue_column = (
+            CollectionReceipt.collected_total if CollectionReceipt is not None
+            else Invoice.amount_paid
+        )
+        revenue_date = (
+            CollectionReceipt.receipt_date if CollectionReceipt is not None
+            else Invoice.invoice_date
+        )
         year1_revenue = (
-            db.session.query(func.sum(Invoice.amount_paid))
+            db.session.query(func.sum(revenue_column))
             .filter(
-                db_year(Invoice.invoice_date) == year1,
-                db_month_number(Invoice.invoice_date) == month,
-                Invoice.amount_paid > 0
+                db_year(revenue_date) == year1,
+                db_month_number(revenue_date) == month,
+                revenue_column > 0,
             )
             .scalar() or 0
         )
         
         year2_revenue = (
-            db.session.query(func.sum(Invoice.amount_paid))
+            db.session.query(func.sum(revenue_column))
             .filter(
-                db_year(Invoice.invoice_date) == year2,
-                db_month_number(Invoice.invoice_date) == month,
-                Invoice.amount_paid > 0
+                db_year(revenue_date) == year2,
+                db_month_number(revenue_date) == month,
+                revenue_column > 0,
             )
             .scalar() or 0
         )
+        if CollectionReceipt is not None:
+            year1_revenue += (
+                db.session.query(func.sum(Invoice.amount_paid))
+                .filter(
+                    Invoice.amount_paid > 0,
+                    ~Invoice.collection_receipts.any(),
+                    db_year(Invoice.invoice_date) == year1,
+                    db_month_number(Invoice.invoice_date) == month,
+                )
+                .scalar() or 0
+            )
+            year2_revenue += (
+                db.session.query(func.sum(Invoice.amount_paid))
+                .filter(
+                    Invoice.amount_paid > 0,
+                    ~Invoice.collection_receipts.any(),
+                    db_year(Invoice.invoice_date) == year2,
+                    db_month_number(Invoice.invoice_date) == month,
+                )
+                .scalar() or 0
+            )
         
         month_name = datetime(2024, month, 1).strftime("%b")
         monthly_data.append({

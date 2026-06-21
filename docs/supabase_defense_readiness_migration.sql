@@ -46,6 +46,56 @@ CREATE TABLE IF NOT EXISTS public.system_settings (
     updated_at timestamptz DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS public.collection_receipts (
+    id serial PRIMARY KEY,
+    invoice_id integer NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+    receipt_date date NOT NULL,
+    cr_number varchar(50) NOT NULL,
+    normalized_cr_number varchar(50) NOT NULL,
+    payment_type varchar(20) NOT NULL
+        CHECK (payment_type IN ('DOWNPAYMENT', 'FULL')),
+    payment_amount double precision NOT NULL DEFAULT 0,
+    tax_amount_paid double precision NOT NULL DEFAULT 0,
+    is_2307_checked boolean NOT NULL DEFAULT false,
+    collected_total double precision NOT NULL DEFAULT 0,
+    created_by_user_id integer REFERENCES public.users(id),
+    recorded_by varchar(80) NOT NULL DEFAULT 'system',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT uq_collection_receipts_invoice_cr
+        UNIQUE (invoice_id, normalized_cr_number)
+);
+
+INSERT INTO public.collection_receipts (
+    invoice_id, receipt_date, cr_number, normalized_cr_number,
+    payment_type, payment_amount, tax_amount_paid,
+    is_2307_checked, collected_total, recorded_by
+)
+SELECT
+    invoices.id,
+    invoices.invoice_date,
+    COALESCE(NULLIF(btrim(invoices.cr_number), ''), 'LEGACY-' || invoices.id),
+    upper(COALESCE(NULLIF(btrim(invoices.cr_number), ''), 'LEGACY-' || invoices.id)),
+    CASE
+        WHEN upper(COALESCE(invoices.payment_type, '')) = 'FULL' THEN 'FULL'
+        WHEN invoices.balance IS NOT NULL AND invoices.balance <= 0.01 THEN 'FULL'
+        ELSE 'DOWNPAYMENT'
+    END,
+    CASE
+        WHEN COALESCE(invoices.payment_amount, 0) > 0
+            THEN invoices.payment_amount
+        ELSE invoices.amount_paid
+    END,
+    COALESCE(invoices.tax_amount_paid, 0),
+    COALESCE(invoices.is_2307_checked, false),
+    invoices.amount_paid,
+    'legacy migration'
+FROM public.invoices
+WHERE COALESCE(invoices.amount_paid, 0) > 0
+  AND NOT EXISTS (
+      SELECT 1 FROM public.collection_receipts
+      WHERE collection_receipts.invoice_id = invoices.id
+  );
+
 CREATE INDEX IF NOT EXISTS idx_users_status
     ON public.users (status);
 
@@ -81,5 +131,11 @@ CREATE INDEX IF NOT EXISTS idx_invoices_amount_paid_date
 
 CREATE INDEX IF NOT EXISTS idx_invoices_balance_date
     ON public.invoices (balance, invoice_date);
+
+CREATE INDEX IF NOT EXISTS idx_collection_receipts_invoice_date
+    ON public.collection_receipts (invoice_id, receipt_date DESC, id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_collection_receipts_normalized_cr
+    ON public.collection_receipts (normalized_cr_number);
 
 COMMIT;

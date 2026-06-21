@@ -14,6 +14,8 @@ os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 
 from app import (  # noqa: E402
     Client,
+    ClientAlias,
+    CollectionReceipt,
     Invoice,
     Role,
     SalesOrder,
@@ -22,6 +24,7 @@ from app import (  # noqa: E402
     app,
     db,
     init_db,
+    revenue_report_rows,
 )
 from analytics_services import _sales_performance, build_analytics_payload  # noqa: E402
 from defense_migrations import ensure_defense_schema  # noqa: E402
@@ -72,8 +75,10 @@ def migration_check():
         schema = inspect(handle.engine)
         user_columns = {column['name'] for column in schema.get_columns('users')}
         evaluation_columns = {column['name'] for column in schema.get_columns('evaluation_sessions')}
+        collection_columns = {column['name'] for column in schema.get_columns('collection_receipts')}
         assert {'profile_photo_data', 'profile_photo_mime'} <= user_columns
         assert 'user_id' in evaluation_columns
+        assert {'invoice_id', 'receipt_date', 'normalized_cr_number', 'collected_total'} <= collection_columns
         assert first['backup_path'] and Path(first['backup_path']).exists()
         assert second['backup_path'] is None
     finally:
@@ -120,6 +125,7 @@ def invoice_payload(order, number, payment, cr='CR-1'):
         'invoice_number': number,
         'invoice_type': 'SALES',
         'invoice_date': date.today().isoformat(),
+        'receipt_date': date.today().isoformat(),
         'summary': 'Defense payment test',
         'payment_type': 'DOWNPAYMENT',
         'cr_number': cr,
@@ -144,6 +150,13 @@ def accounting_and_analytics_check():
         )
         client_record = Client(client_name='DEFENSE CLIENT')
         db.session.add_all([user, client_record])
+        db.session.flush()
+        db.session.add(ClientAlias(
+            alias_name='DEFENSE ALIAS',
+            normalized_alias='DEFENSE ALIAS',
+            client_id=client_record.id,
+            status='ACTIVE',
+        ))
         db.session.commit()
 
         order = create_order(client_record, 'PARTIAL')
@@ -178,28 +191,96 @@ def accounting_and_analytics_check():
             assert full.get_json()['invoice_status'] == 'PAID'
             assert full.get_json()['balance'] == 0
 
-            second_invoice = Invoice.query.filter_by(invoice_number='SI-DEF-2').one()
-            edited = web.post(f'/update-invoice-payment/{second_invoice.id}', json={
+            zero_invoice = Invoice.query.filter_by(invoice_number='SI-DEF-ZERO').one()
+            original_details = {
+                'payment_type': zero_invoice.payment_type,
+                'cr_number': zero_invoice.cr_number,
+                'payment_amount': zero_invoice.payment_amount,
+            }
+            missing_receipt_date = web.post(
+                f'/invoices/{zero_invoice.id}/collection-receipts',
+                json={
+                    'payment_type': 'DOWNPAYMENT',
+                    'cr_number': 'CR-NO-DATE',
+                    'payment_amount': 100,
+                },
+            )
+            assert missing_receipt_date.status_code == 400
+            first_receipt = web.post(f'/invoices/{zero_invoice.id}/collection-receipts', json={
+                'receipt_date': date.today().isoformat(),
                 'payment_type': 'DOWNPAYMENT',
-                'cr_number': 'CR-2',
-                'payment_amount': 600,
+                'cr_number': 'CR-ZERO-1',
+                'payment_amount': 200,
                 'tax_amount_paid': 0,
                 'is_2307_checked': False,
             })
-            assert edited.status_code == 200, edited.get_json()
-            assert edited.get_json()['invoice_status'] == 'PARTIAL'
-            assert edited.get_json()['balance'] == 100
+            assert first_receipt.status_code == 200, first_receipt.get_json()
+            assert first_receipt.get_json()['invoice_status'] == 'PARTIAL'
+            assert first_receipt.get_json()['balance'] == 300
 
-            overpayment = web.post(f'/update-invoice-payment/{second_invoice.id}', json={
-                'payment_type': 'FULL',
-                'cr_number': 'CR-2',
-                'payment_amount': 800,
+            duplicate_receipt = web.post(f'/update-invoice-payment/{zero_invoice.id}', json={
+                'receipt_date': date.today().isoformat(),
+                'payment_type': 'DOWNPAYMENT',
+                'cr_number': 'cr-zero-1',
+                'payment_amount': 100,
                 'tax_amount_paid': 0,
                 'is_2307_checked': False,
             })
-            assert overpayment.status_code == 400
+            assert duplicate_receipt.status_code == 400
+
+            wrong_full = web.post(f'/invoices/{zero_invoice.id}/collection-receipts', json={
+                'receipt_date': date.today().isoformat(),
+                'payment_type': 'FULL',
+                'cr_number': 'CR-ZERO-2',
+                'payment_amount': 250,
+                'tax_amount_paid': 0,
+                'is_2307_checked': False,
+            })
+            assert wrong_full.status_code == 400
+
+            final_receipt = web.post(f'/invoices/{zero_invoice.id}/collection-receipts', json={
+                'receipt_date': date.today().isoformat(),
+                'payment_type': 'FULL',
+                'cr_number': 'CR-ZERO-2',
+                'payment_amount': 300,
+                'tax_amount_paid': 0,
+                'is_2307_checked': False,
+            })
+            assert final_receipt.status_code == 200, final_receipt.get_json()
+            assert final_receipt.get_json()['invoice_status'] == 'PAID'
+            assert final_receipt.get_json()['balance'] == 0
             db.session.expire_all()
-            assert db.session.get(Invoice, second_invoice.id).amount_paid == 600
+            refreshed_zero_invoice = db.session.get(Invoice, zero_invoice.id)
+            assert refreshed_zero_invoice.amount_paid == 500
+            assert {
+                'payment_type': refreshed_zero_invoice.payment_type,
+                'cr_number': refreshed_zero_invoice.cr_number,
+                'payment_amount': refreshed_zero_invoice.payment_amount,
+            } == original_details
+            assert CollectionReceipt.query.filter_by(invoice_id=zero_invoice.id).count() == 2
+
+            receipt_history = web.get(f'/invoices/{zero_invoice.id}/collection-receipts').get_json()
+            assert receipt_history['success'] is True
+            assert [item['cr_number'] for item in receipt_history['collection_receipts']] == [
+                'CR-ZERO-1', 'CR-ZERO-2'
+            ]
+            report_receipts = [
+                row for row in revenue_report_rows()
+                if row['invoice_number'] == 'SI-DEF-ZERO'
+            ]
+            assert [row['cr_number'] for row in report_receipts] == ['CR-ZERO-1', 'CR-ZERO-2']
+            assert [row['amount_paid'] for row in report_receipts] == [200, 300]
+            assert all(row['invoice_date'] == date.today().isoformat() for row in report_receipts)
+            combined_search = web.get(
+                '/get-invoices?general_search=SI-DEF-ZERO'
+                '&cr_search=zero-2&client_search=DEFENSE'
+            ).get_json()
+            assert combined_search['success'] is True
+            assert [item['invoice_number'] for item in combined_search['invoices']] == ['SI-DEF-ZERO']
+            assert combined_search['invoices'][0]['receipt_count'] == 2
+            alias_search = web.get('/get-invoices?client_search=DEFENSE%20ALIAS').get_json()
+            assert alias_search['success'] is True
+            assert any(item['invoice_number'] == 'SI-DEF-ZERO' for item in alias_search['invoices'])
 
         standalone = Invoice(
             invoice_number='ADMIN-DEF-1',
@@ -223,13 +304,13 @@ def accounting_and_analytics_check():
             'SalesOrder': SalesOrder,
             'SalesOrderItem': SalesOrderItem,
         })
-        assert payload['summary']['paid_revenue'] == 1050
-        assert payload['summary']['accounts_receivable'] == 850
+        assert payload['summary']['paid_revenue'] == 1650
+        assert payload['summary']['accounts_receivable'] == 250
         defense_balance = next(
             item['balance'] for item in payload['client_balances']
             if item['client_name'] == 'DEFENSE CLIENT'
         )
-        assert defense_balance == 850
+        assert defense_balance == 250
 
         old_entry_order = SalesOrder(
             so_number='SO-BUSINESS-DATE',

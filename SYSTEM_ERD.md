@@ -27,6 +27,8 @@ clients 1 --< client_aliases
 clients 1 --< sales_orders
 sales_orders 1 --< sales_order_items
 sales_orders 1 --< invoices
+invoices 1 --< collection_receipts
+users 1 --< collection_receipts.created_by_user_id
 
 purchase_orders 1 --< purchase_order_debits
 
@@ -216,6 +218,28 @@ Relationship:
 
 - One `sales_orders` record can have many `invoices`.
 - `sales_order_id` is nullable, so uploaded or service invoices can exist without a linked sales order.
+- Legacy Invoice payment fields preserve the original payment snapshot; aggregate payment state is synchronized from Collection Receipts.
+
+### collection_receipts
+
+- id INTEGER [PK, NOT NULL]
+- invoice_id INTEGER [FK -> invoices.id, NOT NULL]
+- receipt_date DATE [NOT NULL]
+- cr_number VARCHAR(50) [NOT NULL]
+- normalized_cr_number VARCHAR(50) [NOT NULL]
+- payment_type VARCHAR(20) [NOT NULL]
+- payment_amount FLOAT [NOT NULL]
+- tax_amount_paid FLOAT [NOT NULL]
+- is_2307_checked BOOLEAN [NOT NULL]
+- collected_total FLOAT [NOT NULL]
+- created_by_user_id INTEGER [FK -> users.id]
+- recorded_by VARCHAR(80) [NOT NULL]
+- created_at DATETIME [NOT NULL]
+
+Relationship:
+
+- One `invoices` record can have many append-only `collection_receipts`.
+- CR numbers are case-insensitively unique within each invoice.
 
 ## Expenses
 
@@ -320,7 +344,7 @@ Relationships:
 
 ## Live Runtime Table Checklist
 
-The ERD includes all 17 runtime tables defined by the current models:
+The ERD includes all 19 runtime tables defined by the current models:
 
 1. `analytics_data`
 2. `audit_logs`
@@ -330,14 +354,16 @@ The ERD includes all 17 runtime tables defined by the current models:
 6. `evaluation_responses`
 7. `evaluation_sessions`
 8. `invoices`
-9. `password_resets`
-10. `purchase_order_debits`
-11. `purchase_orders`
-12. `roles`
-13. `sales_order_items`
-14. `sales_orders`
-15. `session_records`
-16. `system_settings`
-17. `users`
+9. `collection_receipts`
+10. `password_resets`
+11. `purchase_order_debits`
+12. `purchase_orders`
+13. `roles`
+14. `sales_order_branches`
+15. `sales_order_items`
+16. `sales_orders`
+17. `session_records`
+18. `system_settings`
+19. `users`
 
 `system_settings` stores shared theme/runtime configuration. Older databases may require the defense-readiness migration before all listed columns and indexes are available.

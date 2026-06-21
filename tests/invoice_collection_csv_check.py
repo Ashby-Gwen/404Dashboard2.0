@@ -16,6 +16,7 @@ os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 import app as app_module  # noqa: E402
 from app import (  # noqa: E402
     Client,
+    CollectionReceipt,
     Invoice,
     Role,
     SalesOrder,
@@ -147,6 +148,7 @@ def main():
             assert result['standalone'] == 824
             assert result['duplicate_receipts_skipped'] == 0
             assert Invoice.query.count() == 824
+            assert CollectionReceipt.query.count() == 832
             assert select_count < 40, f'Expected bounded SELECT queries, saw {select_count}'
             assert Invoice.query.filter_by(invoice_number='CR-4640').one().cr_number == '4640'
             assert Invoice.query.filter(
@@ -166,6 +168,7 @@ def main():
             assert repeated_result['updated'] == 0
             assert repeated_result['duplicate_receipts_skipped'] == 832
             assert Invoice.query.count() == 824
+            assert CollectionReceipt.query.count() == 832
 
             overpay_client = Client(client_name='OVERPAY TEST CLIENT')
             db.session.add(overpay_client)

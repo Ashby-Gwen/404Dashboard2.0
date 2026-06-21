@@ -595,6 +595,12 @@
         .invoice-view.active {
             display: block;
         }
+
+        @media (max-width: 900px) {
+            .invoice-search-grid {
+                grid-template-columns: 1fr !important;
+            }
+        }
     </style>
 </head>
 
@@ -692,11 +698,24 @@
                 <div class="card">
                     <h2 style="margin-bottom: 1rem;">Invoice Summary</h2>
 
-                    <!-- Filter Buttons -->
-                    <div class="filter-group">
-                        <button class="filter-btn active" onclick="filterInvoices('all')">All Invoices</button>
-                        <button class="filter-btn" onclick="filterInvoices('sales')">Sales Invoices</button>
-                        <button class="filter-btn" onclick="filterInvoices('service')">Service Invoices</button>
+                    <!-- Filter Options -->
+                    <div class="filter-group invoice-search-grid" aria-label="Invoice search filters"
+                        style="display:grid; grid-template-columns:repeat(3,minmax(180px,1fr)) auto auto; gap:0.75rem; align-items:end;">
+                        <div class="form-group" style="margin:0;">
+                            <label for="invoiceGeneralSearch">General Search</label>
+                            <input id="invoiceGeneralSearch" type="search"
+                                placeholder="Invoice, SO, status, type, date">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="invoiceCrSearch">CR Search</label>
+                            <input id="invoiceCrSearch" type="search" placeholder="Collection Receipt number">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label for="invoiceClientSearch">Client Search</label>
+                            <input id="invoiceClientSearch" type="search" placeholder="Client or alias">
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="applyInvoiceSearch()">Search</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="clearInvoiceSearch()">Clear</button>
                     </div>
 
                     <!-- Invoices Table -->
@@ -710,7 +729,7 @@
                                     <th>Date</th>
                                     <th>Total Amount</th>
                                     <th>Amount Paid</th>
-                                    <th>CR #</th>
+                                    <th>Collection Receipts</th>
                                     <th>Balance</th>
                                     <th>Status</th>
                                     <th>Action</th>
@@ -848,6 +867,10 @@
                             </select>
                         </div>
                         <div class="form-group">
+                            <label for="receiptDate">Collection Receipt Date</label>
+                            <input type="date" id="receiptDate">
+                        </div>
+                        <div class="form-group">
                             <label for="crNumber">Collection Receipt Number</label>
                             <input type="text" id="crNumber" placeholder="CR-0001" onchange="updateCalculations()">
                         </div>
@@ -957,16 +980,25 @@
 
     <div id="paymentModal" class="modal-overlay hidden">
         <div class="modal-content">
-            <div class="modal-title">Update Collection Details</div>
+            <div class="modal-title">Add Collection Receipt</div>
 
             <div style="text-align: left; margin-bottom: 0.75rem; font-weight: bold;">
                 Invoice ID: <span style="font-weight: normal;" id="displayInvoiceId"></span>
             </div>
             <hr>
             <br>
+            <div class="stats-grid" style="margin-bottom:1rem;">
+                <div class="stat-card"><div class="stat-label">Total Paid</div><div id="receiptTotalPaid" class="stat-value">₱0.00</div></div>
+                <div class="stat-card"><div class="stat-label">Remaining Balance</div><div id="receiptRemainingBalance" class="stat-value">₱0.00</div></div>
+                <div class="stat-card"><div class="stat-label">Status</div><div id="receiptInvoiceStatus" class="stat-value">UNPAID</div></div>
+            </div>
+            <div class="form-group" style="text-align: left; margin-bottom: 0.75rem;">
+                <label for="editReceiptDate">Collection Receipt Date</label>
+                <input type="date" id="editReceiptDate" required>
+            </div>
             <div class="form-group" style="text-align: left; margin-bottom: 0.75rem;">
                 <label for="editPaymentType">Payment Type</label>
-                <select id="editPaymentType">
+                <select id="editPaymentType" onchange="updateEditWarning()">
                     <option value="">-- Select Payment Type --</option>
                     <option value="DOWNPAYMENT">Downpayment</option>
                     <option value="FULL">Full Payment</option>
@@ -989,17 +1021,16 @@
                 <label for="editTax2307Checked">Form 2307 received</label>
             </div>
             <div class="discrepancy-warning" id="editDiscrepancyWarning">
-                CR Amount + Withholding Tax does not match the invoice total. You can still save and reconcile later.
+                The entered amount exceeds the remaining balance, or Full Payment does not settle it exactly.
             </div>
             <div class="modal-actions" style="margin-top: 1.5rem;">
-                <button class="modal-confirm" onclick="submitPaymentUpdate()">Save</button>
+                <button class="modal-confirm" onclick="submitPaymentUpdate()">Add Receipt</button>
                 <button class="modal-cancel" onclick="closePaymentModal()">Cancel</button>
             </div>
         </div>
     </div>
 
     <script>
-        let currentFilter = 'all';
         let allInvoices = [];
         let selectedSalesOrderId = null;
         let selectedSalesOrder = null;
@@ -1024,6 +1055,7 @@
         document.addEventListener('DOMContentLoaded', function () {
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('invoiceDate').value = today;
+            document.getElementById('receiptDate').value = today;
 
             loadInvoices();
             loadPendingSalesOrders();
@@ -1071,8 +1103,12 @@
                 page: String(invoicePage),
                 page_size: String(invoicePageSize)
             });
-            if (currentFilter === 'sales') params.set('invoice_type', 'SALES');
-            if (currentFilter === 'service') params.set('invoice_type', 'SERVICE');
+            const generalSearch = document.getElementById('invoiceGeneralSearch')?.value.trim();
+            const crSearch = document.getElementById('invoiceCrSearch')?.value.trim();
+            const clientSearch = document.getElementById('invoiceClientSearch')?.value.trim();
+            if (generalSearch) params.set('general_search', generalSearch);
+            if (crSearch) params.set('cr_search', crSearch);
+            if (clientSearch) params.set('client_search', clientSearch);
 
             fetchWithWorkspacePreparation(`{{ url_for("get_invoices") }}?${params.toString()}`)
                 .then(response => response.json())
@@ -1107,12 +1143,7 @@
         function displayInvoices() {
             const tbody = document.getElementById('invoices-tbody');
 
-            let filtered = allInvoices;
-            if (currentFilter === 'sales') {
-                filtered = allInvoices.filter(inv => inv.invoice_type === 'SALES');
-            } else if (currentFilter === 'service') {
-                filtered = allInvoices.filter(inv => inv.invoice_type === 'SERVICE');
-            }
+            const filtered = allInvoices;
 
             if (filtered.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="10" class="no-data">No invoices found</td></tr>';
@@ -1120,28 +1151,78 @@
             }
 
             tbody.innerHTML = filtered.map(inv => `
-                <tr>
+                <tr id="invoice-row-${inv.id}">
                     <td><strong>${inv.invoice_number}</strong></td>
                     <td>${formatInvoiceType(inv.invoice_type)}</td>
                     <td>${inv.client_name}</td>
                     <td>${formatDate(inv.invoice_date)}</td>
                     <td>${formatCurrencyCell(inv.total_amount)}</td>
                     <td>₱${formatCurrency(inv.amount_paid)}</td>
-                    <td>${inv.cr_number || '-'}</td>
+                    <td>${inv.receipt_count || 0}${inv.latest_cr_number ? ` · Latest: ${inv.latest_cr_number}` : ''}</td>
                     <td>${formatCurrencyCell(inv.balance)}</td>
                     <td>${getStatusBadge(inv.status)}</td>
-                    <td><button class="btn btn-outline" style="padding: 0.4rem 0.75rem; font-size: 0.85rem;" onclick="openPaymentModal(${inv.id})">Edit</button></td>
+                    <td><button class="btn btn-outline" style="padding: 0.4rem 0.75rem; font-size: 0.85rem;" onclick="toggleReceiptHistory(${inv.id})">View Receipts / Add Receipt</button></td>
+                </tr>
+                <tr id="receipt-row-${inv.id}" hidden>
+                    <td colspan="10"><div id="receipt-history-${inv.id}" class="surface-panel">Loading Collection Receipts...</div></td>
                 </tr>
             `).join('');
         }
 
-        // Filter invoices
-        function filterInvoices(type) {
-            currentFilter = type;
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
+        function applyInvoiceSearch() {
             invoicePage = 1;
             loadInvoices();
+        }
+
+        function clearInvoiceSearch() {
+            ['invoiceGeneralSearch', 'invoiceCrSearch', 'invoiceClientSearch'].forEach(id => {
+                const input = document.getElementById(id);
+                if (input) input.value = '';
+            });
+            invoicePage = 1;
+            loadInvoices();
+        }
+
+        async function toggleReceiptHistory(invoiceId) {
+            const row = document.getElementById(`receipt-row-${invoiceId}`);
+            const container = document.getElementById(`receipt-history-${invoiceId}`);
+            if (!row || !container) return;
+            if (!row.hidden) {
+                row.hidden = true;
+                return;
+            }
+            row.hidden = false;
+            container.innerHTML = '<p class="no-data">Loading Collection Receipts...</p>';
+            try {
+                const response = await fetch(`/invoices/${invoiceId}/collection-receipts`);
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.error || 'Could not load Collection Receipts.');
+                const receipts = data.collection_receipts || [];
+                container.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap;">
+                        <div><strong>${data.invoice.invoice_number}</strong> Collection Receipt History</div>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="openPaymentModal(${invoiceId})"
+                            ${Number(data.invoice.balance || 0) <= 0.01 ? 'disabled' : ''}>Add Collection Receipt</button>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="invoice-table">
+                            <thead><tr><th>CR #</th><th>Date</th><th>Payment Type</th><th>Payment Amount</th><th>Withholding Tax</th><th>Collected Total</th><th>Recorded By</th></tr></thead>
+                            <tbody>
+                                ${receipts.length ? receipts.map(item => `<tr>
+                                    <td>${item.cr_number}</td>
+                                    <td>${formatDate(item.receipt_date)}</td>
+                                    <td>${item.payment_type}</td>
+                                    <td>₱${formatCurrency(item.payment_amount)}</td>
+                                    <td>₱${formatCurrency(item.tax_amount_paid)}</td>
+                                    <td>₱${formatCurrency(item.collected_total)}</td>
+                                    <td>${item.recorded_by || 'system'}</td>
+                                </tr>`).join('') : '<tr><td colspan="7" class="no-data">No Collection Receipts recorded.</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>`;
+            } catch (error) {
+                container.innerHTML = `<p class="error-message">${error.message}</p>`;
+            }
         }
 
         function changeInvoicePage(delta) {
@@ -1414,6 +1495,7 @@
                 duplicatedFormData = {
                     invoiceType: document.getElementById('invoiceType').value,
                     paymentType: document.getElementById('paymentType').value,
+                    receiptDate: document.getElementById('receiptDate').value,
                     crNumber: document.getElementById('crNumber').value,
                     paymentAmount: document.getElementById('paymentAmount').value,
                     taxAmount: document.getElementById('taxAmount').value,
@@ -1459,6 +1541,7 @@
                 invoice_number: document.getElementById('invoiceNumber').value,
                 invoice_type: document.getElementById('invoiceType').value,
                 invoice_date: document.getElementById('invoiceDate').value,
+                receipt_date: document.getElementById('receiptDate').value,
                 summary: document.getElementById('invoiceSummary').value,
                 payment_type: document.getElementById('paymentType').value,
                 cr_number: document.getElementById('crNumber').value,
@@ -1519,6 +1602,7 @@
 
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('invoiceDate').value = today;
+            document.getElementById('receiptDate').value = today;
 
             document.getElementById('invoiceType').value = 'SALES';
             generateInvoiceNumber();
@@ -1532,6 +1616,7 @@
 
             document.getElementById('invoiceType').value = duplicatedFormData.invoiceType;
             document.getElementById('paymentType').value = duplicatedFormData.paymentType;
+            document.getElementById('receiptDate').value = duplicatedFormData.receiptDate || new Date().toISOString().slice(0, 10);
             document.getElementById('crNumber').value = duplicatedFormData.crNumber || '';
             document.getElementById('paymentAmount').value = duplicatedFormData.paymentAmount || '';
             document.getElementById('taxAmount').value = duplicatedFormData.taxAmount;
@@ -1546,11 +1631,15 @@
             if (!invoiceBeingEdited) return;
 
             document.getElementById('displayInvoiceId').textContent = invoiceBeingEdited.invoice_number;
-            document.getElementById('editPaymentType').value = invoiceBeingEdited.payment_type || '';
-            document.getElementById('editCrNumber').value = invoiceBeingEdited.cr_number || '';
-            document.getElementById('editPaymentAmount').value = invoiceBeingEdited.payment_amount || '';
-            document.getElementById('editTaxAmount').value = invoiceBeingEdited.tax_amount_paid || '';
-            document.getElementById('editTax2307Checked').checked = Boolean(invoiceBeingEdited.is_2307_checked);
+            document.getElementById('receiptTotalPaid').textContent = `₱${formatCurrency(invoiceBeingEdited.amount_paid)}`;
+            document.getElementById('receiptRemainingBalance').textContent = `₱${formatCurrency(invoiceBeingEdited.balance)}`;
+            document.getElementById('receiptInvoiceStatus').textContent = invoiceBeingEdited.status || 'UNPAID';
+            document.getElementById('editReceiptDate').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('editPaymentType').value = '';
+            document.getElementById('editCrNumber').value = '';
+            document.getElementById('editPaymentAmount').value = '';
+            document.getElementById('editTaxAmount').value = '';
+            document.getElementById('editTax2307Checked').checked = false;
             document.getElementById('paymentModal').classList.remove('hidden');
             updateEditWarning();
         }
@@ -1567,9 +1656,12 @@
             const taxAmount = parseFloat(document.getElementById('editTaxAmount').value) || 0;
             const isTaxChecked = document.getElementById('editTax2307Checked').checked;
             const comparisonTotal = paymentAmount + (isTaxChecked ? taxAmount : 0);
-            const expectedTotal = parseFloat(invoiceBeingEdited.total_amount) || 0;
-            const hasKnownTotal = invoiceBeingEdited.total_amount !== null && invoiceBeingEdited.total_amount !== undefined && invoiceBeingEdited.total_amount !== '';
-            const hasDiscrepancy = hasKnownTotal && crNumber && Math.abs(comparisonTotal - expectedTotal) > 0.01;
+            const paymentType = document.getElementById('editPaymentType').value;
+            const remainingBalance = parseFloat(invoiceBeingEdited.balance) || 0;
+            const hasDiscrepancy = Boolean(crNumber) && (
+                comparisonTotal > remainingBalance + 0.01
+                || (paymentType === 'FULL' && Math.abs(comparisonTotal - remainingBalance) > 0.01)
+            );
             document.getElementById('editDiscrepancyWarning').style.display = hasDiscrepancy ? 'block' : 'none';
         }
 
@@ -1577,6 +1669,7 @@
             if (!invoiceBeingEdited) return;
 
             const paymentData = {
+                receipt_date: document.getElementById('editReceiptDate').value,
                 payment_type: document.getElementById('editPaymentType').value,
                 cr_number: document.getElementById('editCrNumber').value,
                 payment_amount: parseFloat(document.getElementById('editPaymentAmount').value) || 0,
@@ -1584,7 +1677,7 @@
                 is_2307_checked: document.getElementById('editTax2307Checked').checked
             };
 
-            fetch(`/update-invoice-payment/${invoiceBeingEdited.id}`, {
+            fetch(`/invoices/${invoiceBeingEdited.id}/collection-receipts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1594,10 +1687,13 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showToast('Collection details updated successfully!', 'success');
+                        const invoiceId = invoiceBeingEdited.id;
+                        showToast('Collection Receipt recorded successfully!', 'success');
+                        if (window.SyluxentUI) SyluxentUI.showServerWarnings(data.warnings);
                         closePaymentModal();
                         loadInvoices();
                         loadPendingSalesOrders();
+                        setTimeout(() => toggleReceiptHistory(invoiceId), 300);
                     } else {
                         showToast(data.error || 'Failed to update invoice', 'error');
                     }
