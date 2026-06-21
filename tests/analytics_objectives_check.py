@@ -15,6 +15,7 @@ from app import (  # noqa: E402
     Client,
     EvaluationSession,
     Invoice,
+    PurchaseOrder,
     Role,
     SalesOrder,
     SalesOrderItem,
@@ -80,6 +81,28 @@ def main():
                 balance=0,
                 status='PAID',
             ))
+        db.session.add_all([
+            PurchaseOrder(
+                check_voucher_number='CV-FIXED',
+                check_number='CHK-FIXED',
+                check_date=pd.Timestamp(2026, 2, 1).date(),
+                date=pd.Timestamp(2026, 2, 1).date(),
+                particulars='Office Rent',
+                supplier_payee='Building Owner',
+                cash_amount=300,
+                category='FIXED',
+            ),
+            PurchaseOrder(
+                check_voucher_number='CV-VARIABLE',
+                check_number='CHK-VARIABLE',
+                check_date=pd.Timestamp(2026, 2, 2).date(),
+                date=pd.Timestamp(2026, 2, 2).date(),
+                particulars='Delivery Fuel',
+                supplier_payee='Fuel Supplier',
+                cash_amount=700,
+                category='VARIABLE',
+            ),
+        ])
         db.session.commit()
 
         with app.test_client() as client:
@@ -107,11 +130,57 @@ def main():
             }, content_type='multipart/form-data')
             assert confirmed.status_code == 200, confirmed.get_json()
             assert AnalyticsData.query.filter_by(source_format='excel').count() == 4
+            db.session.add_all([
+                AnalyticsData(
+                    source_type='TEST',
+                    source_id='overview-current',
+                    transaction_date=pd.Timestamp(2026, 1, 1).date(),
+                    financial_stage='PAID',
+                    flow_direction='INFLOW',
+                    flow_status='ACTUAL',
+                    party_name='TEST POS CLIENT',
+                    party_role='CUSTOMER',
+                    amount=2000,
+                    category='COLLECTION',
+                ),
+                AnalyticsData(
+                    source_type='TEST',
+                    source_id='overview-previous',
+                    transaction_date=pd.Timestamp(2025, 1, 1).date(),
+                    financial_stage='PAID',
+                    flow_direction='INFLOW',
+                    flow_status='ACTUAL',
+                    party_name='TEST POS CLIENT',
+                    party_role='CUSTOMER',
+                    amount=1000,
+                    category='COLLECTION',
+                ),
+            ])
+            db.session.commit()
+
+            overview_payload = client.get('/api/analytics/overview?year=2026').get_json()
+            assert overview_payload['success'] is True
+            assert overview_payload['kpis']['comparison_label'] == '2025'
+            assert overview_payload['kpis']['revenue_change_percent'] is not None
+            assert overview_payload['kpis']['profit'] == (
+                overview_payload['kpis']['gross_revenue']
+                - overview_payload['kpis']['total_cost_of_goods']
+            )
 
             clients_payload = client.get('/api/analytics/clients').get_json()
             assert clients_payload['success'] is True
             assert 'client_performance_score' in clients_payload['clients'][0]
             assert clients_payload['clients'][0]['cohort'] in {'Core Ordering Clients', 'Growth Ordering Clients', 'Developing Ordering Clients', 'Low Order Activity'}
+            assert {'order_count', 'sales_order_value', 'branches_count', 'cohort'} <= set(clients_payload['clients'][0])
+            assert {'label', 'order_count', 'sales_order_value', 'branches_count', 'cohort'} <= set(clients_payload['chart_data'][0])
+
+            expenses_payload = client.get('/api/analytics/expenses?year=2026').get_json()
+            assert expenses_payload['success'] is True
+            assert expenses_payload['total_expenses'] == 1000
+            assert expenses_payload['fixed_share_percent'] == 30
+            assert expenses_payload['variable_share_percent'] == 70
+            assert expenses_payload['ranked_particulars'][0]['label'] == 'Delivery Fuel'
+            assert expenses_payload['ranked_suppliers'][0]['label'] == 'Fuel Supplier'
 
             sales_payload = client.get('/api/analytics/sales?mape_threshold=25').get_json()
             assert sales_payload['success'] is True

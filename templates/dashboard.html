@@ -539,7 +539,7 @@
             {% if session.role in ['manager', 'admin'] %}
             const container = document.getElementById('analytics-content');
 
-            container.innerHTML = '<div class="stats-grid" style="margin-top: 1rem;"><div class="stat-card"><div class="stat-label">Invoice Payments</div><div class="stat-value ' + kpiClassFor('revenue', dashboardData.selected_year_revenue || 0) + '">' + formatCurrency(dashboardData.selected_year_revenue || 0) + '</div></div><div class="stat-card"><div class="stat-label">Expense Total</div><div class="stat-value kpi-value">' + formatCurrency(dashboardData.total_expenses.total_amount || 0) + '</div></div><div class="stat-card"><div class="stat-label">Aging (0-30 days)</div><div class="stat-value ' + kpiClassFor('accounts_receivable', dashboardData.aging_0_30 || 0) + '">' + formatCurrency(dashboardData.aging_0_30 || 0) + '</div></div></div><div class="cashflow-chart-wrap"><canvas id="cashflow-chart"></canvas></div>';
+            container.innerHTML = '<div class="stats-grid" style="margin-top: 1rem;"><div class="stat-card"><div class="stat-label">Invoice Payments</div><div class="stat-value ' + kpiClassFor('revenue', dashboardData.selected_year_revenue || 0) + '">' + formatCurrency(dashboardData.selected_year_revenue || 0) + '</div></div><div class="stat-card"><div class="stat-label">Expense Total</div><div class="stat-value kpi-value">' + formatCurrency(dashboardData.total_expenses.total_amount || 0) + '</div></div><div class="stat-card"><div class="stat-label">Aging (0-30 days)</div><div class="stat-value ' + kpiClassFor('accounts_receivable', dashboardData.aging_0_30 || 0) + '">' + formatCurrency(dashboardData.aging_0_30 || 0) + '</div></div></div><p style="color:var(--text-muted);font-size:0.9rem;margin:1rem 0 0.5rem;">Monthly invoice payments, recorded expenses, and resulting net cash flow in Philippine pesos for ' + dashboardData.selected_year + '.</p><div class="cashflow-chart-wrap"><canvas id="cashflow-chart" aria-label="Monthly cash in, cash out, and net cash flow chart"></canvas></div>';
             renderDashboardCashflowChart();
             {% endif %}
         }
@@ -561,7 +561,7 @@
                         {
                             label: 'Cash In (Invoice Payments)',
                             data: dashboardData.monthly_cashflow.map(row => row.cash_in),
-                            backgroundColor: '#16A34A',
+                            backgroundColor: '#2563EB',
                             borderRadius: 6
                         },
                         {
@@ -569,6 +569,20 @@
                             data: dashboardData.monthly_cashflow.map(row => row.cash_out),
                             backgroundColor: '#F97316',
                             borderRadius: 6
+                        },
+                        {
+                            type: 'line',
+                            label: 'Net Cash Flow',
+                            data: dashboardData.monthly_cashflow.map(row => Number(row.cash_in || 0) - Number(row.cash_out || 0)),
+                            borderColor: '#334155',
+                            backgroundColor: '#334155',
+                            borderWidth: 2,
+                            borderDash: [6, 4],
+                            pointRadius: 3,
+                            pointBackgroundColor: '#FFFFFF',
+                            pointBorderColor: '#334155',
+                            pointBorderWidth: 2,
+                            tension: 0.25
                         }
                     ]
                 },
@@ -581,7 +595,13 @@
                     },
                     scales: {
                         y: {
-                            beginAtZero: true,
+                            beginAtZero: false,
+                            grid: {
+                                color: context => Number(context.tick?.value || 0) === 0
+                                    ? '#334155'
+                                    : 'rgba(148, 163, 184, 0.22)',
+                                lineWidth: context => Number(context.tick?.value || 0) === 0 ? 2 : 1
+                            },
                             ticks: {
                                 callback: value => formatCurrency(value)
                             }

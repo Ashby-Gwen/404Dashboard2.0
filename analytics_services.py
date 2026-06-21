@@ -1012,85 +1012,136 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
         "top_3_insights": top_3_clients,
         "total_clients": len(clients_data),
         "clients": clients_data,
+        "chart_data": [
+            {
+                "label": client["store_name"],
+                "order_count": client["order_count"],
+                "sales_order_value": client["sales_order_value"],
+                "branches_count": client["branches_count"],
+                "cohort": client["cohort"],
+            }
+            for client in clients_data
+        ],
         "top_3": top_3_clients,
         "total": len(clients_data),
         "cohorts": [{"label": label, "count": count} for label, count in cohort_counts.items()],
     }
 
 
-def get_expenses_breakdown(db: Any, PurchaseOrder: Any) -> dict[str, Any]:
-    """Get expenses breakdown: fixed vs variable categorization."""
-    fixed_expenses = (
-        db.session.query(func.sum(PurchaseOrder.cash_amount))
-        .filter(PurchaseOrder.category == "FIXED")
-        .scalar() or 0
+def get_expenses_breakdown(
+    db: Any,
+    PurchaseOrder: Any,
+    start_date: Any = None,
+    end_date: Any = None,
+) -> dict[str, Any]:
+    """Get filtered expense composition and ranked expense contributors."""
+    def bounded(query: Any) -> Any:
+        return _apply_date_bounds(query, PurchaseOrder.date, start_date, end_date)
+
+    category_rows = (
+        bounded(
+            db.session.query(
+                PurchaseOrder.category,
+                func.sum(PurchaseOrder.cash_amount).label("total_amount"),
+            )
+        )
+        .group_by(PurchaseOrder.category)
+        .all()
     )
-    
-    variable_expenses = (
-        db.session.query(func.sum(PurchaseOrder.cash_amount))
-        .filter(PurchaseOrder.category == "VARIABLE")
-        .scalar() or 0
-    )
-    
+    category_totals = {
+        str(row.category or "VARIABLE").upper(): float(row.total_amount or 0)
+        for row in category_rows
+    }
+    fixed_expenses = category_totals.get("FIXED", 0.0)
+    variable_expenses = category_totals.get("VARIABLE", 0.0)
     total_expenses = fixed_expenses + variable_expenses
-    
-    # Get detailed expenses by type
-    fixed_items = (
-        db.session.query(
+
+    item_rows = (
+        bounded(
+            db.session.query(
+                PurchaseOrder.particulars,
+                PurchaseOrder.supplier_payee,
+                PurchaseOrder.category,
+                func.sum(PurchaseOrder.cash_amount).label("total_amount"),
+            )
+        )
+        .group_by(
             PurchaseOrder.particulars,
             PurchaseOrder.supplier_payee,
-            func.sum(PurchaseOrder.cash_amount).label("total_amount"),
-            PurchaseOrder.date
+            PurchaseOrder.category,
         )
-        .filter(PurchaseOrder.category == "FIXED")
-        .group_by(PurchaseOrder.particulars, PurchaseOrder.supplier_payee)
         .order_by(func.sum(PurchaseOrder.cash_amount).desc())
         .all()
     )
-    
-    variable_items = (
-        db.session.query(
-            PurchaseOrder.particulars,
-            PurchaseOrder.supplier_payee,
-            func.sum(PurchaseOrder.cash_amount).label("total_amount"),
-            PurchaseOrder.date
-        )
-        .filter(PurchaseOrder.category == "VARIABLE")
-        .group_by(PurchaseOrder.particulars, PurchaseOrder.supplier_payee)
-        .order_by(func.sum(PurchaseOrder.cash_amount).desc())
-        .all()
-    )
-    
+
+    def item_payload(row: Any) -> dict[str, Any]:
+        return {
+            "supplier_payee": row.supplier_payee,
+            "debit_account": row.particulars,
+            "amount": round(float(row.total_amount or 0), 2),
+            "category": str(row.category or "VARIABLE").upper(),
+        }
+
     fixed_list = [
-        {
-            "supplier_payee": row.supplier_payee,
-            "debit_account": row.particulars,
-            "amount": round(float(row.total_amount or 0), 2),
-            "date": row.date.isoformat() if row.date else None
-        }
-        for row in fixed_items
+        item_payload(row)
+        for row in item_rows
+        if str(row.category or "").upper() == "FIXED"
     ]
-    
     variable_list = [
-        {
-            "supplier_payee": row.supplier_payee,
-            "debit_account": row.particulars,
-            "amount": round(float(row.total_amount or 0), 2),
-            "date": row.date.isoformat() if row.date else None
-        }
-        for row in variable_items
+        item_payload(row)
+        for row in item_rows
+        if str(row.category or "").upper() == "VARIABLE"
     ]
-    
+
+    particulars_rows = (
+        bounded(
+            db.session.query(
+                PurchaseOrder.particulars.label("label"),
+                func.sum(PurchaseOrder.cash_amount).label("total_amount"),
+            )
+        )
+        .group_by(PurchaseOrder.particulars)
+        .order_by(func.sum(PurchaseOrder.cash_amount).desc())
+        .all()
+    )
+    supplier_rows = (
+        bounded(
+            db.session.query(
+                PurchaseOrder.supplier_payee.label("label"),
+                func.sum(PurchaseOrder.cash_amount).label("total_amount"),
+            )
+        )
+        .group_by(PurchaseOrder.supplier_payee)
+        .order_by(func.sum(PurchaseOrder.cash_amount).desc())
+        .all()
+    )
+
+    def ranked(rows: list[Any]) -> list[dict[str, Any]]:
+        return [
+            {
+                "label": row.label or "Unspecified",
+                "amount": round(float(row.total_amount or 0), 2),
+                "share_percent": round(
+                    float(row.total_amount or 0) / total_expenses * 100, 2
+                ) if total_expenses else 0,
+            }
+            for row in rows
+        ]
+
     return {
-        "fixed_expenses": round(float(fixed_expenses), 2),
-        "variable_expenses": round(float(variable_expenses), 2),
-        "total_expenses": round(float(total_expenses), 2),
+        "fixed_expenses": round(fixed_expenses, 2),
+        "variable_expenses": round(variable_expenses, 2),
+        "total_expenses": round(total_expenses, 2),
+        "fixed_share_percent": round(fixed_expenses / total_expenses * 100, 2) if total_expenses else 0,
+        "variable_share_percent": round(variable_expenses / total_expenses * 100, 2) if total_expenses else 0,
         "fixed_items": fixed_list,
         "variable_items": variable_list,
+        "ranked_particulars": ranked(particulars_rows),
+        "ranked_suppliers": ranked(supplier_rows),
         "pie_data": [
-            {"label": "Fixed", "value": round(float(fixed_expenses), 2), "color": "#3B82F6"},
-            {"label": "Variable", "value": round(float(variable_expenses), 2), "color": "#EF4444"}
-        ]
+            {"label": "Fixed", "value": round(fixed_expenses, 2), "color": "#2563EB"},
+            {"label": "Variable", "value": round(variable_expenses, 2), "color": "#F59E0B"},
+        ],
     }
 
 

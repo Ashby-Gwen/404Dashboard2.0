@@ -1840,6 +1840,17 @@ def parse_report_date_filter():
         'label': label,
     }
 
+def previous_year_comparison_filter(filters):
+    """Return the same calendar period one year earlier."""
+    previous_year = filters['selected_year'] - 1
+    return {
+        **filters,
+        'selected_year': previous_year,
+        'start_date': filters['start_date'].replace(year=filters['start_date'].year - 1),
+        'end_date': filters['end_date'].replace(year=filters['end_date'].year - 1),
+        'label': filters['label'].replace(str(filters['selected_year']), str(previous_year)),
+    }
+
 def date_range_filter(query, column, filters):
     return query.filter(column >= filters['start_date'], column < filters['end_date'])
 
@@ -6644,6 +6655,7 @@ def get_overview():
             })
 
         filters = parse_report_date_filter()
+        comparison_filters = previous_year_comparison_filter(filters)
         selected_year = filters['selected_year']
         period = filters['period']
 
@@ -6673,6 +6685,33 @@ def get_overview():
 
         gross_revenue = kpi_totals.gross_revenue or 0.0
         total_cost = kpi_totals.total_cost or 0.0
+        comparison_totals = db.session.query(
+            func.sum(
+                case(
+                    (AnalyticsData.flow_direction == 'INFLOW', AnalyticsData.amount),
+                    else_=0
+                )
+            ).label('gross_revenue'),
+            func.sum(
+                case(
+                    (AnalyticsData.flow_direction == 'OUTFLOW', AnalyticsData.amount),
+                    else_=0
+                )
+            ).label('total_cost')
+        ).filter(
+            AnalyticsData.transaction_date >= comparison_filters['start_date'],
+            AnalyticsData.transaction_date < comparison_filters['end_date'],
+            AnalyticsData.flow_status == 'ACTUAL'
+        ).first()
+        comparison_revenue = float(comparison_totals.gross_revenue or 0)
+        comparison_cost = float(comparison_totals.total_cost or 0)
+
+        def percentage_change(current, previous):
+            current = float(current or 0)
+            previous = float(previous or 0)
+            if previous == 0:
+                return None
+            return round((current - previous) / previous * 100, 2)
 
         # 2. GROUP BY MONTH & SORT CHRONOLOGICALLY
         month_number = db_month_number(AnalyticsData.transaction_date).label('month_num')
@@ -6690,10 +6729,28 @@ def get_overview():
         ).order_by(
             asc(month_number)
         ).all()
+        comparison_month_number = db_month_number(AnalyticsData.transaction_date).label('month_num')
+        comparison_monthly_rows = db.session.query(
+            comparison_month_number,
+            func.sum(AnalyticsData.amount).label('monthly_revenue')
+        ).filter(
+            AnalyticsData.transaction_date >= comparison_filters['start_date'],
+            AnalyticsData.transaction_date < comparison_filters['end_date'],
+            AnalyticsData.flow_direction == 'INFLOW',
+            AnalyticsData.flow_status == 'ACTUAL'
+        ).group_by(
+            comparison_month_number
+        ).all()
+        comparison_by_month = {
+            int(row.month_num): float(row.monthly_revenue or 0)
+            for row in comparison_monthly_rows
+            if row.month_num is not None
+        }
 
         # 3. Format labels consistently as DD/MM/YYYY.
         labels = []
         values = []
+        comparison_values = []
         
         DATE_OUTPUT_FORMAT = '%d/%m/%Y' 
 
@@ -6707,6 +6764,7 @@ def get_overview():
                     
                 labels.append(formatted_date)
                 values.append(float(row.monthly_revenue or 0.0))
+                comparison_values.append(comparison_by_month.get(int(row.month_num), 0.0))
 
         return jsonify({
             "success": True,
@@ -6723,11 +6781,24 @@ def get_overview():
             "kpis": {
                 "gross_revenue": float(gross_revenue),
                 "total_cost_of_goods": float(total_cost),
+                "profit": float(gross_revenue - total_cost),
+                "comparison_gross_revenue": comparison_revenue,
+                "comparison_total_cost_of_goods": comparison_cost,
+                "comparison_profit": comparison_revenue - comparison_cost,
+                "revenue_change_percent": percentage_change(gross_revenue, comparison_revenue),
+                "cost_change_percent": percentage_change(total_cost, comparison_cost),
+                "profit_change_percent": percentage_change(
+                    gross_revenue - total_cost,
+                    comparison_revenue - comparison_cost,
+                ),
+                "comparison_label": comparison_filters['label'],
                 "period": period
             },
             "trend_data": {
                 "labels": labels,
-                "values": values   
+                "values": values,
+                "comparison_values": comparison_values,
+                "comparison_label": comparison_filters['label'],
             }
         })
     
@@ -7287,14 +7358,31 @@ def api_analytics_clients():
 def api_analytics_expenses():
     """Get expenses breakdown data."""
     try:
-        expenses = get_expenses_breakdown(db, PurchaseOrder)
+        filters = parse_report_date_filter()
+        expenses = get_expenses_breakdown(
+            db,
+            PurchaseOrder,
+            filters['start_date'],
+            filters['end_date'],
+        )
         return jsonify({
             'success': True,
+            'filter': {
+                'selected_year': filters['selected_year'],
+                'period': filters['period'],
+                'quarter': filters['quarter'],
+                'month': filters['month'],
+                'label': filters['label'],
+            },
             'fixed_expenses': expenses['fixed_expenses'],
             'variable_expenses': expenses['variable_expenses'],
             'total_expenses': expenses['total_expenses'],
+            'fixed_share_percent': expenses['fixed_share_percent'],
+            'variable_share_percent': expenses['variable_share_percent'],
             'fixed_items': expenses['fixed_items'],
             'variable_items': expenses['variable_items'],
+            'ranked_particulars': expenses['ranked_particulars'],
+            'ranked_suppliers': expenses['ranked_suppliers'],
             'pie_data': expenses['pie_data']
         })
     except Exception as e:

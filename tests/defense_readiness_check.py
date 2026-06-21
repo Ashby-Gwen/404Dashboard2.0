@@ -248,10 +248,20 @@ def accounting_and_analytics_check():
 def production_guard_source_check():
     app_source = Path(ROOT, 'app.py').read_text(encoding='utf-8')
     admin_template = Path(ROOT, 'templates', 'admin.html').read_text(encoding='utf-8')
+    analytics_template = Path(ROOT, 'templates', 'analytics.html').read_text(encoding='utf-8')
+    dashboard_template = Path(ROOT, 'templates', 'dashboard.html').read_text(encoding='utf-8')
+    analytics_services_source = Path(ROOT, 'analytics_services.py').read_text(encoding='utf-8')
     assert "dry_run = True if IS_PRODUCTION" in app_source
     assert "if IS_PRODUCTION:" in app_source
     assert "app.run(debug=os.environ.get('FLASK_DEBUG'" in app_source
     assert "Production read-only mode" in admin_template
+    assert "previous_year_comparison_filter" in app_source
+    assert "filters['start_date']" in app_source
+    assert "ranked_particulars" in analytics_services_source
+    assert 'data-section="expenses"' in analytics_template
+    assert "x: Number(c.order_count || 0)" in analytics_template
+    assert "y: Number(c.sales_order_value || c.total_revenue || 0)" in analytics_template
+    assert "Net Cash Flow" in dashboard_template
 
 
 def main():

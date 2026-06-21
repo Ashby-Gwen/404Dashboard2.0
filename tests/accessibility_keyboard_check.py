@@ -99,6 +99,10 @@ def main():
             assert 'aria-label="Close Analytics Tools"' in analytics_html
             assert 'aria-label="Analytics date filter and actions"' in analytics_html
             assert {'analyticsYear', 'analyticsPeriod'} <= set(analytics_parser.controls)
+            assert 'data-section="expenses"' in analytics_html
+            assert 'aria-label="Monthly revenue trend chart"' in analytics_html
+            assert 'aria-label="Client opportunity relationship chart"' in analytics_html
+            assert 'aria-label="Fixed and variable expense composition chart"' in analytics_html
 
             login(client, accounting, 'accounting staff')
             expense_html = client.get('/expenses').get_data(as_text=True)
@@ -137,6 +141,9 @@ def main():
     assert "event.key !== 'Tab'" in analytics_source
     assert 'analyticsOverlayReturnFocus' in analytics_source
     assert 'recommendationModalReturnFocus' in analytics_source
+    assert "indexAxis: 'y'" in analytics_source
+    assert 'loadOverviewComparison' in analytics_source
+    assert 'Net Cash Flow' in open(os.path.join(ROOT, 'templates', 'dashboard.html'), encoding='utf-8').read()
     assert ':focus-visible' in styles
     assert '.skip-link:focus' in styles
 
