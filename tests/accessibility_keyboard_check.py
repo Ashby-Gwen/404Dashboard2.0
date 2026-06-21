@@ -114,7 +114,7 @@ def main():
             assert 'All Invoices' not in invoice_html
             assert 'Sales Invoices' not in invoice_html
             assert 'Service Invoices' not in invoice_html
-            assert 'View Receipts / Add Receipt' in invoice_html
+            assert 'View / Add Receipts' in invoice_html
             assert 'Print Preview' in analytics_html
             assert 'Review the active analytics tab before printing.' in analytics_html
             assert 'data-section="expenses"' in analytics_html

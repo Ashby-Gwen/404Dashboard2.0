@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Order {{ sales_order.so_number }}</title>
-    <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
     <style>
         :root {
             --ink: #111827;
@@ -187,6 +186,11 @@
                 display: none;
             }
 
+            .ashby-verse-sidebar,
+            .ashby-verse-toggle {
+                display: none !important;
+            }
+
             .sheet {
                 max-width: none;
                 margin: 0;
@@ -292,15 +296,13 @@
     </main>
     <script>
         function printSalesOrderCopy(button) {
-            const action = async () => {
-                window.print();
-                await new Promise(resolve => setTimeout(resolve, 600));
-            };
-            if (window.SyluxentUI) {
-                SyluxentUI.withButtonLoading(button, action, 'Preparing...');
-            } else {
-                action();
-            }
+            button.disabled = true;
+            button.textContent = 'Preparing...';
+            window.print();
+            window.setTimeout(() => {
+                button.disabled = false;
+                button.textContent = 'Print';
+            }, 600);
         }
     </script>
 </body>
