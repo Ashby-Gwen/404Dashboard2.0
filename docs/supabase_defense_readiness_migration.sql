@@ -65,10 +65,27 @@ CREATE TABLE IF NOT EXISTS public.collection_receipts (
         UNIQUE (invoice_id, normalized_cr_number)
 );
 
+-- CREATE TABLE IF NOT EXISTS does not add defaults when SQLAlchemy already
+-- created the table, so repair the server-side defaults before backfilling.
+ALTER TABLE public.collection_receipts
+    ALTER COLUMN payment_amount SET DEFAULT 0,
+    ALTER COLUMN tax_amount_paid SET DEFAULT 0,
+    ALTER COLUMN is_2307_checked SET DEFAULT false,
+    ALTER COLUMN collected_total SET DEFAULT 0,
+    ALTER COLUMN recorded_by SET DEFAULT 'system',
+    ALTER COLUMN created_at SET DEFAULT now();
+
+UPDATE public.collection_receipts
+SET created_at = now()
+WHERE created_at IS NULL;
+
+ALTER TABLE public.collection_receipts
+    ALTER COLUMN created_at SET NOT NULL;
+
 INSERT INTO public.collection_receipts (
     invoice_id, receipt_date, cr_number, normalized_cr_number,
     payment_type, payment_amount, tax_amount_paid,
-    is_2307_checked, collected_total, recorded_by
+    is_2307_checked, collected_total, recorded_by, created_at
 )
 SELECT
     invoices.id,
@@ -88,7 +105,8 @@ SELECT
     COALESCE(invoices.tax_amount_paid, 0),
     COALESCE(invoices.is_2307_checked, false),
     invoices.amount_paid,
-    'legacy migration'
+    'legacy migration',
+    now()
 FROM public.invoices
 WHERE COALESCE(invoices.amount_paid, 0) > 0
   AND NOT EXISTS (
