@@ -4222,7 +4222,8 @@ def audit_report_export():
     try:
         data = request.get_json() or {}
         report_name = data.get('report') or 'report'
-        export_type = data.get('export_type') or 'PDF'
+        requested_export_type = clean_code(data.get('export_type') or 'PRINT').upper()
+        export_type = 'PRINT' if requested_export_type in {'PRINT', 'PDF'} else requested_export_type
         log_audit('EXPORT_REPORT', 'reports', report_name, None, {'export_type': export_type})
         db.session.commit()
         return jsonify({'success': True})

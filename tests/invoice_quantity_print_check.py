@@ -9,6 +9,7 @@ if ROOT not in sys.path:
 os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 
 from app import (  # noqa: E402
+    AuditLog,
     Client,
     Invoice,
     Role,
@@ -170,6 +171,18 @@ def main():
             assert '>2</td>' in print_html
             assert '>2.00</td>' not in print_html
 
+            legacy_print_audit = web.post('/api/reports/audit-export', json={
+                'report': 'revenue',
+                'export_type': 'PDF',
+            })
+            assert legacy_print_audit.status_code == 200
+            print_audit = AuditLog.query.filter_by(
+                action='EXPORT_REPORT',
+                record_id='revenue',
+            ).order_by(AuditLog.id.desc()).first()
+            assert print_audit is not None
+            assert "'export_type': 'PRINT'" in print_audit.new_value
+
         analytics_html = open(
             os.path.join(ROOT, 'templates', 'analytics.html'),
             encoding='utf-8'
@@ -177,6 +190,29 @@ def main():
         assert "toDataURL('image/png', 1)" in analytics_html
         assert 'Chart preview is available on-screen before printing.' not in analytics_html
         assert '.analytics-paper *' in analytics_html
+        assert 'Print Preview' in analytics_html
+        assert '>Print</button>' in analytics_html
+        assert 'Preview PDF' not in analytics_html
+        assert 'Print / Save PDF' not in analytics_html
+        assert 'analytics-print-heading' in analytics_html
+        assert 'body > *:not(#analyticsPrintModal)' in analytics_html
+        assert '.analytics-preview-toolbar { display: none !important; }' in analytics_html
+
+        reports_html = open(
+            os.path.join(ROOT, 'templates', 'reports.html'),
+            encoding='utf-8'
+        ).read()
+        assert 'openReportPrintPreview()' in reports_html
+        assert 'Print Preview' in reports_html
+        assert '>Print</button>' in reports_html
+        assert "auditExport('PRINT')" in reports_html
+        assert 'exportReportPdf' not in reports_html
+        assert 'Preview PDF' not in reports_html
+        assert 'Print / Save PDF' not in reports_html
+        assert 'print-heading' in reports_html
+        assert 'body > *:not(#reportPreviewModal)' in reports_html
+        assert '.preview-toolbar { display: none !important; }' in reports_html
+        assert "letter ${isPortrait ? 'portrait' : 'landscape'}" in reports_html
 
     print('Invoice, quantity, and Analytics print check passed.')
 

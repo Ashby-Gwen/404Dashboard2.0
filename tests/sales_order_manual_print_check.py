@@ -91,7 +91,8 @@ def main():
             assert 'MANUAL COMPANY INC' in print_html
             assert 'MANUAL STORE' in print_html
             assert 'POS TERMINAL' in print_html
-            assert 'Print / Save PDF' in print_html
+            assert '>Print</button>' in print_html
+            assert 'Print / Save PDF' not in print_html
 
     print('Sales order manual print check passed.')
 

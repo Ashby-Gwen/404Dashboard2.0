@@ -99,6 +99,8 @@ def main():
             assert 'aria-label="Close Analytics Tools"' in analytics_html
             assert 'aria-label="Analytics date filter and actions"' in analytics_html
             assert {'analyticsYear', 'analyticsPeriod'} <= set(analytics_parser.controls)
+            assert 'Print Preview' in analytics_html
+            assert 'Review the active analytics tab before printing.' in analytics_html
             assert 'data-section="expenses"' in analytics_html
             assert 'aria-label="Monthly revenue trend chart"' in analytics_html
             assert 'aria-label="Client opportunity relationship chart"' in analytics_html

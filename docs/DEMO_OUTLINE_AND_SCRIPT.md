@@ -20,7 +20,7 @@ Use this opening summary if asked whether the system is ready for demonstration.
 - Dashboard KPI layout now combines Actual and Expected values into two cards: Revenue and Profit.
 - Dashboard Clients and Client Balances now use the same client financial/scoring data flow used by Client Analysis, with client score and cohort shown alongside balance data.
 - Analytics tabs now share one date range filter for year, quarter, and month.
-- Analytics reports can now be exported as CSV or previewed for print/save-to-PDF from the active tab.
+- Analytics reports can now be exported as CSV or opened in a print preview from the active tab.
 - Local static references are present for `styles.css`, `theme-overrides.css`, and `system-states.js`.
 - Internet access is recommended during the demo because several frontend libraries load from CDNs: Bootstrap, Chart.js, SheetJS, Lucide, and jQuery.
 
@@ -216,13 +216,13 @@ Steps:
 7. Show monthly cashflow for the selected year if available.
 8. Show revenue leakage or bad debt/high-impact client insight.
 9. Open Clients Analysis, Revenue, Recommendations, and Evaluation to show that each tab follows the same date range filter.
-10. Use Export CSV or Preview PDF to demonstrate analytics reporting.
+10. Use Export CSV or Print Preview to demonstrate analytics reporting.
 11. If using upload, demonstrate analytics upload and outlier confirmation.
 12. Show evaluation questions/results if part of your defense.
 
 Say:
 
-"The Analytics module turns encoded records into business insights. Every analytics tab uses the same date range filter, so managers can review a full year, quarter, or month. It supports descriptive analysis, sales forecasting support, client performance scoring, recommendations, evaluation metrics, and export or print-ready reporting."
+"The Analytics module turns encoded records into business insights. Every analytics tab uses the same date range filter, so managers can review a full year, quarter, or month. It supports descriptive analysis, sales forecasting support, client performance scoring, recommendations, evaluation metrics, CSV export, and print-ready reporting."
 
 ### 10. Closing
 

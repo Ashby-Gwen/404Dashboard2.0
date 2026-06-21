@@ -47,12 +47,14 @@
         .preview-toolbar p { margin-top: .2rem; color: var(--text-muted); font-size: .88rem; }
         .preview-actions { display: flex; gap: .75rem; flex-wrap: wrap; }
         .preview-viewport { flex: 1; overflow: auto; padding: 1.5rem; background: #E2E8F0; }
-        .report-paper { width: 279mm; min-height: 216mm; margin: 0 auto; padding: 19.05mm; box-sizing: border-box; background: white; color: #1F2937; font: 10.5pt Arial, Helvetica, sans-serif; box-shadow: 0 10px 30px rgba(15, 23, 42, .15); }
+        .report-paper { width: 279mm; min-height: 216mm; margin: 0 auto; padding: 18mm; box-sizing: border-box; background: white; color: #111827; font: 10.5pt Arial, Helvetica, sans-serif; box-shadow: 0 12px 30px rgba(15, 23, 42, .12); }
         .report-paper.portrait { width: 216mm; min-height: 279mm; }
-        .print-heading { margin-bottom: 18pt; text-align: center; }
-        .print-heading h1 { margin: 0 0 5pt; font-size: 17pt; }
-        .print-heading h2 { margin: 0 0 5pt; font-size: 13pt; }
-        .print-heading p { margin: 2pt 0; font-size: 9.5pt; }
+        .print-heading { display: flex; justify-content: space-between; gap: 24pt; padding-bottom: 14pt; margin-bottom: 18pt; border-bottom: 3pt solid #FF6A00; }
+        .print-brand { font-size: 21pt; font-weight: 800; }
+        .print-brand-subtitle { margin-top: 4pt; color: #64748B; font-size: 10pt; }
+        .print-document-title { text-align: right; }
+        .print-document-title h1 { margin: 0; font-size: 18pt; }
+        .print-document-title p { margin: 4pt 0 0; color: #64748B; font-size: 9.5pt; font-weight: 700; }
         .print-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         .print-table th, .print-table td { padding: 7pt 8pt; text-align: left; vertical-align: top; }
         .print-table thead { display: table-header-group; }
@@ -120,7 +122,7 @@
             </div>
             <div class="report-toolbar">
                 <button id="exportCsvBtn" class="btn btn-outline" onclick="exportCsv()" style="display:none;">Export CSV</button>
-                <button class="btn btn-primary" onclick="exportReportPdf()">Preview PDF</button>
+                <button class="btn btn-primary" onclick="openReportPrintPreview()">Print Preview</button>
             </div>
         </div>
 
@@ -189,11 +191,11 @@
             <div class="preview-toolbar">
                 <div>
                     <h2>Report Preview</h2>
-                    <p>Review the date-grouped report, then print or save it as PDF.</p>
+                    <p>Review the date-grouped report before printing.</p>
                 </div>
                 <div class="preview-actions">
                     <button class="btn btn-outline" onclick="closeReportPreview()">Back</button>
-                    <button class="btn btn-primary" onclick="printReport()">Print / Save PDF</button>
+                    <button class="btn btn-primary" onclick="printReport()">Print</button>
                 </div>
             </div>
             <div class="preview-viewport">
@@ -522,7 +524,7 @@
             return `${dates[0].toLocaleDateString('en-PH', options)} to ${dates[dates.length - 1].toLocaleDateString('en-PH', options)}`;
         }
 
-        function exportReportPdf() {
+        function openReportPrintPreview() {
             const config = reports[activeReport];
             const paper = document.getElementById('printReportPaper');
             const isPortrait = activeReport === 'revenue' || activeReport === 'expenses';
@@ -536,10 +538,15 @@
             pageStyle.textContent = `@page { size: letter ${isPortrait ? 'portrait' : 'landscape'}; margin: 0; }`;
             paper.innerHTML = `
                 <header class="print-heading">
-                    <h1>404 Dashboard</h1>
-                    <h2>${config.title}</h2>
-                    <p>Reporting Period: ${reportPeriod(config, activeRows)}</p>
-                    <p>Generated: ${new Date().toLocaleString('en-PH')}</p>
+                    <div>
+                        <div class="print-brand">404 Dashboard</div>
+                        <div class="print-brand-subtitle">Business Report</div>
+                    </div>
+                    <div class="print-document-title">
+                        <h1>${config.title}</h1>
+                        <p>Reporting Period: ${reportPeriod(config, activeRows)}</p>
+                        <p>Generated: ${new Date().toLocaleString('en-PH')}</p>
+                    </div>
                 </header>
                 ${activeReport === 'historical' ? reportLegend() : ''}
                 <table class="print-table">${document.getElementById('reportTable').innerHTML}</table>`;
@@ -551,7 +558,7 @@
         }
 
         function printReport() {
-            auditExport('PDF');
+            auditExport('PRINT');
             window.print();
         }
 
