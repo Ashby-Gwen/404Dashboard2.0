@@ -837,7 +837,6 @@
             <button class="analytics-tab" data-section="sales">Revenue</button>
             <button class="analytics-tab" data-section="recommendations">Recommendations <span id="recommendationBadge"
                     class="recommendation-badge" hidden>0</span></button>
-            <button class="analytics-tab" data-section="evaluation">Evaluation</button>
         </div>
 
         <div class="analytics-toolbar" aria-label="Analytics date filter and actions">
@@ -1095,8 +1094,6 @@
                     html = await loadSales();
                 } else if (section === 'recommendations') {
                     html = await loadRecommendations();
-                } else if (section === 'evaluation') {
-                    html = await loadEvaluation();
                 }
 
                 contentDiv.innerHTML = html;
@@ -2625,96 +2622,6 @@
                         currentCharts.push(chart);
                     }
                 });
-        }
-
-        async function loadEvaluation() {
-            const [questionsPayload, resultsPayload] = await Promise.all([
-                cachedAnalyticsJson('/api/evaluation/questions'),
-                cachedAnalyticsJson('/api/evaluation/results', currentAnalyticsFilterParams())
-            ]);
-            if (!questionsPayload.success) throw new Error(questionsPayload.error || 'Unable to load evaluation questions.');
-            if (!resultsPayload.success) throw new Error(resultsPayload.error || 'Unable to load evaluation results.');
-            syncAnalyticsFilterFromPayload(resultsPayload);
-            const questions = questionsPayload.questions || [];
-            const scale = questionsPayload.scale || [];
-            const grouped = questions.reduce((acc, question) => {
-                acc[question.category] = acc[question.category] || [];
-                acc[question.category].push(question);
-                return acc;
-            }, {});
-            return `
-                <div class="analytics-section evaluation">
-                    <div class="stats-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:1rem; margin-bottom:1.5rem;">
-                        <div class="stat-card"><div style="color:var(--text-muted);">Overall Mean</div><div style="font-size:1.8rem; font-weight:800;">${Number(resultsPayload.overall_mean || 0).toFixed(2)}</div></div>
-                        <div class="stat-card"><div style="color:var(--text-muted);">Interpretation</div><div style="font-size:1.8rem; font-weight:800;">${resultsPayload.interpretation}</div></div>
-                        <div class="stat-card"><div style="color:var(--text-muted);">Recent Sessions</div><div style="font-size:1.8rem; font-weight:800;">${(resultsPayload.sessions || []).length}</div></div>
-                    </div>
-
-                    <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,0.8fr); gap:1.5rem;">
-                        <form class="card" id="likertEvaluationForm" onsubmit="submitEvaluation(event)">
-                            <h3>Likert Evaluation</h3>
-                            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:0.75rem; margin-bottom:1rem;">
-                                <input id="evaluatorName" placeholder="Evaluator name" value="{{ session.get('username', '') }}" style="padding:0.6rem; border:1px solid var(--border-color); border-radius:var(--radius-md);">
-                                <input id="evaluatorRole" placeholder="Role" value="{{ session.get('role', '') }}" style="padding:0.6rem; border:1px solid var(--border-color); border-radius:var(--radius-md);">
-                            </div>
-                            ${Object.entries(grouped).map(([category, items]) => `
-                                <div style="margin-bottom:1.25rem;">
-                                    <h4 style="margin:0 0 0.65rem; color:var(--text-main);">${category}</h4>
-                                    ${items.map(question => `
-                                        <div style="border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.8rem; margin-bottom:0.6rem;">
-                                            <div style="font-weight:600; margin-bottom:0.55rem;">${question.question_text}</div>
-                                            <select data-question-id="${question.id}" class="likert-rating" required style="padding:0.5rem; border:1px solid var(--border-color); border-radius:var(--radius-md); width:100%;">
-                                                <option value="">Select rating</option>
-                                                ${scale.map(item => `<option value="${item.value}">${item.value} - ${item.label}</option>`).join('')}
-                                            </select>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            `).join('')}
-                            <textarea id="evaluationComment" placeholder="Optional feedback" style="width:100%; min-height:90px; padding:0.7rem; border:1px solid var(--border-color); border-radius:var(--radius-md);"></textarea>
-                            <button type="submit" class="btn-secondary" style="margin-top:0.75rem; background:var(--brand-orange,#FF6B00); color:white; border:none;">Submit Evaluation</button>
-                            <div id="evaluationSubmitStatus" style="margin-top:0.75rem; font-weight:600;"></div>
-                        </form>
-
-                        <div class="card">
-                            <h3>Evaluation Results</h3>
-                            <h4>Categories</h4>
-                            ${(resultsPayload.categories || []).map(item => `<div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border-color); padding:0.5rem 0;"><span>${item.category}</span><strong>${Number(item.average || 0).toFixed(2)} - ${item.interpretation}</strong></div>`).join('') || '<p style="color:var(--text-muted);">No category results yet.</p>'}
-                            <h4 style="margin-top:1rem;">Recent Feedback</h4>
-                            ${(resultsPayload.sessions || []).map(item => `<div style="border-bottom:1px solid var(--border-color); padding:0.55rem 0;"><strong>${item.evaluator_name}</strong> (${Number(item.overall_mean || 0).toFixed(2)} - ${item.interpretation})<div style="color:var(--text-muted); font-size:0.85rem;">${item.overall_comment || ''}</div></div>`).join('') || '<p style="color:var(--text-muted);">No sessions submitted yet.</p>'}
-                        </div>
-                    </div>
-                </div>`;
-        }
-
-        async function submitEvaluation(event) {
-            event.preventDefault();
-            const status = document.getElementById('evaluationSubmitStatus');
-            const responses = Array.from(document.querySelectorAll('.likert-rating')).map(select => ({
-                question_id: Number(select.dataset.questionId),
-                rating: Number(select.value)
-            })).filter(item => item.question_id && item.rating);
-            try {
-                const response = await fetch('/api/evaluation/responses', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        evaluator_name: document.getElementById('evaluatorName').value,
-                        evaluator_role: document.getElementById('evaluatorRole').value,
-                        overall_comment: document.getElementById('evaluationComment').value,
-                        responses
-                    })
-                });
-                const payload = await response.json();
-                if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to submit evaluation.');
-                clearAnalyticsDataCache();
-                status.style.color = '#047857';
-                status.textContent = `Submitted. Mean ${payload.overall_mean} - ${payload.interpretation}.`;
-                setTimeout(() => loadSection('evaluation'), 700);
-            } catch (error) {
-                status.style.color = '#B91C1C';
-                status.textContent = error.message;
-            }
         }
 
         function activeAnalyticsTitle() {

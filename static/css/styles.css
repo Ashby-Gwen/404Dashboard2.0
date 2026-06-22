@@ -1375,7 +1375,7 @@ button.is-loading,
     z-index: 9000;
     display: inline-flex;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
     gap: 0;
     width: 48px;
     height: 48px;
@@ -1383,6 +1383,8 @@ button.is-loading,
     min-height: 48px;
     overflow: hidden;
     padding: 7px;
+    border-radius: 999px;
+    text-decoration: none;
     background: var(--card-bg) !important;
     border: var(--border-width, 1px) solid var(--border-color) !important;
     color: var(--text-main) !important;
@@ -1400,6 +1402,7 @@ button.is-loading,
 .evaluation-launcher.btn-outline:hover,
 .evaluation-launcher.btn-outline:focus-visible {
     width: 168px;
+    justify-content: flex-start;
     gap: 9px;
     background: var(--accent-muted) !important;
     border-color: var(--accent-main) !important;
@@ -1417,6 +1420,13 @@ button.is-loading,
     width: 32px;
     height: 32px;
     object-fit: contain;
+}
+
+@media (max-width: 640px) {
+    .evaluation-launcher.btn-outline {
+        right: max(0.75rem, env(safe-area-inset-right));
+        bottom: max(0.75rem, env(safe-area-inset-bottom));
+    }
 }
 
 .evaluation-launcher-label {

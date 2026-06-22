@@ -52,6 +52,7 @@ def main():
             assert [item['label'] for item in questions['scale']] == [
                 'Strongly Disagree',
                 'Disagree',
+                'Neutral',
                 'Agree',
                 'Strongly Agree',
             ]
@@ -67,8 +68,8 @@ def main():
                 'Overall Agreement',
             }
             submit_payload = staff_client.post('/api/evaluation/responses', json={
-                'overall_comment': 'Modal works.',
-                'responses': [{'question_id': question['id'], 'rating': 4} for question in questions['questions']],
+                'overall_comment': 'Evaluation page works.',
+                'responses': [{'question_id': question['id'], 'rating': 5} for question in questions['questions']],
             }).get_json()
             assert submit_payload['success'] is True
             session_record = EvaluationSession.query.first()
@@ -105,6 +106,8 @@ def main():
     system_states = open(os.path.join(ROOT, 'static', 'js', 'system-states.js'), encoding='utf-8').read()
     assert 'withButtonLoading' in system_states
     assert 'evaluationModalRoot' in system_states
+    assert 'href="/evaluation"' in system_states
+    assert 'data-evaluation-backdrop' not in system_states
     assert '/static/images/icons/evaluation-icon.png' in system_states
     assert 'class="evaluation-launcher-label">Evaluate System</span>' in system_states
     assert 'aria-label="Evaluate System"' in system_states

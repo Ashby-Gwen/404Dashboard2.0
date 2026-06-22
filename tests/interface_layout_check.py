@@ -18,6 +18,7 @@ def read(path):
 def main():
     styles = read(os.path.join('static', 'css', 'styles.css'))
     analytics = read(os.path.join('templates', 'analytics.html'))
+    evaluation = read(os.path.join('templates', 'evaluation.html'))
     invoices = read(os.path.join('templates', 'invoices.html'))
     generated_theme = build_theme_css(default_theme_settings())
 
@@ -39,6 +40,12 @@ def main():
     assert 'openAnalyticsTools' in analytics
     assert 'Generate Analytics Report' in analytics
     assert 'Upload Historical CSV/Excel' in analytics
+    assert 'data-section="evaluation"' not in analytics
+    assert 'Web App Evaluation Questionnaire' in evaluation
+    assert 'evaluationPrintOverlay' in evaluation
+    assert 'evaluation-rating-cell' in evaluation
+    assert 'evaluation-score-track' in evaluation
+    assert 'evaluation-feedback-result' in evaluation
     assert '@media (max-width: 700px)' in analytics
     assert 'input[type="checkbox"]' in generated_theme
     assert 'min-height: 44px !important' in generated_theme

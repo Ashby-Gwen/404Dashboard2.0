@@ -189,7 +189,7 @@ def main():
 
             questions = client.get('/api/evaluation/questions').get_json()
             assert questions['success'] is True
-            assert [item['value'] for item in questions['scale']] == [1, 2, 3, 4]
+            assert [item['value'] for item in questions['scale']] == [1, 2, 3, 4, 5]
             ratings = [{'question_id': question['id'], 'rating': 4} for question in questions['questions']]
             submitted = client.post('/api/evaluation/responses', json={
                 'evaluator_name': 'QA Manager',

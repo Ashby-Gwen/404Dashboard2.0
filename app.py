@@ -3502,15 +3502,35 @@ def inject_user_navigation():
 
 # Initialize Database
 DEFAULT_EVALUATION_QUESTIONS = [
-    ("User Experience", "The system is easy to navigate during regular work tasks."),
-    ("Features", "The available features support the main sales, invoice, expense, and reporting workflows."),
-    ("Design", "The interface layout and visual hierarchy make information easy to understand."),
-    ("Compatibility", "The system works reliably on the devices and browsers used for daily operations."),
-    ("Reliability", "The system produces consistent results when the same task is repeated."),
-    ("Efficiency", "The system helps users complete tasks with reasonable time and effort."),
-    ("Security", "The system provides appropriate access control for each user role."),
-    ("Portability", "The system can be deployed and maintained across the intended Render and Supabase environment."),
-    ("Overall Agreement", "Overall, the system is suitable for supporting the organization's business workflow."),
+    ("User Experience", "The web app is easy to navigate and understand."),
+    ("User Experience", "The web app provides clear feedback for my actions, such as confirmations and error messages."),
+    ("User Experience", "The web app minimizes the number of steps needed to complete a task."),
+    ("User Experience", "The web app enhances my ability to analyze business performance effectively."),
+    ("Features", "The web app provides all the features I need for business analysis."),
+    ("Features", "The data visualizations, such as charts and graphs, are useful for decision-making."),
+    ("Design", "The layout of the web app is well-organized and not cluttered."),
+    ("Design", "The interface adapts well to different screen sizes."),
+    ("Design", "The web app maintains a consistent design throughout its different sections."),
+    ("Compatibility", "The web app runs smoothly on both mobile and desktop devices."),
+    ("Compatibility", "The web app functions well across different web browsers, such as Chrome, Firefox, and others."),
+    ("Compatibility", "The web app supports multiple operating systems, such as Windows, macOS, and others."),
+    ("Reliability", "The web app consistently performs without major crashes or errors."),
+    ("Reliability", "The web app correctly reflects the latest business transactions."),
+    ("Reliability", "I can rely on the web app for daily business operations."),
+    ("Efficiency", "The web app helps me complete tasks faster than manual methods."),
+    ("Efficiency", "The web app reduces the time needed to analyze sales and profits."),
+    ("Efficiency", "The web app minimizes unnecessary steps in data processing."),
+    ("Efficiency", "The web app reduces the workload of the management staff."),
+    ("Efficiency", "The web app improves overall workflow efficiency in the workspace."),
+    ("Security", "The login and authentication process is secure and reliable."),
+    ("Security", "The web app effectively protects sensitive business information from unauthorized access."),
+    ("Security", "I trust that my login credentials and personal data are well-protected."),
+    ("Portability", "The web app maintains full functionality across different platforms."),
+    ("Portability", "The mobile experience is just as effective as the desktop experience."),
+    ("Overall Agreement", "I am satisfied with the overall performance of the web app."),
+    ("Overall Agreement", "The web app meets my expectations for business analysis and insights."),
+    ("Overall Agreement", "The web app is a necessary tool for optimizing business decisions."),
+    ("Overall Agreement", "I would continue using this web app in the long term."),
 ]
 
 def default_seed_users():
@@ -3539,7 +3559,22 @@ def default_seed_users():
     ]
 
 def seed_evaluation_questions():
-    for order, (category, text) in enumerate(DEFAULT_EVALUATION_QUESTIONS, start=1):
+    expected_questions = list(enumerate(DEFAULT_EVALUATION_QUESTIONS, start=1))
+    current_questions = EvaluationQuestion.query.order_by(EvaluationQuestion.display_order.asc()).all()
+    current_signature = [
+        (question.display_order, question.category, question.question_text)
+        for question in current_questions
+    ]
+    expected_signature = [
+        (order, category, text)
+        for order, (category, text) in expected_questions
+    ]
+    if current_signature and current_signature != expected_signature:
+        EvaluationResponse.query.delete()
+        EvaluationSession.query.delete()
+        EvaluationQuestion.query.delete()
+        db.session.flush()
+    for order, (category, text) in expected_questions:
         question = EvaluationQuestion.query.filter_by(display_order=order).first()
         if not question:
             question = EvaluationQuestion(display_order=order)
@@ -8006,13 +8041,24 @@ def api_analytics_sales():
         return jsonify({'success': False, 'error': public_error_message(e, 'Sales analytics could not be loaded.')}), 400
 
 def likert_interpretation(mean_score):
-    if mean_score >= 3.50:
-        return 'Strong Agreement'
-    if mean_score >= 2.50:
-        return 'Agreement'
-    if mean_score >= 1.50:
-        return 'Disagreement'
-    return 'Strong Disagreement'
+    if mean_score >= 4.21:
+        return 'Strongly Agree'
+    if mean_score >= 3.41:
+        return 'Agree'
+    if mean_score >= 2.61:
+        return 'Neutral'
+    if mean_score >= 1.81:
+        return 'Disagree'
+    return 'Strongly Disagree'
+
+@app.route('/evaluation')
+@login_required
+@role_required(*ALL_BUSINESS_ROLES)
+def evaluation():
+    return render_template(
+        'evaluation.html',
+        can_view_results=session.get('role') == 'admin',
+    )
 
 @app.route('/api/evaluation/questions')
 @login_required
@@ -8025,8 +8071,9 @@ def evaluation_questions():
         'scale': [
             {'value': 1, 'label': 'Strongly Disagree'},
             {'value': 2, 'label': 'Disagree'},
-            {'value': 3, 'label': 'Agree'},
-            {'value': 4, 'label': 'Strongly Agree'},
+            {'value': 3, 'label': 'Neutral'},
+            {'value': 4, 'label': 'Agree'},
+            {'value': 5, 'label': 'Strongly Agree'},
         ],
         'questions': [
             {'id': question.id, 'category': question.category, 'question_text': question.question_text, 'display_order': question.display_order}
@@ -8040,8 +8087,9 @@ def evaluation_questions():
 def evaluation_responses():
     payload = request.get_json() or {}
     responses = payload.get('responses') or []
-    if not responses:
-        return jsonify({'success': False, 'error': 'At least one Likert response is required.'}), 400
+    active_questions = EvaluationQuestion.query.filter_by(is_active=True).order_by(EvaluationQuestion.display_order.asc()).all()
+    if len(responses) != len(active_questions):
+        return jsonify({'success': False, 'error': 'A rating is required for every evaluation question.'}), 400
     ratings = []
     session_record = EvaluationSession(
         user_id=session.get('user_id'),
@@ -8051,13 +8099,15 @@ def evaluation_responses():
     )
     db.session.add(session_record)
     db.session.flush()
-    valid_question_ids = {question.id for question in EvaluationQuestion.query.filter_by(is_active=True).all()}
+    valid_question_ids = {question.id for question in active_questions}
+    submitted_question_ids = set()
     for item in responses:
         question_id = int(item.get('question_id') or 0)
         rating = int(item.get('rating') or 0)
-        if question_id not in valid_question_ids or rating < 1 or rating > 4:
+        if question_id not in valid_question_ids or question_id in submitted_question_ids or rating < 1 or rating > 5:
             db.session.rollback()
             return jsonify({'success': False, 'error': 'Invalid question or rating detected.'}), 400
+        submitted_question_ids.add(question_id)
         ratings.append(rating)
         db.session.add(EvaluationResponse(
             session_id=session_record.id,
@@ -8073,7 +8123,7 @@ def evaluation_responses():
 
 @app.route('/api/evaluation/results')
 @login_required
-@role_required('manager', 'admin')
+@role_required('admin')
 def evaluation_results():
     filters = parse_report_date_filter()
     response_join_conditions = [EvaluationQuestion.id == EvaluationResponse.question_id]
