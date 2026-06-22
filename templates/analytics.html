@@ -327,6 +327,7 @@
         }
 
         @media (max-width: 700px) {
+
             .recommendation-toolbar,
             .recommendation-system-warning {
                 align-items: stretch;
@@ -347,7 +348,7 @@
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
-            .recommendation-row > .btn {
+            .recommendation-row>.btn {
                 width: 100%;
             }
         }
@@ -721,13 +722,49 @@
         }
 
         @media print {
-            body > *:not(#analyticsPrintModal) { display: none !important; }
-            .analytics-tools-backdrop, .recommendation-toolbar, .recommendation-system-warning button, .recommendation-row button { display: none !important; }
-            #analyticsPrintModal { position: static; display: block !important; padding: 0; background: #fff; }
-            .analytics-preview-shell { width: auto; height: auto; overflow: visible; border-radius: 0; box-shadow: none; }
-            .analytics-preview-toolbar { display: none !important; }
-            .analytics-preview-viewport { display: block; overflow: visible; padding: 0; background: #fff; }
-            .analytics-paper { width: 279mm; min-height: 216mm; margin: 0; box-shadow: none; }
+            body>*:not(#analyticsPrintModal) {
+                display: none !important;
+            }
+
+            .analytics-tools-backdrop,
+            .recommendation-toolbar,
+            .recommendation-system-warning button,
+            .recommendation-row button {
+                display: none !important;
+            }
+
+            #analyticsPrintModal {
+                position: static;
+                display: block !important;
+                padding: 0;
+                background: #fff;
+            }
+
+            .analytics-preview-shell {
+                width: auto;
+                height: auto;
+                overflow: visible;
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            .analytics-preview-toolbar {
+                display: none !important;
+            }
+
+            .analytics-preview-viewport {
+                display: block;
+                overflow: visible;
+                padding: 0;
+                background: #fff;
+            }
+
+            .analytics-paper {
+                width: 279mm;
+                min-height: 216mm;
+                margin: 0;
+                box-shadow: none;
+            }
         }
     </style>
 </head>
@@ -798,7 +835,8 @@
             <button class="analytics-tab" data-section="clients">Clients Analysis</button>
             <button class="analytics-tab" data-section="expenses">Expenses</button>
             <button class="analytics-tab" data-section="sales">Revenue</button>
-            <button class="analytics-tab" data-section="recommendations">Recommendations <span id="recommendationBadge" class="recommendation-badge" hidden>0</span></button>
+            <button class="analytics-tab" data-section="recommendations">Recommendations <span id="recommendationBadge"
+                    class="recommendation-badge" hidden>0</span></button>
             <button class="analytics-tab" data-section="evaluation">Evaluation</button>
         </div>
 
@@ -848,8 +886,8 @@
                 </div>
             </div>
             <div class="analytics-actions">
-                <button type="button" class="btn btn-outline" id="analyticsToolsButton"
-                    onclick="openAnalyticsTools()" aria-haspopup="dialog" aria-controls="analyticsToolsDrawer">
+                <button type="button" class="btn btn-outline" id="analyticsToolsButton" onclick="openAnalyticsTools()"
+                    aria-haspopup="dialog" aria-controls="analyticsToolsDrawer">
                     Analytics Tools
                 </button>
                 <button type="button" class="btn btn-outline" onclick="exportAnalyticsCsv()">Export CSV</button>
@@ -882,7 +920,8 @@
             <div class="analytics-preview-toolbar">
                 <div>
                     <h2 style="margin:0;">Analytics Report Preview</h2>
-                    <p style="margin:0.2rem 0 0; color:var(--text-muted); font-size:0.88rem;">Review the active analytics tab before printing.</p>
+                    <p style="margin:0.2rem 0 0; color:var(--text-muted); font-size:0.88rem;">Review the active
+                        analytics tab before printing.</p>
                 </div>
                 <div class="analytics-preview-actions">
                     <button class="btn btn-outline" onclick="closeAnalyticsPreview()">Back</button>
@@ -911,7 +950,7 @@
         let analyticsOverlayReturnFocus = null;
         let analyticsHasLiveData = true;
         let latestExpenseAnalytics = null;
-        const initialAnalyticsYears = {{ available_years|tojson }};
+        const initialAnalyticsYears = {{ available_years| tojson }};
 
         function escapeHtml(value) {
             return String(value ?? '')
@@ -1088,9 +1127,10 @@
                     <input class="analytics-tool-file" type="file" id="csvFile" accept=".csv,.xlsx,.xls" required
                         onchange="updateSelectedCSVFile()" />
                     <div class="analytics-tool-help">
-                        <div><strong>Required:</strong> DATE, COMPANY NAME, STORE NAME, COST, QUANTITY, SELLING PRICE</div>
-                        <div><strong>Optional:</strong> STORE BRANCH, PARTICULAR</div>
-                        <div id="selectedCsvFile">Date format: DD/MM/YYYY, example 01/01/2025.</div>
+                        <div><strong>Sales-detail required:</strong> DATE, COMPANY NAME, STORE NAME, COST, QUANTITY, SELLING PRICE</div>
+                        <div><strong>Sales-detail optional:</strong> STORE BRANCH, PARTICULAR</div>
+                        <div><strong>Historical-ledger required:</strong> source_type, source_id, transaction_date, financial_stage, flow_direction, flow_status, party_name, party_role, amount, balance_amount, category, status, description</div>
+                        <div id="selectedCsvFile">Sales dates: DD/MM/YYYY. Ledger dates: YYYY-MM-DD or DD/MM/YYYY.</div>
                     </div>
                     <button id="csvUploadButton" type="submit" class="btn btn-primary">Upload File</button>
                     <div id="uploadStatus" class="analytics-tool-status" role="status" aria-live="polite"></div>
@@ -1104,8 +1144,8 @@
                 <h3 id="generateAnalyticsTitle">Generate Analytics Report</h3>
                 <p>
                     ${hasLiveData
-                        ? 'System data is available. Refresh the historical transaction ledger when you are ready.'
-                        : 'No system data was found. Upload historical transaction data before generating analytics.'}
+                    ? 'System data is available. Refresh the historical transaction ledger when you are ready.'
+                    : 'No system data was found. Upload historical transaction data before generating analytics.'}
                 </p>
                 <button id="generateAnalyticsButton" type="button" class="btn btn-primary"
                     onclick="generateAnalyticsReport()" ${hasLiveData ? '' : 'disabled'}>
@@ -1272,10 +1312,10 @@
                 <label style="font-weight:600;">Compare with
                     <select id="overviewComparisonYear" onchange="loadOverviewComparison(${Number(data.selected_year)})" style="margin-left:0.4rem;">
                         ${[...new Set([...(data.available_years || []), Number(data.selected_year) - 1])]
-                            .filter(year => Number(year) !== Number(data.selected_year))
-                            .sort((a, b) => b - a)
-                            .map(year => `<option value="${year}" ${Number(year) === Number(data.selected_year) - 1 ? 'selected' : ''}>${year}</option>`)
-                            .join('')}
+                        .filter(year => Number(year) !== Number(data.selected_year))
+                        .sort((a, b) => b - a)
+                        .map(year => `<option value="${year}" ${Number(year) === Number(data.selected_year) - 1 ? 'selected' : ''}>${year}</option>`)
+                        .join('')}
                     </select>
                 </label>
             </div>
@@ -2335,11 +2375,11 @@
                             </div>
                             <div class="recommendation-summary recommendation-filter-group" role="group" aria-label="Filter recommendations by severity">
                                 ${[
-                                    ['all', 'All'],
-                                    ['danger', 'High priority'],
-                                    ['warning', 'Needs attention'],
-                                    ['success', 'Maintain']
-                                ].map(([value, label]) => `
+                    ['all', 'All'],
+                    ['danger', 'High priority'],
+                    ['warning', 'Needs attention'],
+                    ['success', 'Maintain']
+                ].map(([value, label]) => `
                                     <button type="button" class="recommendation-filter" data-severity="${value}"
                                         aria-pressed="${value === 'all' ? 'true' : 'false'}"
                                         onclick="setRecommendationSeverityFilter('${value}')">${label}</button>
@@ -2464,11 +2504,12 @@
             modal.id = 'recommendationModal';
             modal.className = 'recommendation-modal-backdrop';
             modal.innerHTML = `
-                <section class="recommendation-modal" role="dialog" aria-modal="true"
-                    aria-labelledby="recommendationModalTitle" tabindex="-1">
-                    <div style="display:flex; justify-content:space-between; gap:1rem; align-items:start;">
-                        <h3 id="recommendationModalTitle" style="margin:0;">${escapeHtml(rec.title)}</h3>
+                <section class="recommendation-modal" style="position: relative;" role="dialog" aria-modal="true" aria-labelledby="recommendationModalTitle" tabindex="-1">
+                    <div style="position: sticky; top: 0; z-index: 2; display: flex; justify-content: flex-end;">
                         <button type="button" class="btn btn-outline btn-sm" onclick="closeRecommendationDetails()">Close</button>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; gap: 1rem; align-items: start;">
+                        <h3 id="recommendationModalTitle" style="margin: 0; padding-right: 4rem;">${escapeHtml(rec.title)}</h3>
                     </div>
                     <div style="display:grid; gap:0.85rem; margin-top:1rem;">
                         ${details.map(([label, value]) => `

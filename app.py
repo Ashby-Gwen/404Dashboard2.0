@@ -7300,6 +7300,239 @@ def upload_csv():
         original_fields = [str(column) for column in frame.columns]
         header_map = {str(column).strip().upper(): column for column in frame.columns}
         required_fields = ['DATE', 'COMPANY NAME', 'STORE NAME', 'COST', 'QUANTITY', 'SELLING PRICE']
+        ledger_fields = [
+            'SOURCE_TYPE', 'SOURCE_ID', 'TRANSACTION_DATE', 'FINANCIAL_STAGE',
+            'FLOW_DIRECTION', 'FLOW_STATUS', 'PARTY_NAME', 'PARTY_ROLE',
+            'AMOUNT', 'BALANCE_AMOUNT', 'CATEGORY', 'STATUS', 'DESCRIPTION',
+        ]
+        is_sales_detail = all(field in header_map for field in required_fields)
+        is_historical_ledger = all(field in header_map for field in ledger_fields)
+
+        if is_historical_ledger and not is_sales_detail:
+            validation_errors = []
+            validated_records = []
+            duplicate_row_numbers = []
+            seen_upload_keys = set()
+            existing_duplicate_count = 0
+            unused_columns = [
+                field for field in original_fields
+                if field and field.strip().upper() not in set(ledger_fields)
+            ]
+
+            def ledger_value(row, upper_header):
+                value = row.get(header_map.get(upper_header), '')
+                return '' if pd.isna(value) else str(value).strip()
+
+            def required_ledger_text(row_number, row, upper_header):
+                value = ledger_value(row, upper_header)
+                if not value:
+                    validation_errors.append({
+                        'row': row_number,
+                        'field': upper_header.lower(),
+                        'message': f'{upper_header.lower()} is required.',
+                    })
+                return value
+
+            def ledger_decimal(row_number, row, upper_header, allow_zero=False):
+                raw_text = ledger_value(row, upper_header)
+                if not raw_text:
+                    validation_errors.append({
+                        'row': row_number,
+                        'field': upper_header.lower(),
+                        'message': f'{upper_header.lower()} is required.',
+                    })
+                    return None
+                cleaned = re.sub(r'[^0-9.\-]', '', raw_text.replace(',', ''))
+                try:
+                    value = Decimal(cleaned)
+                except (InvalidOperation, ValueError):
+                    validation_errors.append({
+                        'row': row_number,
+                        'field': upper_header.lower(),
+                        'value': raw_text,
+                        'message': f'{upper_header.lower()} must be numeric.',
+                    })
+                    return None
+                if value < 0 or (not allow_zero and value == 0):
+                    comparison = 'zero or greater' if allow_zero else 'greater than zero'
+                    validation_errors.append({
+                        'row': row_number,
+                        'field': upper_header.lower(),
+                        'value': raw_text,
+                        'message': f'{upper_header.lower()} must be {comparison}.',
+                    })
+                    return None
+                return value
+
+            existing_keys = {
+                (
+                    item.source_type, item.source_id,
+                    item.transaction_date.isoformat() if item.transaction_date else '',
+                    item.flow_direction, str(Decimal(str(item.amount or 0)).normalize()),
+                )
+                for item in AnalyticsData.query.all()
+            }
+
+            for index, row in enumerate(rows, start=2):
+                source_type = required_ledger_text(index, row, 'SOURCE_TYPE')
+                source_id = required_ledger_text(index, row, 'SOURCE_ID')
+                financial_stage = required_ledger_text(index, row, 'FINANCIAL_STAGE')
+                flow_direction = required_ledger_text(index, row, 'FLOW_DIRECTION').upper()
+                flow_status = required_ledger_text(index, row, 'FLOW_STATUS')
+                party_name = required_ledger_text(index, row, 'PARTY_NAME')
+                party_role = required_ledger_text(index, row, 'PARTY_ROLE')
+                category = required_ledger_text(index, row, 'CATEGORY')
+                status = required_ledger_text(index, row, 'STATUS')
+                description = required_ledger_text(index, row, 'DESCRIPTION')
+                amount = ledger_decimal(index, row, 'AMOUNT')
+                balance_amount = ledger_decimal(index, row, 'BALANCE_AMOUNT', allow_zero=True)
+                raw_date = ledger_value(row, 'TRANSACTION_DATE')
+                parsed_date = None
+                for date_format in ('%Y-%m-%d', '%d/%m/%Y'):
+                    try:
+                        parsed_date = datetime.strptime(raw_date, date_format).date()
+                        break
+                    except (TypeError, ValueError):
+                        continue
+                if not raw_date or not parsed_date:
+                    validation_errors.append({
+                        'row': index,
+                        'field': 'transaction_date',
+                        'value': raw_date,
+                        'message': 'transaction_date must use YYYY-MM-DD or DD/MM/YYYY.',
+                    })
+                if flow_direction and flow_direction not in {'INFLOW', 'OUTFLOW'}:
+                    validation_errors.append({
+                        'row': index,
+                        'field': 'flow_direction',
+                        'value': flow_direction,
+                        'message': 'flow_direction must be INFLOW or OUTFLOW.',
+                    })
+                required_values = (
+                    source_type, source_id, financial_stage, flow_direction, flow_status,
+                    party_name, party_role, category, status, description,
+                )
+                if not all(required_values) or None in (amount, balance_amount, parsed_date):
+                    continue
+                duplicate_key = (
+                    source_type, source_id, parsed_date.isoformat(), flow_direction,
+                    str(amount.normalize()),
+                )
+                if duplicate_key in seen_upload_keys:
+                    duplicate_row_numbers.append(index)
+                seen_upload_keys.add(duplicate_key)
+                if duplicate_key in existing_keys:
+                    existing_duplicate_count += 1
+                validated_records.append({
+                    'source_type': source_type,
+                    'source_id': source_id,
+                    'transaction_date': parsed_date,
+                    'financial_stage': financial_stage,
+                    'flow_direction': flow_direction,
+                    'flow_status': flow_status,
+                    'party_name': party_name,
+                    'party_role': party_role,
+                    'amount': amount,
+                    'balance_amount': balance_amount,
+                    'category': category,
+                    'status': status,
+                    'description': description,
+                    'row_number': index,
+                })
+
+            summary = {
+                'schema': 'historical_ledger',
+                'rows_read': len(rows),
+                'rows_ready': len(validated_records),
+                'invalid_rows': len({error['row'] for error in validation_errors}),
+                'unused_columns': unused_columns,
+                'duplicate_rows_in_upload': duplicate_row_numbers,
+                'duplicate_rows_already_in_database': existing_duplicate_count,
+                'date_format': 'YYYY-MM-DD or DD/MM/YYYY',
+                'source_format': source_format,
+            }
+            if not rows:
+                return jsonify({
+                    'success': False,
+                    'error': 'The upload has headers but no data rows.',
+                    'summary': summary,
+                    'validation_errors': [],
+                    'outliers': [],
+                }), 400
+            if validation_errors:
+                return jsonify({
+                    'success': False,
+                    'error': 'Upload rejected. Fix the invalid rows and upload again.',
+                    'errors': validation_errors[:50],
+                    'validation_errors': validation_errors[:50],
+                    'summary': summary,
+                    'outliers': [],
+                }), 400
+            if duplicate_row_numbers or existing_duplicate_count:
+                return jsonify({
+                    'success': False,
+                    'error': 'Upload rejected. Remove duplicate ledger rows and upload again.',
+                    'summary': summary,
+                    'validation_errors': [],
+                    'outliers': [],
+                }), 400
+
+            batch_id = f"HIST-{datetime.now().strftime('%Y%m%d%H%M%S')}-{len(validated_records)}"
+            filename = file.filename or 'historical_ledger_upload'
+            for record_data in validated_records:
+                db.session.add(AnalyticsData(
+                    source_type=record_data['source_type'],
+                    source_id=record_data['source_id'],
+                    transaction_date=record_data['transaction_date'],
+                    financial_stage=record_data['financial_stage'],
+                    flow_direction=record_data['flow_direction'],
+                    flow_status=record_data['flow_status'],
+                    party_name=record_data['party_name'],
+                    party_role=record_data['party_role'],
+                    amount=float(record_data['amount']),
+                    balance_amount=float(record_data['balance_amount']),
+                    category=record_data['category'],
+                    status=record_data['status'],
+                    description=record_data['description'],
+                    upload_batch_id=batch_id,
+                    source_filename=filename,
+                    source_format=source_format,
+                ))
+            refresh_client_financials()
+            log_audit('UPLOAD_HISTORICAL_LEDGER', 'analytics_data', None, None, {
+                'rows': len(validated_records), 'filename': filename, 'batch_id': batch_id,
+            })
+            db.session.commit()
+            return jsonify({
+                'success': True,
+                'message': f'Success! Processing complete. {len(validated_records)} ledger entries seeded successfully.',
+                'summary': summary,
+                'outliers': [],
+                'upload_batch_id': batch_id,
+            })
+
+        ledger_markers = {'SOURCE_TYPE', 'TRANSACTION_DATE', 'FLOW_DIRECTION', 'AMOUNT'}
+        if not is_sales_detail and ledger_markers.intersection(header_map):
+            missing_fields = [field for field in ledger_fields if field not in header_map]
+            summary = {
+                'rows_read': len(rows),
+                'rows_ready': 0,
+                'missing_columns': missing_fields,
+                'required_columns': [field.lower() for field in ledger_fields],
+                'schema': 'historical_ledger',
+                'source_format': source_format,
+            }
+            return jsonify({
+                'success': False,
+                'error': 'Schema verification mismatch.',
+                'summary': summary,
+                'validation_errors': [
+                    {'row': 1, 'field': field.lower(), 'message': 'Required column is missing.'}
+                    for field in missing_fields
+                ],
+                'outliers': [],
+            }), 400
+
         missing_fields = [field for field in required_fields if field not in header_map]
         if missing_fields:
             eda_summary = {
@@ -7307,6 +7540,7 @@ def upload_csv():
                 'rows_ready': 0,
                 'missing_columns': missing_fields,
                 'required_columns': required_fields,
+                'accepted_ledger_columns': [field.lower() for field in ledger_fields],
                 'source_format': source_format,
             }
             return jsonify({
