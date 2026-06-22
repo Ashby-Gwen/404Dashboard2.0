@@ -1,6 +1,5 @@
 * {
     scroll-behavior: smooth;
-    transition: .3s;
 }
 
 a,
@@ -17,6 +16,10 @@ textarea {
 }
 
 :root {
+    --motion-fast: 150ms;
+    --motion-standard: 200ms;
+    --motion-slow: 250ms;
+    --motion-ease: cubic-bezier(0.2, 0, 0, 1);
     --bg: #f3efe6;
     --bg-2: #fff9ed;
 
@@ -83,6 +86,96 @@ textarea {
     --status-unpaid-text: #991B1B;
     --status-downpayment-bg: #DBEAFE;
     --status-downpayment-text: #1E40AF;
+}
+
+/* --- Shared page and asynchronous-content motion --- */
+html.syluxent-js body {
+    opacity: 0;
+    transform: translateY(5px);
+}
+
+html.syluxent-js.syluxent-page-ready body {
+    opacity: 1;
+    transform: none;
+    transition:
+        opacity var(--motion-standard) var(--motion-ease),
+        transform var(--motion-standard) var(--motion-ease);
+}
+
+html.syluxent-js.syluxent-page-leaving body {
+    opacity: 0.82;
+    transform: translateY(-3px);
+    pointer-events: none;
+}
+
+html::after {
+    content: "";
+    position: fixed;
+    z-index: 11000;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 3px;
+    opacity: 0;
+    background: linear-gradient(90deg, var(--orange), var(--orange-2));
+    box-shadow: 0 1px 8px color-mix(in srgb, var(--orange) 42%, transparent);
+    pointer-events: none;
+}
+
+html.syluxent-navigation-busy::after {
+    width: 78%;
+    opacity: 1;
+    transition:
+        width 1.4s cubic-bezier(0.1, 0.65, 0.25, 1),
+        opacity var(--motion-fast) ease;
+}
+
+.is-content-busy {
+    position: relative;
+    cursor: progress;
+}
+
+.is-content-busy::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    border-radius: inherit;
+    background: color-mix(in srgb, var(--card-bg) 26%, transparent);
+    backdrop-filter: blur(1px);
+    pointer-events: none;
+    animation: systemBusyFade var(--motion-fast) ease both;
+}
+
+.is-content-replacing {
+    opacity: 0.45;
+    transform: translateY(3px);
+    transition:
+        opacity var(--motion-fast) var(--motion-ease),
+        transform var(--motion-fast) var(--motion-ease);
+}
+
+.is-content-entering {
+    animation: systemContentEnter var(--motion-standard) var(--motion-ease) both;
+}
+
+tbody tr {
+    animation: systemRowEnter var(--motion-standard) var(--motion-ease) both;
+}
+
+@keyframes systemContentEnter {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes systemRowEnter {
+    from { opacity: 0; transform: translateY(2px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes systemBusyFade {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 * {
@@ -1200,6 +1293,7 @@ td {
     padding: 1rem;
     background: rgba(15, 23, 42, 0.48);
     backdrop-filter: blur(2px);
+    animation: systemBackdropIn var(--motion-standard) var(--motion-ease) both;
 }
 
 .system-loading-overlay[hidden],
@@ -1222,6 +1316,21 @@ td {
     grid-template-columns: auto 1fr;
     gap: 0.35rem 0.85rem;
     align-items: center;
+}
+
+.system-loading-card,
+.system-modal {
+    animation: systemSurfaceIn var(--motion-standard) var(--motion-ease) both;
+}
+
+@keyframes systemBackdropIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes systemSurfaceIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.99); }
+    to { opacity: 1; transform: none; }
 }
 
 .system-loading-card > span:last-child {
@@ -1311,6 +1420,7 @@ button.is-loading,
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    min-width: var(--loading-button-width, auto);
 }
 
 .button-spinner {

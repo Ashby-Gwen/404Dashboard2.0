@@ -1077,9 +1077,15 @@
             activeAnalyticsSection = section;
             destroyCharts();
             const contentDiv = document.getElementById('analytics-content');
-            contentDiv.innerHTML = window.SyluxentUI
-                ? SyluxentUI.skeleton({ rows: section === 'overview' ? 3 : 5, columns: section === 'clients' ? 5 : 3 })
-                : '<div class="loading">Loading ' + section + ' data...</div>';
+            const hasContent = contentDiv.children.length > 0 && !contentDiv.querySelector('.loading');
+            const clearBusy = hasContent && window.SyluxentUI
+                ? SyluxentUI.setContainerBusy(contentDiv, true)
+                : () => {};
+            if (!hasContent) {
+                contentDiv.innerHTML = window.SyluxentUI
+                    ? SyluxentUI.skeleton({ rows: section === 'overview' ? 3 : 5, columns: section === 'clients' ? 5 : 3 })
+                    : '<div class="loading">Loading ' + section + ' data...</div>';
+            }
 
             try {
                 let html = '';
@@ -1096,7 +1102,8 @@
                     html = await loadRecommendations();
                 }
 
-                contentDiv.innerHTML = html;
+                if (window.SyluxentUI) await SyluxentUI.replaceContent(contentDiv, html);
+                else contentDiv.innerHTML = html;
 
                 // Initialize charts if needed
                 if (section === 'clients') {
@@ -1110,7 +1117,11 @@
                 }
                 updateRecommendationBadge(section);
             } catch (error) {
-                contentDiv.innerHTML = '<div class="error-message">Error loading ' + section + ' data: ' + error.message + '</div>';
+                const errorHtml = '<div class="error-message">Error loading ' + section + ' data: ' + error.message + '</div>';
+                if (window.SyluxentUI) await SyluxentUI.replaceContent(contentDiv, errorHtml);
+                else contentDiv.innerHTML = errorHtml;
+            } finally {
+                clearBusy();
             }
         }
 
@@ -1521,7 +1532,9 @@
                     clearAnalyticsDataCache();
                     statusDiv.innerHTML = renderUploadFeedback(result, true);
                     setTimeout(() => {
-                        location.reload();
+                        closeAnalyticsToolsDrawer();
+                        loadSection(activeAnalyticsSection);
+                        refreshRecommendationBadge();
                     }, 1500);
                 } else {
                     throw new Error(result.error);

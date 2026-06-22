@@ -4,6 +4,11 @@
     const tasks = new Map();
     let taskSequence = 0;
     let interruptionRequest = null;
+    let pageTransitionTimer = null;
+    let pageTransitionTarget = null;
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+
+    document.documentElement.classList.add('syluxent-js', 'syluxent-page-pending');
 
     function ensureInterface() {
         if (!document.body || document.getElementById('systemStateRoot')) return;
@@ -74,6 +79,135 @@
         if (!task) return;
         document.getElementById('systemLoadingTitle').textContent = task.name;
         document.getElementById('systemLoadingMessage').textContent = task.message || 'Please wait.';
+    }
+
+    function motionDuration(value = 180) {
+        return reducedMotion?.matches ? 0 : value;
+    }
+
+    function beginPageTransition(options = {}) {
+        const delay = Math.max(0, Number(options.delay ?? 90));
+        const target = options.target || null;
+        pageTransitionTarget = target;
+        window.clearTimeout(pageTransitionTimer);
+        document.documentElement.classList.add('syluxent-page-leaving');
+        document.documentElement.classList.remove('syluxent-page-ready');
+        document.documentElement.setAttribute('aria-busy', 'true');
+        pageTransitionTimer = window.setTimeout(() => {
+            if (pageTransitionTarget === target) {
+                document.documentElement.classList.add('syluxent-navigation-busy');
+            }
+        }, delay);
+    }
+
+    function cancelPageTransition() {
+        window.clearTimeout(pageTransitionTimer);
+        pageTransitionTimer = null;
+        pageTransitionTarget = null;
+        document.documentElement.classList.remove(
+            'syluxent-page-pending',
+            'syluxent-page-leaving',
+            'syluxent-navigation-busy'
+        );
+        document.documentElement.classList.add('syluxent-page-ready');
+        document.documentElement.removeAttribute('aria-busy');
+    }
+
+    function revealPage() {
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(cancelPageTransition);
+        });
+    }
+
+    function shouldTransitionLink(event, link) {
+        if (!link || event.defaultPrevented || event.button !== 0) return false;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+        if (link.dataset.noTransition === 'true' || link.hasAttribute('download')) return false;
+        if (link.target && link.target.toLowerCase() !== '_self') return false;
+        if (link.hasAttribute('onclick') || link.getAttribute('role') === 'button') return false;
+        const rawHref = link.getAttribute('href');
+        if (!rawHref || rawHref.startsWith('#') || rawHref.startsWith('javascript:')) return false;
+        let destination;
+        try {
+            destination = new URL(link.href, window.location.href);
+        } catch {
+            return false;
+        }
+        if (!['http:', 'https:'].includes(destination.protocol)) return false;
+        if (destination.origin !== window.location.origin) return false;
+        if (destination.pathname === window.location.pathname &&
+            destination.search === window.location.search &&
+            destination.hash) return false;
+        return true;
+    }
+
+    function initializePageLifecycle() {
+        if (document.documentElement.dataset.syluxentPageLifecycle) return;
+        document.documentElement.dataset.syluxentPageLifecycle = 'true';
+
+        document.addEventListener('click', event => {
+            const link = event.target.closest?.('a[href]');
+            if (!shouldTransitionLink(event, link)) return;
+            beginPageTransition({
+                target: link.href,
+                delay: link.dataset.loadingDelay
+            });
+        }, true);
+
+        document.addEventListener('submit', event => {
+            if (event.defaultPrevented || event.target.dataset.noTransition === 'true') return;
+            beginPageTransition({
+                target: event.target.action || window.location.href,
+                delay: event.target.dataset.loadingDelay
+            });
+        });
+
+        window.addEventListener('pageshow', cancelPageTransition);
+        window.addEventListener('pagehide', () => window.clearTimeout(pageTransitionTimer));
+        window.addEventListener('load', revealPage, { once: true });
+        if (document.readyState === 'complete') revealPage();
+        else if (document.readyState !== 'loading') revealPage();
+    }
+
+    function resolveElement(target) {
+        return typeof target === 'string' ? document.querySelector(target) : target;
+    }
+
+    function setContainerBusy(target, busy = true, options = {}) {
+        const element = resolveElement(target);
+        if (!element) return () => {};
+        const delay = Math.max(0, Number(options.delay ?? element.dataset.loadingDelay ?? 140));
+        let visible = false;
+        const timer = window.setTimeout(() => {
+            visible = true;
+            element.classList.add('is-content-busy');
+            element.setAttribute('aria-busy', 'true');
+        }, delay);
+        if (!busy) {
+            window.clearTimeout(timer);
+            element.classList.remove('is-content-busy');
+            element.removeAttribute('aria-busy');
+        }
+        return () => {
+            window.clearTimeout(timer);
+            if (visible) element.classList.remove('is-content-busy');
+            element.removeAttribute('aria-busy');
+        };
+    }
+
+    async function replaceContent(target, content, options = {}) {
+        const element = resolveElement(target);
+        if (!element) return null;
+        const duration = motionDuration(Number(options.duration) || 160);
+        element.classList.add('is-content-replacing');
+        if (duration) await new Promise(resolve => window.setTimeout(resolve, duration));
+        if (content instanceof Node) element.replaceChildren(content);
+        else element.innerHTML = String(content ?? '');
+        element.classList.remove('is-content-replacing');
+        element.classList.add('is-content-entering');
+        document.dispatchEvent(new CustomEvent('syluxent-content-updated', { detail: { container: element } }));
+        window.requestAnimationFrame(() => element.classList.remove('is-content-entering'));
+        return element;
     }
 
     function createProgress(container, options = {}) {
@@ -245,9 +379,11 @@
                 html: button.innerHTML,
                 value: button.value,
                 disabled: button.disabled,
+                loadingWidth: button.style.getPropertyValue('--loading-button-width'),
                 ariaBusy: button.getAttribute('aria-busy'),
                 ariaDisabled: button.getAttribute('aria-disabled')
             });
+            button.style.setProperty('--loading-button-width', `${Math.ceil(button.getBoundingClientRect().width)}px`);
             button.classList.add('is-loading');
             button.setAttribute('aria-busy', 'true');
             if (button.tagName === 'A') button.setAttribute('aria-disabled', 'true');
@@ -265,6 +401,8 @@
         button.innerHTML = previous.html;
         if (button.tagName === 'INPUT') button.value = previous.value;
         button.disabled = previous.disabled;
+        if (previous.loadingWidth) button.style.setProperty('--loading-button-width', previous.loadingWidth);
+        else button.style.removeProperty('--loading-button-width');
         if (previous.ariaBusy === null) button.removeAttribute('aria-busy');
         else button.setAttribute('aria-busy', previous.ariaBusy);
         if (previous.ariaDisabled === null) button.removeAttribute('aria-disabled');
@@ -875,7 +1013,11 @@
         initializeFutureDateWarnings,
         showServerWarnings,
         setButtonLoading,
-        withButtonLoading
+        withButtonLoading,
+        beginPageTransition,
+        cancelPageTransition,
+        replaceContent,
+        setContainerBusy
     };
 
     window.GlobalTaskStatus = api;
@@ -883,6 +1025,7 @@
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             ensureInterface();
+            initializePageLifecycle();
             initializeGlobalButtonLoading();
             initializeFutureDateWarnings();
             initializeLogoutCacheCleanup();
@@ -892,6 +1035,7 @@
         }, { once: true });
     } else {
         ensureInterface();
+        initializePageLifecycle();
         initializeGlobalButtonLoading();
         initializeFutureDateWarnings();
         initializeLogoutCacheCleanup();
