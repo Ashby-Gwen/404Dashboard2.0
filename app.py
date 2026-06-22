@@ -3706,6 +3706,8 @@ def login():
             log_audit('LOGIN', 'session_records', session_record.id, None, {'username': user.username, 'role': user.role.role_name})
             db.session.commit()
             flash(f'Welcome back, {username}!', 'success')
+            if session['role'] == 'admin':
+                return redirect(url_for('database_interface'))
             return redirect(url_for('dashboard'))
         else:
             flash('Invalid login credentials. Please check your details and try again.', 'error')

@@ -386,6 +386,126 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        @media (max-width: 760px) {
+            #adminTabs {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding-bottom: 0.35rem;
+                scrollbar-width: thin;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            #adminTabs .nav-item,
+            #adminTabs .nav-link {
+                flex: 0 0 auto;
+                white-space: nowrap;
+            }
+
+            .admin-shell {
+                padding: 0.75rem;
+            }
+
+            .admin-card {
+                padding: 0.85rem;
+            }
+
+            .admin-card .table-responsive {
+                position: relative;
+                width: calc(100% + 0.35rem);
+                margin-right: -0.35rem;
+                overflow-x: auto;
+                overscroll-behavior-inline: contain;
+                scrollbar-width: thin;
+                -webkit-overflow-scrolling: touch;
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                background:
+                    linear-gradient(to right, var(--card-bg) 30%, transparent),
+                    linear-gradient(to left, var(--card-bg) 30%, transparent),
+                    linear-gradient(to right, rgba(15, 23, 42, 0.14), transparent 12px),
+                    linear-gradient(to left, rgba(15, 23, 42, 0.14), transparent 12px);
+                background-position: left center, right center, left center, right center;
+                background-repeat: no-repeat;
+                background-size: 32px 100%, 32px 100%, 14px 100%, 14px 100%;
+                background-attachment: local, local, scroll, scroll;
+            }
+
+            .admin-card .table-responsive > table {
+                min-width: 760px;
+                margin-bottom: 0;
+            }
+
+            #dataGridTable,
+            #auditTable,
+            #accountApprovalsTable,
+            #notificationsTable,
+            #compiledExceptionTable,
+            #compiledClientTable,
+            #compiledDuplicateTable {
+                min-width: 820px;
+            }
+
+            .admin-card .table-responsive thead th {
+                position: sticky;
+                top: 0;
+                z-index: 2;
+                background: var(--card-bg);
+                white-space: nowrap;
+                box-shadow: inset 0 -1px var(--border-color);
+            }
+
+            .admin-card .table-responsive td {
+                white-space: nowrap;
+            }
+
+            .admin-card .table-responsive td.audit-diff,
+            .admin-card .table-responsive td[data-column*="description"],
+            .admin-card .table-responsive td[data-column*="comment"],
+            .admin-card .table-responsive td[data-column*="old"],
+            .admin-card .table-responsive td[data-column*="new"] {
+                min-width: 220px;
+                max-width: 320px;
+                white-space: normal;
+                overflow-wrap: anywhere;
+            }
+
+            .admin-card .table-responsive .btn,
+            .admin-card .table-responsive .badge {
+                white-space: nowrap;
+            }
+
+            .section-header,
+            .grid-toolbar,
+            .client-search-row,
+            .client-list-layout,
+            .client-order-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .section-header > .btn,
+            .grid-toolbar > .btn,
+            .admin-card .d-flex > .btn {
+                width: 100%;
+            }
+
+            #gridPageSize {
+                max-width: none !important;
+            }
+
+            #gridPane .admin-card > .d-flex.justify-content-between {
+                align-items: stretch !important;
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+
+            #gridPane .btn-group {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                width: 100%;
+            }
+        }
     </style>
 </head>
 

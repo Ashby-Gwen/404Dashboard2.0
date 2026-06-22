@@ -19,6 +19,7 @@ def main():
     styles = read(os.path.join('static', 'css', 'styles.css'))
     analytics = read(os.path.join('templates', 'analytics.html'))
     evaluation = read(os.path.join('templates', 'evaluation.html'))
+    admin = read(os.path.join('templates', 'admin.html'))
     invoices = read(os.path.join('templates', 'invoices.html'))
     generated_theme = build_theme_css(default_theme_settings())
 
@@ -46,6 +47,12 @@ def main():
     assert 'evaluation-rating-cell' in evaluation
     assert 'evaluation-score-track' in evaluation
     assert 'evaluation-feedback-result' in evaluation
+    assert '#adminTabs' in admin
+    assert 'overflow-x: auto' in admin
+    assert '-webkit-overflow-scrolling: touch' in admin
+    assert 'min-width: 820px' in admin
+    assert 'position: sticky' in admin
+    assert 'overflow-wrap: anywhere' in admin
     assert '@media (max-width: 700px)' in analytics
     assert 'input[type="checkbox"]' in generated_theme
     assert 'min-height: 44px !important' in generated_theme
