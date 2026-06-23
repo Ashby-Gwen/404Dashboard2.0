@@ -61,8 +61,8 @@ def main():
             assert notifications['account_approvals'][0]['username'] == 'new_staff'
 
             approval_response = client.post(
-                f'/admin/users/{pending_user.id}/approval',
-                json={'decision': 'approve'},
+                f'/admin/users/{pending_user.id}/action',
+                json={'action': 'approve', 'admin_password': 'admin123'},
             ).get_json()
             assert approval_response['success'] is True
 

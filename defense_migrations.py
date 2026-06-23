@@ -10,13 +10,14 @@ from typing import Any
 from sqlalchemy import inspect, text
 
 
-DEFENSE_MIGRATION_ID = "2026-06-21-collection-receipts"
+DEFENSE_MIGRATION_ID = "2026-06-23-user-disable-reason"
 SUPABASE_MIGRATION_PATH = "docs/supabase_defense_readiness_migration.sql"
 
 REQUIRED_COLUMNS = {
     "users": {
         "profile_photo_data": "TEXT",
         "profile_photo_mime": "VARCHAR(80)",
+        "disabled_reason": "TEXT",
     },
     "evaluation_sessions": {
         "user_id": "INTEGER REFERENCES users(id)",

@@ -78,6 +78,60 @@
             margin-bottom: 1rem;
         }
 
+        #gridTable {
+            min-height: 44px;
+            padding-right: 2.75rem;
+            cursor: pointer;
+            border: 2px solid color-mix(in srgb, var(--brand-orange) 55%, var(--border-color));
+            background-color: var(--card-bg);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23ff6a00' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+            background-position: right 0.85rem center;
+            background-size: 18px 18px;
+            background-repeat: no-repeat;
+            font-weight: 750;
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-orange) 8%, transparent);
+        }
+
+        #gridTable:hover,
+        #gridTable:focus-visible {
+            border-color: var(--brand-orange);
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-orange) 18%, transparent);
+        }
+
+        .user-action-list {
+            display: grid;
+            gap: 0.65rem;
+        }
+
+        .user-action-list .btn {
+            justify-content: flex-start;
+            width: 100%;
+            text-align: left;
+        }
+
+        .user-action-summary {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+            padding: 0.85rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--surface);
+        }
+
+        .user-action-summary span {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        .user-action-protected {
+            padding: 0.85rem;
+            border: 1px solid color-mix(in srgb, var(--brand-orange) 40%, var(--border-color));
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--brand-orange) 8%, var(--card-bg));
+        }
+
         .client-list-layout {
             display: grid;
             grid-template-columns: minmax(280px, 380px) 1fr;
@@ -990,6 +1044,47 @@
         </div>
     </div>
 
+    <div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalTitle" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="editUserModalTitle">Edit User</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="user-action-summary mb-3">
+                        <div><span>Username</span><strong id="editUserName">-</strong></div>
+                        <div><span>Role</span><strong id="editUserRole">-</strong></div>
+                        <div><span>Status</span><strong id="editUserStatus">-</strong></div>
+                        <div><span>Disable reason</span><strong id="editUserDisabledReason">-</strong></div>
+                    </div>
+                    <div id="editUserActionStep">
+                        <p class="text-muted">Choose an account action. You will confirm it with your administrator password.</p>
+                        <div class="user-action-list" id="editUserActionList"></div>
+                    </div>
+                    <form id="editUserConfirmStep" hidden onsubmit="submitUserAction(event)">
+                        <button class="btn btn-link px-0 mb-2" type="button" onclick="showUserActionList()">&larr; Back to actions</button>
+                        <h3 class="fs-6" id="editUserConfirmTitle">Confirm action</h3>
+                        <p class="text-muted" id="editUserConfirmMessage"></p>
+                        <div id="editUserReasonField" hidden>
+                            <label class="form-label" for="editUserReason">Reason for disabling</label>
+                            <textarea class="form-control mb-3" id="editUserReason" rows="3" maxlength="1000"></textarea>
+                        </div>
+                        <label class="form-label" for="editUserAdminPassword">Admin password</label>
+                        <input class="form-control" id="editUserAdminPassword" type="password"
+                            autocomplete="current-password" required>
+                        <small class="text-muted">Enter your own administrator password. It is never stored or logged.</small>
+                        <div class="alert alert-danger mt-3 mb-0" id="editUserActionError" role="alert" hidden></div>
+                        <div class="d-flex justify-content-end gap-2 mt-3">
+                            <button class="btn btn-outline-secondary" type="button" onclick="showUserActionList()">Cancel</button>
+                            <button class="btn btn-primary" id="editUserConfirmButton" type="submit">Confirm</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let gridPage = 1;
@@ -1009,8 +1104,13 @@
         let compiledSalesFilename = '';
         let compiledSalesResolutions = {};
         let compiledSalesPreview = null;
+        let selectedEditUser = null;
+        let selectedUserAction = '';
+        let editUserTrigger = null;
+        const currentAdminUserId = {{ session.get('user_id') | tojson }};
+        const adminUserRows = new Map();
         const businessColumns = {
-            users: ['id', 'username', 'email', 'role_id', 'status', 'created_at'],
+            users: ['id', 'username', 'email', 'role_name', 'status', 'disabled_reason', 'created_at'],
             roles: ['id', 'role_name', 'description'],
             clients: ['id', 'client_name', 'contact_info', 'status', 'total_revenue', 'total_balance'],
             sales_orders: ['id', 'so_number', 'company_name', 'store_name', 'order_date', 'sales_staff', 'total_amount', 'status'],
@@ -1168,6 +1268,7 @@
 
         function renderGrid(grid) {
             lastGridPayload = grid;
+            if (grid.table === 'users') adminUserRows.clear();
             const preferredColumns = businessColumns[grid.table] || grid.columns;
             const visibleColumns = gridTechnicalView.checked
                 ? grid.columns
@@ -1195,12 +1296,10 @@
             const emptyColspan = visibleColumns.length + 1 + (grid.table === 'users' ? 1 : 0);
             const body = grid.rows.length
                 ? grid.rows.map(row => {
+                    if (grid.table === 'users') adminUserRows.set(Number(row.id), row);
                     const action = grid.table === 'users'
-                        ? `<td>${row.status === 'pending'
-                            ? `<button class="btn btn-primary btn-sm me-1" onclick="reviewAccount(${row.id}, 'approve')">Approve</button><button class="btn btn-outline-danger btn-sm" onclick="reviewAccount(${row.id}, 'reject')">Reject</button>`
-                            : row.status === 'approved'
-                                ? `<button class="btn btn-outline-danger btn-sm" onclick="deactivateUser(${row.id})">Disable</button>`
-                                : '<span class="text-muted">No action</span>'}</td>`
+                        ? `<td><button class="btn btn-outline-primary btn-sm" type="button"
+                            onclick="openEditUser(${row.id}, this)">Edit User</button></td>`
                         : '';
                     const recordId = row.id ?? row.analytics_id;
                     return '<tr><td><input class="row-check" aria-label="Select record ' + escapeHtml(recordId) + '" type="checkbox" value="' + recordId + '"></td>' + visibleColumns.map(col => `<td>${escapeHtml(row[col] ?? '-')}</td>`).join('') + action + '</tr>';
@@ -1921,39 +2020,167 @@
             });
         }
 
-        function deactivateUser(userId) {
-            if (!confirm('Disable this user account?')) return;
-            fetch('/delete-user/' + userId, { method: 'DELETE' })
-                .then(r => r.json())
-                .then(data => {
-                    if (!data.success) return showToast(data.error || 'Unable to deactivate user', 'error');
-                    showToast(data.message, 'success');
-                    loadGrid();
-                });
+        function userActionDefinitions(user) {
+            const role = String(user.role_name || '').toLowerCase();
+            const status = String(user.status || '').toLowerCase();
+            const protectedAccount = Number(user.id) === Number(currentAdminUserId) || role === 'admin';
+            if (protectedAccount) return [];
+            if (status === 'pending') {
+                return [
+                    { action: 'approve', label: 'Approve account', className: 'btn-outline-success' },
+                    { action: 'reject', label: 'Reject account', className: 'btn-outline-danger' }
+                ];
+            }
+            if (status === 'disabled' || status === 'rejected') {
+                return [{ action: 'enable', label: 'Re-enable account', className: 'btn-outline-success' }];
+            }
+            if (status !== 'approved') return [];
+            const actions = [];
+            if (['staff', 'sales staff', 'accounting staff'].includes(role)) {
+                actions.push({ action: 'promote_manager', label: 'Change role to Manager', className: 'btn-outline-primary' });
+            } else if (role === 'manager') {
+                actions.push({ action: 'demote_staff', label: 'Change role to Staff', className: 'btn-outline-primary' });
+            }
+            actions.push({ action: 'disable', label: 'Disable account', className: 'btn-outline-danger' });
+            return actions;
         }
 
-        function reviewAccount(userId, decision) {
-            const actionLabel = decision === 'approve' ? 'approve' : 'reject';
-            if (!confirm(`Are you sure you want to ${actionLabel} this account request?`)) return;
-            fetch(`/admin/users/${userId}/approval`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ decision })
-            })
-                .then(r => r.json())
-                .then(data => {
-                    if (!data.success) return showToast(data.error || 'Unable to review account', 'error');
-                    showToast(data.message, 'success');
-                    loadNotifications();
-                    if (gridTable?.value === 'users') loadGrid();
-                });
+        async function fetchAdminUser(userId) {
+            if (adminUserRows.has(Number(userId))) return adminUserRows.get(Number(userId));
+            const params = new URLSearchParams({
+                table: 'users',
+                page_size: 5,
+                filters: JSON.stringify({ id: String(userId) })
+            });
+            const response = await fetch('/admin/data-grid?' + params.toString());
+            const data = await response.json();
+            if (!data.success || !data.grid.rows.length) throw new Error(data.error || 'User not found.');
+            const user = data.grid.rows[0];
+            adminUserRows.set(Number(user.id), user);
+            return user;
         }
+
+        async function openEditUser(userId, trigger = null) {
+            try {
+                selectedEditUser = await fetchAdminUser(userId);
+                editUserTrigger = trigger || document.activeElement;
+                editUserName.textContent = selectedEditUser.username || '-';
+                editUserRole.textContent = selectedEditUser.role_name || '-';
+                editUserStatus.textContent = selectedEditUser.status || '-';
+                editUserDisabledReason.textContent = selectedEditUser.disabled_reason || '-';
+                showUserActionList();
+                bootstrap.Modal.getOrCreateInstance(editUserModal).show();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        function showUserActionList() {
+            selectedUserAction = '';
+            editUserActionStep.hidden = false;
+            editUserConfirmStep.hidden = true;
+            editUserAdminPassword.value = '';
+            editUserReason.value = '';
+            editUserActionError.hidden = true;
+            const role = String(selectedEditUser?.role_name || '').toLowerCase();
+            const protectedAccount = Number(selectedEditUser?.id) === Number(currentAdminUserId) || role === 'admin';
+            const actions = selectedEditUser ? userActionDefinitions(selectedEditUser) : [];
+            if (protectedAccount) {
+                editUserActionList.innerHTML = '<div class="user-action-protected">This administrator account is protected and cannot be role-changed, rejected, or disabled.</div>';
+            } else if (!actions.length) {
+                editUserActionList.innerHTML = '<div class="text-muted">No account actions are available for this user.</div>';
+            } else {
+                editUserActionList.innerHTML = actions.map(item =>
+                    `<button class="btn ${item.className}" type="button" onclick="confirmUserAction('${item.action}')">${item.label}</button>`
+                ).join('');
+            }
+        }
+
+        function confirmUserAction(action) {
+            const copy = {
+                approve: ['Approve account', 'Approve this account and allow the user to sign in.'],
+                reject: ['Reject account', 'Reject this pending account request.'],
+                promote_manager: ['Change to Manager', 'Give this user manager access. Active sessions will be signed out.'],
+                demote_staff: ['Change to Staff', 'Change this manager to generic staff access. Active sessions will be signed out.'],
+                disable: ['Disable account', 'Disable this account and sign out all active sessions.'],
+                enable: ['Re-enable account', 'Restore this account using its existing role.']
+            };
+            if (!copy[action]) return;
+            selectedUserAction = action;
+            editUserConfirmTitle.textContent = copy[action][0];
+            editUserConfirmMessage.textContent = copy[action][1];
+            editUserReasonField.hidden = action !== 'disable';
+            editUserReason.required = action === 'disable';
+            editUserActionStep.hidden = true;
+            editUserConfirmStep.hidden = false;
+            editUserActionError.hidden = true;
+            window.setTimeout(() => (action === 'disable' ? editUserReason : editUserAdminPassword).focus(), 50);
+        }
+
+        async function submitUserAction(event) {
+            event.preventDefault();
+            const password = editUserAdminPassword.value;
+            const reason = editUserReason.value.trim();
+            if (!password) return;
+            if (selectedUserAction === 'disable' && !reason) {
+                editUserActionError.textContent = 'Enter a reason for disabling this account.';
+                editUserActionError.hidden = false;
+                editUserReason.focus();
+                return;
+            }
+            editUserActionError.hidden = true;
+            editUserConfirmButton.disabled = true;
+            try {
+                const response = await fetch(`/admin/users/${selectedEditUser.id}/action`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: selectedUserAction,
+                        admin_password: password,
+                        reason
+                    })
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    editUserAdminPassword.value = '';
+                    editUserActionError.textContent = data.error || 'Unable to update the user.';
+                    editUserActionError.hidden = false;
+                    editUserAdminPassword.focus();
+                    return;
+                }
+                adminUserRows.delete(Number(selectedEditUser.id));
+                bootstrap.Modal.getInstance(editUserModal).hide();
+                showToast(data.message, 'success');
+                loadGrid();
+                loadNotifications();
+            } catch (error) {
+                editUserActionError.textContent = error.message || 'Unable to update the user.';
+                editUserActionError.hidden = false;
+            } finally {
+                editUserConfirmButton.disabled = false;
+            }
+        }
+
+        function reviewAccount(userId) {
+            openEditUser(userId, document.activeElement);
+        }
+
+        editUserModal.addEventListener('shown.bs.modal', () => {
+            const firstAction = editUserActionList.querySelector('button');
+            (firstAction || editUserModal.querySelector('.btn-close')).focus();
+        });
+        editUserModal.addEventListener('hidden.bs.modal', () => {
+            selectedEditUser = null;
+            selectedUserAction = '';
+            if (editUserTrigger?.isConnected) editUserTrigger.focus();
+            editUserTrigger = null;
+        });
 
         function loadNotifications() {
             fetch('/admin/notifications').then(r => r.json()).then(data => {
                 if (!data.success) throw new Error(data.error);
                 accountApprovalsTable.innerHTML = '<thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Registered</th><th>Action</th></tr></thead><tbody>' +
-                    (data.account_approvals.length ? data.account_approvals.map(item => `<tr><td>${escapeHtml(item.username)}</td><td>${escapeHtml(item.email || '-')}</td><td>${escapeHtml(item.role_name || '-')}</td><td>${item.created_at ? new Date(item.created_at).toLocaleString() : '-'}</td><td><button class="btn btn-primary btn-sm me-1" onclick="reviewAccount(${item.id}, 'approve')">Approve</button><button class="btn btn-outline-danger btn-sm" onclick="reviewAccount(${item.id}, 'reject')">Reject</button></td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">No pending account approvals</td></tr>') +
+                    (data.account_approvals.length ? data.account_approvals.map(item => `<tr><td>${escapeHtml(item.username)}</td><td>${escapeHtml(item.email || '-')}</td><td>${escapeHtml(item.role_name || '-')}</td><td>${item.created_at ? new Date(item.created_at).toLocaleString() : '-'}</td><td><button class="btn btn-outline-primary btn-sm" onclick="reviewAccount(${item.id})">Edit User</button></td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">No pending account approvals</td></tr>') +
                     '</tbody>';
                 notificationsTable.innerHTML = '<thead><tr><th>Username</th><th>Requested</th><th>Status</th><th>Resolved By</th><th>Action</th></tr></thead><tbody>' +
                     (data.password_resets.length ? data.password_resets.map(item => `<tr><td>${escapeHtml(item.username)}</td><td>${item.requested_at ? new Date(item.requested_at).toLocaleString() : '-'}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.resolved_by || '-')}</td><td>${item.status === 'PENDING' ? `<button class="btn btn-primary btn-sm" onclick="resolvePasswordReset(${item.id})">Reset</button>` : '-'}</td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">No password reset requests</td></tr>') +

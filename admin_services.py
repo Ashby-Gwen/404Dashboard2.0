@@ -19,7 +19,7 @@ from sqlalchemy import String, cast, inspect, or_, text
 
 
 TABLE_CONFIG = {
-    "users": {"model": "User", "search": ["username", "email", "status"], "status": "status"},
+    "users": {"model": "User", "search": ["username", "email", "status", "disabled_reason"], "status": "status"},
     "roles": {"model": "Role", "search": ["role_name", "description"], "status": None},
     "clients": {"model": "Client", "search": ["client_name", "contact_info"], "status": None},
     "sales_orders": {"model": "SalesOrder", "search": ["so_number", "company_name", "store_name", "sales_staff", "notes"], "status": "status"},
@@ -210,7 +210,9 @@ def _model_column_map(model: Any) -> dict[str, Any]:
 def _display_columns(model: Any, table: str) -> list[str]:
     columns = [column.name for column in model.__table__.columns]
     if table == "users":
-        return ["password" if column == "password_hash" else column for column in columns]
+        visible = ["password" if column == "password_hash" else column for column in columns]
+        visible.insert(visible.index("role_id") + 1, "role_name")
+        return visible
     return columns
 
 
@@ -244,6 +246,8 @@ def _serialize_model(row: Any, table: str | None = None) -> dict[str, Any]:
         data[column.name] = value
     if "id" not in data and hasattr(row, "id"):
         data["id"] = getattr(row, "id")
+    if table == "users":
+        data["role_name"] = row.role.role_name if getattr(row, "role", None) else ""
     return data
 
 

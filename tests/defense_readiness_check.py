@@ -76,7 +76,7 @@ def migration_check():
         user_columns = {column['name'] for column in schema.get_columns('users')}
         evaluation_columns = {column['name'] for column in schema.get_columns('evaluation_sessions')}
         collection_columns = {column['name'] for column in schema.get_columns('collection_receipts')}
-        assert {'profile_photo_data', 'profile_photo_mime'} <= user_columns
+        assert {'profile_photo_data', 'profile_photo_mime', 'disabled_reason'} <= user_columns
         assert 'user_id' in evaluation_columns
         assert {'invoice_id', 'receipt_date', 'normalized_cr_number', 'collected_total'} <= collection_columns
         assert first['backup_path'] and Path(first['backup_path']).exists()

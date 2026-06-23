@@ -115,6 +115,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(120), nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=False)
     status = db.Column(db.String(20), default='pending', nullable=False)
+    disabled_reason = db.Column(db.Text)
     approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     approved_at = db.Column(db.DateTime)
     profile_photo = db.Column(db.String(255))
@@ -3469,6 +3470,12 @@ def is_admin_role_id(role_id):
     role = db.session.get(Role, role_id)
     return bool(role and role.role_name.lower() == 'admin')
 
+def force_logout_user(user_id):
+    SessionRecord.query.filter_by(user_id=user_id, status='ACTIVE').update({
+        'status': 'FORCED_LOGOUT',
+        'logout_at': datetime.now(UTC)
+    })
+
 def pending_password_reset_count():
     if session.get('role') != 'admin':
         return 0
@@ -6149,7 +6156,7 @@ def get_users():
     try:
         users_list = db.session.query(
             User.id, User.username, User.email, User.role_id, User.created_at,
-            User.status, User.profile_photo, Role.role_name
+            User.status, User.disabled_reason, User.profile_photo, Role.role_name
         ).join(Role).order_by(User.created_at.desc()).all()
         
         return jsonify({
@@ -6161,6 +6168,7 @@ def get_users():
                     'email': user.email,
                     'role_name': user.role_name,
                     'status': user.status,
+                    'disabled_reason': user.disabled_reason,
                     'profile_photo': user.profile_photo,
                     'created_at': user.created_at.isoformat() if user.created_at else None,
                     'role_id': user.role_id
@@ -6384,7 +6392,12 @@ def create_user():
 @role_required('admin')
 def update_user(user_id):
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
+        if 'role_id' in data or 'status' in data:
+            return jsonify({
+                'success': False,
+                'error': 'Role and account status changes require Edit User and admin password confirmation.'
+            }), 409
         
         user = db.session.get(User, user_id)
         if not user:
@@ -6400,28 +6413,9 @@ def update_user(user_id):
             existing_email = User.query.filter(User.email == email, User.id != user_id).first()
             if existing_email:
                 return jsonify({'success': False, 'error': 'Email already exists'})
-        requested_role_id = int(data.get('role_id') or user.role_id)
-        user_is_admin = user.role and user.role.role_name.lower() == 'admin'
-        requested_admin = is_admin_role_id(requested_role_id)
-        if requested_admin and not user_is_admin:
-            return jsonify({'success': False, 'error': 'Only one admin account is allowed'}), 409
-        if user_is_admin and not requested_admin:
-            return jsonify({'success': False, 'error': 'The only admin account cannot be demoted'}), 409
-
         old_value = serialize_record(user)
         user.username = username
         user.email = email
-        user.role_id = requested_role_id
-        requested_status = normalize_user_status(data.get('status') or user.status or USER_STATUS_APPROVED)
-        if requested_status not in USER_STATUS_CHOICES:
-            return jsonify({'success': False, 'error': 'Invalid user status'}), 400
-        if user_is_admin and requested_status != USER_STATUS_APPROVED:
-            return jsonify({'success': False, 'error': 'The only admin account cannot be deactivated'}), 409
-        if normalize_user_status(user.status) != USER_STATUS_APPROVED and requested_status == USER_STATUS_APPROVED:
-            user.approved_by = session.get('user_id')
-            user.approved_at = datetime.now(UTC)
-        user.status = requested_status
-        
         if data.get('password'):
             user.password_hash = generate_password_hash(data['password'])
         
@@ -6441,28 +6435,129 @@ def update_user(user_id):
 @login_required
 @role_required('admin')
 def delete_user(user_id):
+    return jsonify({
+        'success': False,
+        'error': 'Use Edit User to disable an account with password confirmation and a reason.'
+    }), 409
+
+
+@app.route('/admin/users/<int:user_id>/action', methods=['POST'])
+@login_required
+@role_required('admin')
+def admin_user_action(user_id):
     try:
+        data = request.get_json(silent=True) or {}
+        action = (data.get('action') or '').strip().lower()
+        allowed_actions = {
+            'approve', 'reject', 'promote_manager',
+            'demote_staff', 'disable', 'enable',
+        }
+        if action not in allowed_actions:
+            return jsonify({'success': False, 'error': 'Choose a valid user action.'}), 400
+
+        admin_user = db.session.get(User, session.get('user_id'))
+        admin_password = data.get('admin_password') or ''
+        if not admin_user or not check_password_hash(admin_user.password_hash, admin_password):
+            return jsonify({'success': False, 'error': 'Admin password confirmation failed.'}), 403
+
         user = db.session.get(User, user_id)
         if not user:
-            return jsonify({'success': False, 'error': 'User not found'})
-        
-        if user.id == session['user_id'] or (user.role and user.role.role_name.lower() == 'admin'):
-            return jsonify({'success': False, 'error': 'The current or admin account cannot be deactivated'}), 409
-        
-        old_value = serialize_record(user)
-        user.status = USER_STATUS_DISABLED
-        SessionRecord.query.filter_by(user_id=user.id, status='ACTIVE').update({
-            'status': 'FORCED_LOGOUT',
-            'logout_at': datetime.now(UTC)
-        })
-        log_audit('DEACTIVATE', 'users', user_id, old_value, serialize_record(user))
+            return jsonify({'success': False, 'error': 'User not found.'}), 404
+
+        role_name = user_role_name(user)
+        status = normalize_user_status(user.status)
+        protected_action = action in {'reject', 'promote_manager', 'demote_staff', 'disable'}
+        if protected_action and (user.id == admin_user.id or role_name == 'admin'):
+            return jsonify({
+                'success': False,
+                'error': 'The current administrator account cannot be rejected, role-changed, or disabled.'
+            }), 409
+
+        old_value = {
+            'username': user.username,
+            'role': role_name,
+            'status': status,
+            'disabled_reason': user.disabled_reason,
+        }
+        audit_action = ''
+        message = ''
+
+        if action == 'approve':
+            if status != USER_STATUS_PENDING:
+                return jsonify({'success': False, 'error': 'Only pending accounts can be approved.'}), 409
+            user.status = USER_STATUS_APPROVED
+            user.approved_by = admin_user.id
+            user.approved_at = datetime.now(UTC)
+            user.disabled_reason = None
+            audit_action = 'APPROVE_USER'
+            message = 'Account approved successfully.'
+        elif action == 'reject':
+            if status != USER_STATUS_PENDING:
+                return jsonify({'success': False, 'error': 'Only pending accounts can be rejected.'}), 409
+            user.status = USER_STATUS_REJECTED
+            user.disabled_reason = None
+            audit_action = 'REJECT_USER'
+            message = 'Account request rejected.'
+        elif action == 'promote_manager':
+            if status != USER_STATUS_APPROVED or role_name not in {'staff', 'sales staff', 'accounting staff'}:
+                return jsonify({'success': False, 'error': 'Only approved staff accounts can become managers.'}), 409
+            manager_role = Role.query.filter(func.lower(Role.role_name) == 'manager').first()
+            if not manager_role:
+                return jsonify({'success': False, 'error': 'Manager role is not configured.'}), 409
+            user.role = manager_role
+            audit_action = 'PROMOTE_USER_MANAGER'
+            message = 'User changed to manager successfully.'
+        elif action == 'demote_staff':
+            if status != USER_STATUS_APPROVED or role_name != 'manager':
+                return jsonify({'success': False, 'error': 'Only approved manager accounts can become staff.'}), 409
+            staff_role = Role.query.filter(func.lower(Role.role_name) == 'staff').first()
+            if not staff_role:
+                return jsonify({'success': False, 'error': 'Staff role is not configured.'}), 409
+            user.role = staff_role
+            audit_action = 'DEMOTE_USER_STAFF'
+            message = 'Manager changed to staff successfully.'
+        elif action == 'disable':
+            reason = (data.get('reason') or '').strip()
+            if status != USER_STATUS_APPROVED:
+                return jsonify({'success': False, 'error': 'Only approved accounts can be disabled.'}), 409
+            if not reason:
+                return jsonify({'success': False, 'error': 'A disable reason is required.'}), 400
+            if len(reason) > 1000:
+                return jsonify({'success': False, 'error': 'Disable reason must be 1,000 characters or fewer.'}), 400
+            user.status = USER_STATUS_DISABLED
+            user.disabled_reason = reason
+            audit_action = 'DISABLE_USER'
+            message = 'User disabled successfully.'
+        else:
+            if status not in {USER_STATUS_DISABLED, USER_STATUS_REJECTED}:
+                return jsonify({'success': False, 'error': 'Only disabled or rejected accounts can be re-enabled.'}), 409
+            if role_name == 'admin' and user.id != admin_user.id:
+                return jsonify({'success': False, 'error': 'Another administrator account cannot be enabled.'}), 409
+            user.status = USER_STATUS_APPROVED
+            user.approved_by = admin_user.id
+            user.approved_at = datetime.now(UTC)
+            user.disabled_reason = None
+            audit_action = 'ENABLE_USER'
+            message = 'User re-enabled successfully.'
+
+        force_logout_user(user.id)
+        db.session.flush()
+        new_value = {
+            'username': user.username,
+            'role': user_role_name(user),
+            'status': normalize_user_status(user.status),
+            'disabled_reason': user.disabled_reason,
+        }
+        log_audit(audit_action, 'users', user.id, old_value, new_value)
         db.session.commit()
-        
-        return jsonify({'success': True, 'message': 'User disabled successfully'})
-    
+        return jsonify({
+            'success': True,
+            'message': message,
+            'user': {'id': user.id, **new_value},
+        })
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': public_error_message(e)}), 400
 
 
 @app.route('/update-client/<int:client_id>', methods=['POST'])
@@ -6797,23 +6892,11 @@ def admin_bulk_update():
         data = request.get_json() or {}
         table = data.get('table', '')
         if table == 'users':
-            status = normalize_user_status(data.get('status') or '')
-            if status not in USER_STATUS_CHOICES:
-                return jsonify({'success': False, 'error': 'Invalid user status'}), 400
-            selected_users = User.query.filter(User.id.in_(data.get('ids', []))).all()
-            if status != USER_STATUS_APPROVED and any(
-                user.id == session['user_id']
-                or (user.role and user.role.role_name.lower() == 'admin')
-                for user in selected_users
-            ):
-                return jsonify({'success': False, 'error': 'The current or admin account cannot be disabled or rejected'}), 409
-            data['status'] = status
+            return jsonify({
+                'success': False,
+                'error': 'User status changes require Edit User and admin password confirmation.'
+            }), 409
         count = bulk_update_status(db, app_models(), table, data.get('ids', []), data.get('status', ''))
-        if table == 'users' and data.get('status') == USER_STATUS_APPROVED:
-            User.query.filter(User.id.in_(data.get('ids', [])), User.approved_at.is_(None)).update(
-                {'approved_by': session.get('user_id'), 'approved_at': datetime.now(UTC)},
-                synchronize_session=False
-            )
         if table in ('sales_orders', 'invoices', 'purchase_orders'):
             refresh_client_financials()
         log_audit('BULK_UPDATE_STATUS', table, ','.join(map(str, data.get('ids', []))), None, {'status': data.get('status', '')})
@@ -6891,47 +6974,10 @@ def admin_notifications():
 @login_required
 @role_required('admin')
 def admin_user_approval(user_id):
-    try:
-        data = request.get_json(silent=True) or {}
-        decision = (data.get('decision') or '').lower()
-        if decision not in {'approve', 'reject'}:
-            return jsonify({'success': False, 'error': 'Approval decision is required'}), 400
-
-        user = db.session.get(User, user_id)
-        if not user:
-            return jsonify({'success': False, 'error': 'Account request not found'}), 404
-        if user.id == session.get('user_id'):
-            return jsonify({'success': False, 'error': 'You cannot approve or reject your own account'}), 409
-        if normalize_user_status(user.status) != USER_STATUS_PENDING:
-            return jsonify({'success': False, 'error': 'Account request has already been reviewed'}), 409
-
-        old_value = {
-            'username': user.username,
-            'role': user.role.role_name if user.role else None,
-            'status': normalize_user_status(user.status),
-        }
-        if decision == 'approve':
-            user.status = USER_STATUS_APPROVED
-            user.approved_by = session.get('user_id')
-            user.approved_at = datetime.now(UTC)
-            action = 'APPROVE_USER'
-            message = 'Account approved successfully.'
-        else:
-            user.status = USER_STATUS_REJECTED
-            action = 'REJECT_USER'
-            message = 'Account request rejected.'
-
-        new_value = {
-            'username': user.username,
-            'role': user.role.role_name if user.role else None,
-            'status': user.status,
-        }
-        log_audit(action, 'users', user.id, old_value, new_value)
-        db.session.commit()
-        return jsonify({'success': True, 'message': message})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 400
+    return jsonify({
+        'success': False,
+        'error': 'Use Edit User to review accounts with admin password confirmation.'
+    }), 409
 
 @app.route('/admin/password-resets/<int:reset_id>/resolve', methods=['POST'])
 @login_required
