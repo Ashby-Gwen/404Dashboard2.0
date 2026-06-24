@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
-    <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/visuals/graphing-4.4.0.umd.js', v='4.4.0-analytics-2') }}"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <style>
         .analytics-container {
@@ -936,6 +936,7 @@
     <script>
         const baseURL = '/api/analytics';
         let currentCharts = [];
+        let analyticsChartRenderCount = 0;
         let pendingCsvClientResolutions = [];
         let pendingUploadRequiresOutlierConfirmation = false;
         let overviewSelectedYear = null;
@@ -948,7 +949,10 @@
         let activeAnalyticsFilterLabel = '';
         let analyticsOverlayReturnFocus = null;
         let analyticsHasLiveData = true;
+        let latestOverviewAnalytics = null;
+        let latestClientAnalytics = null;
         let latestExpenseAnalytics = null;
+        let latestSalesAnalytics = null;
         const initialAnalyticsYears = {{ available_years| tojson }};
 
         function escapeHtml(value) {
@@ -1066,8 +1070,10 @@
             return 'kpi-value';
         }
 
-        function isChartAvailable() {
-            return typeof Chart !== 'undefined';
+        function ensureChartLibraryAvailable(target) {
+            if (typeof window.Chart !== 'undefined') return true;
+            renderChartUnavailableState(target);
+            return false;
         }
 
         function renderChartUnavailableState(target) {
@@ -1083,17 +1089,24 @@
         }
 
         function createAnalyticsChart(target, config) {
-            if (!isChartAvailable()) {
-                renderChartUnavailableState(target);
+            if (!ensureChartLibraryAvailable(target)) {
+                document.documentElement.dataset.analyticsChartStatus = 'unavailable';
                 return { canvas: target?.canvas || target, destroy() {} };
             }
-            return new Chart(target, config);
+            const chart = new window.Chart(target, config);
+            analyticsChartRenderCount += 1;
+            document.documentElement.dataset.analyticsChartStatus = 'ready';
+            document.documentElement.dataset.analyticsChartVersion = window.Chart.version || 'loaded';
+            document.documentElement.dataset.analyticsChartCount = String(analyticsChartRenderCount);
+            return chart;
         }
 
         // Clean up existing charts
         function destroyCharts() {
             currentCharts.forEach(chart => chart.destroy());
             currentCharts = [];
+            analyticsChartRenderCount = 0;
+            delete document.documentElement.dataset.analyticsChartCount;
         }
 
         // Load section via AJAX
@@ -1129,8 +1142,10 @@
                 if (window.SyluxentUI) await SyluxentUI.replaceContent(contentDiv, html);
                 else contentDiv.innerHTML = html;
 
-                // Initialize charts if needed
-                if (section === 'clients') {
+                if (section === 'overview') {
+                    initOverviewCharts();
+                    if (latestOverviewAnalytics) loadOverviewComparison(latestOverviewAnalytics.selected_year);
+                } else if (section === 'clients') {
                     initClientsCharts();
                 } else if (section === 'expenses') {
                     initExpensesCharts();
@@ -1297,11 +1312,7 @@
 
                 // --- BASE ACTIVE DASHBOARD STATE ---
                 const kpis = data.kpis;
-
-                setTimeout(() => {
-                    initOverviewCharts(data.trend_data, data.filter?.label || data.selected_year);
-                    loadOverviewComparison(data.selected_year);
-                }, 50);
+                latestOverviewAnalytics = data;
 
                 return `
     <div class="analytics-section overview">
@@ -1652,15 +1663,7 @@
             const top3 = data.top_3;
 
             // Helper functions for badge colors based on new backend structure
-            const getValueStatusColor = (status) => {
-                if (status === 'Core Ordering Clients') return { bg: '#d1fae5', text: '#065f46' };
-                if (status === 'Growth Ordering Clients') return { bg: '#dbeafe', text: '#1e40af' };
-                if (status === 'Developing Ordering Clients') return { bg: '#fef3c7', text: '#92400e' };
-                if (status === 'Low Order Activity') return { bg: '#f3f4f6', text: '#374151' };
-                if (status === 'Valued Clients') return { bg: '#d1fae5', text: '#065f46' };
-                if (status === 'Active Clients') return { bg: '#dbeafe', text: '#1e40af' };
-                return { bg: '#f3f4f6', text: '#374151' };
-            };
+            latestClientAnalytics = { clients, chartData: clientChartData };
 
             let clientsHTML = `
         <div class="analytics-section clients">
@@ -1685,9 +1688,9 @@
 
             // 1. GENERATE TABLE VIEW DOM STRINGS
             if (clientViewMode === 'table') {
-                clientsHTML += renderClientTable(clients, getValueStatusColor);
+                clientsHTML += renderClientTable(clients, getClientValueStatusColor);
             } else {
-                clientsHTML += renderClientCards(clients, getValueStatusColor);
+                clientsHTML += renderClientCards(clients, getClientValueStatusColor);
             }
 
             clientsHTML += `
@@ -1725,20 +1728,17 @@
         </div>
     `;
 
-            // 4. ATTACH THE EVENT LISTENERS TO DOM NODES AFTER INJECTION VIA SETTIMEOUT OR IMMEDIATE MICROTASK LOOP
-            setTimeout(() => {
-                document.getElementById('btn-view-table')?.addEventListener('click', () => {
-                    if (clientViewMode !== 'table') { clientViewMode = 'table'; renderFreshView(clients, getValueStatusColor); }
-                });
-                document.getElementById('btn-view-card')?.addEventListener('click', () => {
-                    if (clientViewMode !== 'card') { clientViewMode = 'card'; renderFreshView(clients, getValueStatusColor); }
-                });
-
-                // Initialize the Bubble Chart Matrix using Chart.js framework
-                initClientBubbleChart(clientChartData);
-            }, 50);
-
             return clientsHTML;
+        }
+
+        function getClientValueStatusColor(status) {
+            if (status === 'Core Ordering Clients') return { bg: '#d1fae5', text: '#065f46' };
+            if (status === 'Growth Ordering Clients') return { bg: '#dbeafe', text: '#1e40af' };
+            if (status === 'Developing Ordering Clients') return { bg: '#fef3c7', text: '#92400e' };
+            if (status === 'Low Order Activity') return { bg: '#f3f4f6', text: '#374151' };
+            if (status === 'Valued Clients') return { bg: '#d1fae5', text: '#065f46' };
+            if (status === 'Active Clients') return { bg: '#dbeafe', text: '#1e40af' };
+            return { bg: '#f3f4f6', text: '#374151' };
         }
 
         // Separate state renderer wrapper for the view modes to avoid layout flickering
@@ -1847,7 +1847,10 @@
             return colors[status] || { bg: '#E2E8F0', text: '#64748B' };
         }
 
-        function initOverviewCharts(trendData, periodLabel) {
+        function initOverviewCharts(
+            trendData = latestOverviewAnalytics?.trend_data,
+            periodLabel = latestOverviewAnalytics?.filter?.label || latestOverviewAnalytics?.selected_year
+        ) {
             const canvas = document.getElementById('trendChart');
             if (!canvas) return;
 
@@ -1863,6 +1866,11 @@
             });
             const values = trendData && trendData.values ? trendData.values : [];
             const comparisonValues = trendData && trendData.comparison_values ? trendData.comparison_values : [];
+
+            if (!ensureChartLibraryAvailable(canvas)) {
+                currentCharts.push({ canvas, destroy() {} });
+                return;
+            }
 
             if (typeof Chart !== 'undefined') {
                 // Clear previous chart instances so tooltips don't glitch on hover
@@ -1992,7 +2000,15 @@
 
         // Initialize Clients Charts
         function initClientsCharts() {
-            // The relationship chart is initialized after client markup is injected.
+            if (!latestClientAnalytics) return;
+            const clients = latestClientAnalytics.clients || [];
+            document.getElementById('btn-view-table')?.addEventListener('click', () => {
+                if (clientViewMode !== 'table') { clientViewMode = 'table'; renderFreshView(clients, getClientValueStatusColor); }
+            });
+            document.getElementById('btn-view-card')?.addEventListener('click', () => {
+                if (clientViewMode !== 'card') { clientViewMode = 'card'; renderFreshView(clients, getClientValueStatusColor); }
+            });
+            initClientBubbleChart(latestClientAnalytics.chartData || clients);
         }
 
         // Initialize Expenses Charts
@@ -2113,8 +2129,8 @@
             const recommendations = data.recommendations || [];
             const products = descriptive.product_distribution || [];
             const forecastRows = data.forecast || [];
+            latestSalesAnalytics = data;
             latestRecommendations = recommendations;
-            setTimeout(() => initSalesCharts(data), 50);
             updateRecommendationBadge('sales');
             const peakMonth = (descriptive.peak_periods?.months || [])[0];
             const peakSummary = peakMonth
@@ -2176,7 +2192,7 @@
         }
 
         // Initialize Sales Charts
-        function initSalesCharts(data = null) {
+        function initSalesCharts(data = latestSalesAnalytics) {
             if (!data) return;
             const descriptive = data.descriptive || {};
             const trend = descriptive.monthly_trend || [];

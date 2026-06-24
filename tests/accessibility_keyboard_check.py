@@ -118,8 +118,10 @@ def main():
             assert 'Print Preview' in analytics_html
             assert 'Review the active' in analytics_html
             assert 'analytics tab before printing.' in analytics_html
-            assert 'vendor/chartjs/chart.umd.min.js' in analytics_html
+            assert 'vendor/visuals/graphing-4.4.0.umd.js' in analytics_html
+            assert 'v=4.4.0-analytics-2' in analytics_html
             assert 'cdn.jsdelivr.net/npm/chart.js' not in analytics_html
+            assert 'vendor/chartjs/chart.umd.min.js' not in analytics_html
             assert 'createAnalyticsChart' in analytics_html
             assert 'data-section="expenses"' in analytics_html
             assert 'aria-label="Monthly revenue trend chart"' in analytics_html
