@@ -3509,35 +3509,43 @@ def inject_user_navigation():
 
 # Initialize Database
 DEFAULT_EVALUATION_QUESTIONS = [
-    ("User Experience", "The web app is easy to navigate and understand."),
-    ("User Experience", "The web app provides clear feedback for my actions, such as confirmations and error messages."),
-    ("User Experience", "The web app minimizes the number of steps needed to complete a task."),
-    ("User Experience", "The web app enhances my ability to analyze business performance effectively."),
-    ("Features", "The web app provides all the features I need for business analysis."),
-    ("Features", "The data visualizations, such as charts and graphs, are useful for decision-making."),
-    ("Design", "The layout of the web app is well-organized and not cluttered."),
-    ("Design", "The interface adapts well to different screen sizes."),
-    ("Design", "The web app maintains a consistent design throughout its different sections."),
-    ("Compatibility", "The web app runs smoothly on both mobile and desktop devices."),
-    ("Compatibility", "The web app functions well across different web browsers, such as Chrome, Firefox, and others."),
-    ("Compatibility", "The web app supports multiple operating systems, such as Windows, macOS, and others."),
+    ("Functional Suitability", "The web app provides the necessary features for managing and analyzing business data."),
+    ("Functional Suitability", "The dashboard presents relevant sales, expenses, client, and performance information needed for business analysis."),
+    ("Functional Suitability", "The system generates useful analytical outputs, such as reports, charts, forecasts, and recommendations."),
+    ("Functional Suitability", "The system supports the intended tasks of administrators, managers, and staff based on their roles."),
+    ("Performance Efficiency", "The web app responds quickly when loading pages, charts, tables, and reports."),
+    ("Performance Efficiency", "The system processes uploaded or encoded business data within an acceptable amount of time."),
+    ("Performance Efficiency", "The web app helps reduce the time needed to analyze sales, expenses, and business performance."),
+    ("Performance Efficiency", "The system minimizes unnecessary steps in data processing and report generation."),
+    ("Design/User Experience", "The web app is easy to navigate and understand."),
+    ("Design/User Experience", "The layout of the web app is well-organized and not cluttered."),
+    ("Design/User Experience", "The system provides clear feedback for user actions, such as confirmations, warnings, and error messages."),
+    ("Design/User Experience", "The interface maintains a consistent design across different pages and sections."),
+    ("Design/User Experience", "The dashboard visualizations, such as charts and graphs, are clear and useful for decision-making."),
     ("Reliability", "The web app consistently performs without major crashes or errors."),
-    ("Reliability", "The web app correctly reflects the latest business transactions."),
-    ("Reliability", "I can rely on the web app for daily business operations."),
-    ("Efficiency", "The web app helps me complete tasks faster than manual methods."),
-    ("Efficiency", "The web app reduces the time needed to analyze sales and profits."),
-    ("Efficiency", "The web app minimizes unnecessary steps in data processing."),
-    ("Efficiency", "The web app reduces the workload of the management staff."),
-    ("Efficiency", "The web app improves overall workflow efficiency in the workspace."),
+    ("Reliability", "The system correctly reflects the latest available business records and transactions."),
+    ("Reliability", "The system produces consistent results when the same data is processed or reviewed."),
+    ("Reliability", "I can rely on the web app for regular business monitoring and analysis."),
     ("Security", "The login and authentication process is secure and reliable."),
-    ("Security", "The web app effectively protects sensitive business information from unauthorized access."),
-    ("Security", "I trust that my login credentials and personal data are well-protected."),
-    ("Portability", "The web app maintains full functionality across different platforms."),
-    ("Portability", "The mobile experience is just as effective as the desktop experience."),
-    ("Overall Agreement", "I am satisfied with the overall performance of the web app."),
-    ("Overall Agreement", "The web app meets my expectations for business analysis and insights."),
-    ("Overall Agreement", "The web app is a necessary tool for optimizing business decisions."),
-    ("Overall Agreement", "I would continue using this web app in the long term."),
+    ("Security", "The system protects sensitive business information from unauthorized access."),
+    ("Security", "The system properly limits access to features and data based on user roles."),
+    ("Security", "I trust that login credentials and business data are handled securely."),
+    ("Compatibility", "The web app functions properly across commonly used web browsers, such as Chrome, Firefox, and others."),
+    ("Compatibility", "The web app works properly on both desktop and mobile devices."),
+    ("Compatibility", "The interface adapts well to different screen sizes and resolutions."),
+    ("Compatibility", "The system remains usable across different operating systems, such as Windows, macOS, and others."),
+    ("Maintainability", "The system is organized in a way that supports future updates and improvements."),
+    ("Maintainability", "The system allows errors or issues to be identified and corrected without affecting the entire application."),
+    ("Maintainability", "The system can be modified to add new features or improve existing functions when needed."),
+    ("Maintainability", "The system documentation and structure support future maintenance by developers or system administrators."),
+    ("Portability", "The web app can be accessed from different devices without requiring complex installation."),
+    ("Portability", "The system maintains its main functions when used in different supported environments."),
+    ("Portability", "The mobile experience remains effective for viewing important dashboard information."),
+    ("Portability", "The web-based deployment makes the system easier to access compared to a device-specific application."),
+    ("Overall Agreement", "I am satisfied with the overall performance and usefulness of the web app."),
+    ("Overall Agreement", "The web app meets my expectations for business analysis and decision support."),
+    ("Overall Agreement", "The web app is a useful tool for improving business monitoring and performance evaluation."),
+    ("Overall Agreement", "I would recommend the continued use or improvement of this web app for business analytics."),
 ]
 
 def default_seed_users():
@@ -3567,20 +3575,6 @@ def default_seed_users():
 
 def seed_evaluation_questions():
     expected_questions = list(enumerate(DEFAULT_EVALUATION_QUESTIONS, start=1))
-    current_questions = EvaluationQuestion.query.order_by(EvaluationQuestion.display_order.asc()).all()
-    current_signature = [
-        (question.display_order, question.category, question.question_text)
-        for question in current_questions
-    ]
-    expected_signature = [
-        (order, category, text)
-        for order, (category, text) in expected_questions
-    ]
-    if current_signature and current_signature != expected_signature:
-        EvaluationResponse.query.delete()
-        EvaluationSession.query.delete()
-        EvaluationQuestion.query.delete()
-        db.session.flush()
     for order, (category, text) in expected_questions:
         question = EvaluationQuestion.query.filter_by(display_order=order).first()
         if not question:
@@ -7715,7 +7709,7 @@ def likert_interpretation(mean_score):
     if mean_score >= 3.41:
         return 'Agree'
     if mean_score >= 2.61:
-        return 'Neutral'
+        return 'Moderately Agree'
     if mean_score >= 1.81:
         return 'Disagree'
     return 'Strongly Disagree'
@@ -7740,7 +7734,7 @@ def evaluation_questions():
         'scale': [
             {'value': 1, 'label': 'Strongly Disagree'},
             {'value': 2, 'label': 'Disagree'},
-            {'value': 3, 'label': 'Neutral'},
+            {'value': 3, 'label': 'Moderately Agree'},
             {'value': 4, 'label': 'Agree'},
             {'value': 5, 'label': 'Strongly Agree'},
         ],

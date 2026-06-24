@@ -48,8 +48,15 @@ def main():
             role_id=manager_role.id,
             status='ACTIVE',
         )
+        admin_role = Role.query.filter_by(role_name='admin').first()
+        admin = User(
+            username='analytics_admin',
+            password_hash=generate_password_hash('admin123'),
+            role_id=admin_role.id,
+            status='ACTIVE',
+        )
         client_record = Client(client_name='TEST POS CLIENT')
-        db.session.add_all([manager, client_record])
+        db.session.add_all([manager, admin, client_record])
         db.session.flush()
 
         for month in range(1, 9):
@@ -199,6 +206,11 @@ def main():
             }).get_json()
             assert submitted['success'] is True
             assert EvaluationSession.query.count() == 1
+
+            with client.session_transaction() as session:
+                session['user_id'] = admin.id
+                session['username'] = admin.username
+                session['role'] = 'admin'
 
             results = client.get('/api/evaluation/results').get_json()
             assert results['success'] is True

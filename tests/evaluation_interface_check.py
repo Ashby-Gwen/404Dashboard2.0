@@ -18,6 +18,7 @@ from app import (  # noqa: E402
     db,
     init_db,
     likert_interpretation,
+    seed_evaluation_questions,
 )
 from werkzeug.security import generate_password_hash  # noqa: E402
 
@@ -52,13 +53,13 @@ def main():
             users[role_name] = user
         db.session.commit()
 
-        assert len(DEFAULT_EVALUATION_QUESTIONS) == 29
+        assert len(DEFAULT_EVALUATION_QUESTIONS) == 37
         assert len({category for category, _ in DEFAULT_EVALUATION_QUESTIONS}) == 9
-        assert EvaluationQuestion.query.filter_by(is_active=True).count() == 29
+        assert EvaluationQuestion.query.filter_by(is_active=True).count() == 37
         assert likert_interpretation(5) == 'Strongly Agree'
         assert likert_interpretation(4.21) == 'Strongly Agree'
         assert likert_interpretation(3.41) == 'Agree'
-        assert likert_interpretation(2.61) == 'Neutral'
+        assert likert_interpretation(2.61) == 'Moderately Agree'
         assert likert_interpretation(1.81) == 'Disagree'
         assert likert_interpretation(1) == 'Strongly Disagree'
 
@@ -76,8 +77,23 @@ def main():
 
             login(client, users['staff'])
             questions_payload = client.get('/api/evaluation/questions').get_json()
-            assert len(questions_payload['questions']) == 29
+            assert len(questions_payload['questions']) == 37
             assert [item['value'] for item in questions_payload['scale']] == [1, 2, 3, 4, 5]
+            assert questions_payload['scale'][2]['label'] == 'Moderately Agree'
+            assert {item['category'] for item in questions_payload['questions']} == {
+                'Functional Suitability',
+                'Performance Efficiency',
+                'Design/User Experience',
+                'Reliability',
+                'Security',
+                'Compatibility',
+                'Maintainability',
+                'Portability',
+                'Overall Agreement',
+            }
+            question_texts = {item['question_text'] for item in questions_payload['questions']}
+            assert 'The system generates useful analytical outputs, such as reports, charts, forecasts, and recommendations.' in question_texts
+            assert 'The system documentation and structure support future maintenance by developers or system administrators.' in question_texts
             questions = questions_payload['questions']
 
             incomplete = client.post('/api/evaluation/responses', json={
@@ -106,7 +122,29 @@ def main():
             assert valid.get_json()['overall_mean'] == 5
             assert valid.get_json()['interpretation'] == 'Strongly Agree'
             assert EvaluationSession.query.count() == 1
-            assert EvaluationResponse.query.count() == 29
+            assert EvaluationResponse.query.count() == 37
+
+            legacy_question = EvaluationQuestion(
+                category='Legacy Category',
+                question_text='Legacy question that should no longer be active.',
+                display_order=99,
+                is_active=True,
+            )
+            db.session.add(legacy_question)
+            db.session.flush()
+            db.session.add(EvaluationResponse(
+                session_id=EvaluationSession.query.first().id,
+                question_id=legacy_question.id,
+                rating=3,
+                comment='Historical response should remain.',
+            ))
+            db.session.commit()
+
+            seed_evaluation_questions()
+            assert EvaluationSession.query.count() == 1
+            assert EvaluationResponse.query.count() == 38
+            assert db.session.get(EvaluationQuestion, legacy_question.id).is_active is False
+            assert EvaluationQuestion.query.filter_by(is_active=True).count() == 37
 
             assert client.get('/api/evaluation/results').status_code == 403
             login(client, users['manager'])

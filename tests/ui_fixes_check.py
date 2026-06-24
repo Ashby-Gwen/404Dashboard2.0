@@ -52,18 +52,18 @@ def main():
             assert [item['label'] for item in questions['scale']] == [
                 'Strongly Disagree',
                 'Disagree',
-                'Neutral',
+                'Moderately Agree',
                 'Agree',
                 'Strongly Agree',
             ]
             assert {item['category'] for item in questions['questions']} == {
-                'User Experience',
-                'Features',
-                'Design',
-                'Compatibility',
+                'Functional Suitability',
+                'Performance Efficiency',
+                'Design/User Experience',
                 'Reliability',
-                'Efficiency',
                 'Security',
+                'Compatibility',
+                'Maintainability',
                 'Portability',
                 'Overall Agreement',
             }
