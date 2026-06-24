@@ -1,6 +1,4 @@
-import json
 import os
-import re
 import sys
 from datetime import date
 
@@ -66,13 +64,6 @@ def add_invoice(number, invoice_date, total, paid, balance, order=None, client_n
     return invoice
 
 
-def dashboard_payload(response):
-    html = response.get_data(as_text=True)
-    match = re.search(r'let dashboardData = (.*?);\s*let cashflowChart', html, re.DOTALL)
-    assert match, 'Dashboard JSON payload was not found.'
-    return json.loads(match.group(1))
-
-
 def main():
     app.config['TESTING'] = True
     with app.app_context():
@@ -115,28 +106,10 @@ def main():
                 session['username'] = manager.username
                 session['role'] = 'manager'
 
-            dashboard = dashboard_payload(client.get('/dashboard?year=2026'))
-            canonical_rows = [
-                item for item in dashboard['clients_summary']
-                if item['client_name'] == 'CANONICAL CLIENT'
-            ]
-            assert len(canonical_rows) == 1
-            canonical = canonical_rows[0]
-            assert canonical['total_revenue'] == 2000
-            assert canonical['total_paid'] == 550
-            assert canonical['current_balance'] == 1450
-            assert canonical['total_invoices'] == 3
-            assert canonical['unpaid_sales_order_count'] == 2
-
-            assert dashboard['accounts_receivable']['total_amount'] == 1750
-            assert dashboard['accounts_receivable']['invoice_count'] == 2
-            assert dashboard['unmapped_clients'] == [{
-                'client_name': 'MYSTERY CO',
-                'current_balance': 300.0,
-                'total_amount': 350.0,
-                'total_invoices': 2,
-                'total_paid': 50.0,
-            }]
+            dashboard_html = client.get('/dashboard?year=2026').get_data(as_text=True)
+            assert 'Generate Report' in dashboard_html
+            assert 'View Analytics' in dashboard_html
+            assert 'clients_summary' not in dashboard_html
 
             analytics_response = client.get('/get-analytics?year=2026')
             assert analytics_response.status_code == 200

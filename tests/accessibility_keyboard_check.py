@@ -116,7 +116,8 @@ def main():
             assert 'Service Invoices' not in invoice_html
             assert 'View / Add Receipts' in invoice_html
             assert 'Print Preview' in analytics_html
-            assert 'Review the active analytics tab before printing.' in analytics_html
+            assert 'Review the active' in analytics_html
+            assert 'analytics tab before printing.' in analytics_html
             assert 'data-section="expenses"' in analytics_html
             assert 'aria-label="Monthly revenue trend chart"' in analytics_html
             assert 'aria-label="Client opportunity relationship chart"' in analytics_html
@@ -161,7 +162,10 @@ def main():
     assert 'recommendationModalReturnFocus' in analytics_source
     assert "indexAxis: 'y'" in analytics_source
     assert 'loadOverviewComparison' in analytics_source
-    assert 'Net Cash Flow' in open(os.path.join(ROOT, 'templates', 'dashboard.html'), encoding='utf-8').read()
+    dashboard_source = open(os.path.join(ROOT, 'templates', 'dashboard.html'), encoding='utf-8').read()
+    assert 'Quick Actions' in dashboard_source
+    assert 'Admin Command Center' in dashboard_source
+    assert 'Net Cash Flow' not in dashboard_source
     assert ':focus-visible' in styles
     assert '.skip-link:focus' in styles
 

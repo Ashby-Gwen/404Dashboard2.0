@@ -3,235 +3,196 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 Dashboard - Dashboard</title>
+    <title>404 Dashboard - Home</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
-    <script async
-        src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
-        onload="window.chartJsReady = true; window.renderDashboardCashflowChart?.()"></script>
     <style>
-        .stats-grid {
+        .home-hero {
             display: grid;
-            grid-template-columns: minmax(0, 1fr);
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
-            min-width: 0;
-            height: auto;
-            overflow: visible;
-            container-type: inline-size;
-        }
-
-        .stat-card .stat-value {
-            max-width: 100%;
-            line-height: 1.15;
-            white-space: normal;
-            overflow: visible;
-            overflow-wrap: anywhere;
-            word-break: normal;
-            font-size: clamp(1.2rem, 2vw, 1.8rem) !important;
-            font-variant-numeric: tabular-nums;
-            letter-spacing: 0 !important;
-        }
-
-        .stat-card .stat-value.value-long {
-            font-size: clamp(1.05rem, 1.7vw, 1.5rem) !important;
-        }
-
-        .stat-card .stat-value.value-xl {
-            font-size: clamp(0.98rem, 1.45vw, 1.3rem) !important;
-        }
-
-        .stat-card .stat-value.value-xxl {
-            font-size: clamp(0.92rem, 1.2vw, 1.15rem) !important;
-        }
-
-        @media (min-width: 640px) {
-            .stats-grid {
-                grid-template-columns: repeat(2, minmax(250px, 1fr));
-            }
-        }
-
-        @media (min-width: 1200px) {
-            .stats-grid {
-                grid-template-columns: repeat(4, minmax(250px, 1fr));
-            }
-        }
-
-        .stat-card.clickable {
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .stat-card.clickable:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-        }
-
-        .analytics-placeholder {
-            background: var(--card-bg);
-            border: 2px dashed var(--border-color);
-            border-radius: var(--radius-xl);
-            padding: 3rem;
-            text-align: center;
-            color: var(--text-muted);
-        }
-
-        .analytics-placeholder svg {
-            margin-bottom: 1rem;
-            opacity: 0.5;
-        }
-
-        .tabs {
-            display: flex;
-            gap: 8px;
+            gap: 0.65rem;
             margin-bottom: 1.5rem;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 0.5rem;
         }
 
-        .tab-btn {
-            padding: 0.6rem 1.2rem;
-            border: none;
-            background: transparent;
-            font-weight: 600;
-            color: var(--text-muted);
-            cursor: pointer;
-            border-radius: var(--radius-lg);
-            transition: 0.2s;
-        }
-
-        .tab-btn:hover {
+        .home-eyebrow {
             color: var(--brand-orange);
-        }
-
-        .tab-btn.active {
-            background: var(--brand-orange);
-            color: white;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        .no-data {
-            text-align: center;
-            padding: 3rem;
-            color: var(--text-muted);
-        }
-
-        .drill-link {
-            text-decoration: none;
-            color: inherit;
-            display: block;
-        }
-
-        .receivable-warning {
-            background: #FEF3C7;
-            border: 1px solid #F59E0B;
-            border-radius: var(--radius-lg);
-            padding: 1rem;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .receivable-warning svg {
-            color: #F59E0B;
-        }
-
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-
-        .modal-overlay.hidden {
-            display: none;
-        }
-
-        .modal-content {
-            background: var(--card-bg);
-            border-radius: var(--radius-xl);
-            padding: 2rem;
-            max-width: 900px;
-            max-height: 80vh;
-            overflow-y: auto;
-            margin: 1rem;
-        }
-
-        .dashboard-filter {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .dashboard-filter select {
-            min-width: 110px;
-            padding: 0.55rem 0.75rem;
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-lg);
-            background: var(--glass-strong);
-            color: var(--text-main);
-            font-weight: 600;
-        }
-
-        .cashflow-chart-wrap {
-            position: relative;
-            min-height: 360px;
-            margin-top: 1.25rem;
-        }
-
-        .kpi-pair {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr);
-            gap: 0.85rem;
-            margin-top: 0.35rem;
-        }
-
-        .kpi-pair-item {
-            min-width: 0;
-            padding: 0.75rem;
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            background: var(--glass);
-        }
-
-        .kpi-pair-label {
-            color: var(--text-muted);
             font-size: 0.78rem;
-            font-weight: 700;
+            font-weight: 800;
+            letter-spacing: 0;
             text-transform: uppercase;
         }
 
-        .kpi-pair .stat-value {
-            font-size: clamp(1rem, 1.35vw, 1.2rem) !important;
-            line-height: 1.15;
+        .home-subtitle {
+            max-width: 780px;
+            margin: 0;
+            color: var(--text-muted);
+            font-weight: 600;
+            line-height: 1.5;
         }
 
-        @container (min-width: 300px) {
-            .kpi-pair {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
+        .home-grid,
+        .summary-grid,
+        .admin-monitor-grid,
+        .secondary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 1rem;
         }
 
-        @media (max-width: 639px) {
-            .kpi-pair {
+        .home-section {
+            margin-top: 1.5rem;
+        }
+
+        .home-section h2 {
+            margin: 0 0 0.85rem;
+            font-size: 1.15rem;
+        }
+
+        .home-action-card,
+        .summary-card,
+        .monitor-card {
+            min-width: 0;
+            display: grid;
+            gap: 0.75rem;
+            height: 100%;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+            box-shadow: var(--shadow);
+            text-decoration: none;
+            color: var(--text-main);
+        }
+
+        .home-action-card {
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+
+        .home-action-card:hover,
+        .home-action-card:focus-visible {
+            transform: translateY(-2px);
+            border-color: var(--brand-orange);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+            outline: none;
+        }
+
+        .home-action-title,
+        .summary-card-title,
+        .monitor-title {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .home-action-description,
+        .summary-note,
+        .monitor-note {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            line-height: 1.45;
+        }
+
+        .home-action-arrow {
+            justify-self: start;
+            color: var(--brand-orange);
+            font-weight: 800;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.92rem;
+        }
+
+        .summary-table th,
+        .summary-table td {
+            padding: 0.55rem 0;
+            border-bottom: 1px solid var(--border-color);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .summary-table th {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        .summary-table td:nth-child(2),
+        .summary-table td:nth-child(3),
+        .summary-table th:nth-child(2),
+        .summary-table th:nth-child(3) {
+            text-align: right;
+        }
+
+        .summary-card-footer {
+            margin-top: auto;
+        }
+
+        .monitor-value {
+            font-size: clamp(1.5rem, 3vw, 2rem);
+            font-weight: 900;
+            line-height: 1;
+            color: var(--brand-orange);
+        }
+
+        .activity-list {
+            display: grid;
+            gap: 0.65rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .activity-item {
+            display: grid;
+            gap: 0.15rem;
+            padding-bottom: 0.65rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .activity-item:last-child {
+            padding-bottom: 0;
+            border-bottom: 0;
+        }
+
+        .activity-meta {
+            color: var(--text-muted);
+            font-size: 0.82rem;
+        }
+
+        .secondary-grid {
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        }
+
+        .secondary-link {
+            display: inline-flex;
+            min-height: 44px;
+            align-items: center;
+            justify-content: center;
+            padding: 0.65rem 0.85rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+            color: var(--text-main);
+            font-weight: 800;
+            text-align: center;
+            text-decoration: none;
+        }
+
+        .secondary-link:hover,
+        .secondary-link:focus-visible {
+            border-color: var(--brand-orange);
+            color: var(--brand-orange);
+            outline: none;
+        }
+
+        @media (max-width: 700px) {
+            .home-grid,
+            .summary-grid,
+            .admin-monitor-grid,
+            .secondary-grid {
                 grid-template-columns: minmax(0, 1fr);
             }
         }
@@ -246,41 +207,18 @@
             404 Dashboard
         </div>
         {% set nav_links = {
-    'staff': [
-        ('sales_order', 'Sales Order'),
-        ('invoices', 'Invoice'),
-        ('expenses', 'Expense')
-    ],
-    'sales staff': [
-        ('sales_order', 'Sales Order')
-    ],
-    'accounting staff': [
-        ('invoices', 'Invoice'),
-        ('expenses', 'Expense')
-    ],
-    'manager': [
-        ('analytics', 'Analytics'),
-        ('reports', 'Reports')
-    ],
-    'admin': [
-        ('sales_order', 'Sales Order'),
-        ('invoices', 'Invoice'),
-        ('expenses', 'Expense'),
-        ('analytics', 'Analytics'),
-        ('reports', 'Reports'),
-        ('database_interface', 'Admin Center')
-    ]
-} %}
-
-<div class="nav-menu">
-    <a href="{{ url_for('dashboard') }}" class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}">Home</a>
-    
-    {% for endpoint, label in nav_links.get(session.role, []) %}
-    <a href="{{ url_for(endpoint) }}" 
-       class="nav-link {{ 'active' if request.endpoint == endpoint }}">
-       {{ label }}
-    </a>
-    {% endfor %}
+            'staff': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('expenses', 'Expense')],
+            'sales staff': [('sales_order', 'Sales Order')],
+            'accounting staff': [('invoices', 'Invoice'), ('expenses', 'Expense')],
+            'manager': [('analytics', 'Analytics'), ('reports', 'Reports')],
+            'admin': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('expenses', 'Expense'), ('analytics', 'Analytics'), ('reports', 'Reports'), ('database_interface', 'Admin Center')]
+        } %}
+        {% set allowed_endpoints = dashboard_data.primary_actions|map(attribute='endpoint')|list + dashboard_data.secondary_actions|map(attribute='endpoint')|list %}
+        <div class="nav-menu">
+            <a href="{{ url_for('dashboard') }}" class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}">Home</a>
+            {% for endpoint, label in nav_links.get(session.role, []) %}
+            <a href="{{ url_for(endpoint) }}" class="nav-link {{ 'active' if request.endpoint == endpoint }}">{{ label }}</a>
+            {% endfor %}
         </div>
         <div class="nav-user">
             <a class="profile-link" href="{{ url_for('profile') }}">
@@ -297,424 +235,139 @@
         </div>
     </nav>
 
-    <div id="toastContainer" style="position: fixed; top: 1rem; right: 1rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;"></div>
-
     <main class="page-shell">
-        <div class="section-header">
-            <div class="page-title">
-                <h1>Dashboard</h1>
-                <p style="margin: 0.25rem 0 0; color: var(--text-muted); font-weight: 600;">Data Timeline: Calendar Year {{ dashboard_data.timeline_label }}</p>
-            </div>
-            <form method="get" action="{{ url_for('dashboard') }}" class="dashboard-filter">
-                <label for="dashboard-year"><strong>Year</strong></label>
-                <select id="dashboard-year" name="year" onchange="this.form.submit()">
-                    {% for year in dashboard_data.available_years %}
-                    <option value="{{ year }}" {{ 'selected' if year == dashboard_data.selected_year else '' }}>{{ year }}</option>
-                    {% endfor %}
-                </select>
-            </form>
-        </div>
+        <section class="home-hero" aria-labelledby="homeTitle">
+            <div class="home-eyebrow">Home</div>
+            <h1 id="homeTitle">Welcome, {{ session.username }}</h1>
+            <p class="home-subtitle">
+                You are signed in as {{ session.role|title }}. Choose a task below to continue with the interfaces already available to your role.
+            </p>
+        </section>
 
-        <!-- Stats Cards -->
-        <div class="stats-grid">
-            <div class="stat-card clickable" onclick="openARModal()">
-                <div class="stat-label">Accounts Receivable</div>
-                <div class="stat-value" id="receivable-amount">Loading...</div>
-                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
-                    <span id="receivable-count">0</span> clients with balance
+        <section class="home-section" aria-labelledby="quickActionsTitle">
+            <h2 id="quickActionsTitle">Quick Actions</h2>
+            <div class="home-grid">
+                {% for action in dashboard_data.primary_actions %}
+                <a class="home-action-card" href="{{ url_for(action.endpoint) }}">
+                    <h3 class="home-action-title">{{ action.label }}</h3>
+                    <p class="home-action-description">{{ action.description }}</p>
+                    <span class="home-action-arrow">Open</span>
+                </a>
+                {% else %}
+                <div class="summary-card">
+                    <h3 class="summary-card-title">No quick actions available</h3>
+                    <p class="summary-note">Your account role has no configured Home shortcuts.</p>
                 </div>
+                {% endfor %}
             </div>
+        </section>
 
-            <div class="stat-card">
-                <div class="stat-label">Revenue</div>
-                <div class="kpi-pair">
-                    <div class="kpi-pair-item">
-                        <div class="kpi-pair-label">Actual</div>
-                        <div class="stat-value" id="actual-revenue">Loading...</div>
+        {% if session.role in ['staff', 'sales staff', 'accounting staff'] %}
+        <section class="home-section" aria-labelledby="staffSummaryTitle">
+            <h2 id="staffSummaryTitle">Transaction Summary for {{ dashboard_data.timeline_label }}</h2>
+            <div class="summary-grid">
+                {% for key, summary in dashboard_data.staff_summary.items() %}
+                {% if summary.endpoint in allowed_endpoints %}
+                <article class="summary-card">
+                    <h3 class="summary-card-title">{{ summary.title }}</h3>
+                    <table class="summary-table">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Count</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in summary.rows %}
+                            <tr>
+                                <td>{{ row.status }}</td>
+                                <td>{{ row.count }}</td>
+                                <td>PHP {{ "{:,.2f}".format(row.total_amount) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <div class="summary-card-footer">
+                        <a class="btn btn-outline btn-sm" href="{{ url_for(summary.endpoint) }}">View {{ summary.title }}</a>
                     </div>
-                    <div class="kpi-pair-item">
-                        <div class="kpi-pair-label">Expected</div>
-                        <div class="stat-value" id="expected-revenue">Loading...</div>
-                    </div>
-                </div>
-                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
-                    <span id="payment-count">0</span> paid invoices vs sales order selling prices
-                </div>
+                </article>
+                {% endif %}
+                {% endfor %}
             </div>
-
-            <div class="stat-card">
-                <div class="stat-label">Profit</div>
-                <div class="kpi-pair">
-                    <div class="kpi-pair-item">
-                        <div class="kpi-pair-label">Actual</div>
-                        <div class="stat-value" id="actual-profit">Loading...</div>
-                    </div>
-                    <div class="kpi-pair-item">
-                        <div class="kpi-pair-label">Expected</div>
-                        <div class="stat-value" id="expected-profit">Loading...</div>
-                    </div>
-                </div>
-                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
-                    Actual revenue minus expenses vs expected item margin
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-label">Expenses</div>
-                <div class="stat-value" id="expenses-amount">Loading...</div>
-                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
-                    Recorded expense cash amount for selected year
-                </div>
-            </div>
-        </div>
-
-        <!-- Analytics Section (Manager/Admin only) -->
-        {% if session.role in ['manager', 'admin'] %}
-        <div id="analytics-section" class="card" style="margin-bottom: 2rem;">
-            <h2 style="margin-bottom: 0.25rem;">Cashflow Report</h2>
-            <p style="margin: 0; color: var(--text-muted);">Monthly Cash In vs Cash Out for {{ dashboard_data.selected_year }}</p>
-            <div id="analytics-content">
-                <!-- Will be populated if data exists -->
-            </div>
-        </div>
+        </section>
         {% endif %}
 
-        <!-- Historical Records Tabs -->
-        <div class="card">
-            <h2 style="margin-bottom: 1rem;">Historical Records</h2>
-            
-            <div class="tabs">
-                <button class="tab-btn active" onclick="switchTab('sales')">Sales Orders</button>
-                <button class="tab-btn" onclick="switchTab('invoices')">Invoices</button>
+        {% if session.role == 'manager' %}
+        <section class="home-section" aria-labelledby="managerNoteTitle">
+            <div class="summary-card">
+                <h2 id="managerNoteTitle" class="summary-card-title">Reporting Workspace</h2>
+                <p class="summary-note">
+                    Reports and Analytics remain the source for detailed totals, forecasts, recommendations, and printable outputs for {{ dashboard_data.timeline_label }}.
+                </p>
             </div>
+        </section>
+        {% endif %}
 
-            <!-- Sales Orders Tab -->
-            <div class="tab-content active" id="tab-sales">
-                <div class="table-wrap">
-                    <table id="sales-table">
-                        <thead>
-                            <tr>
-                                <th>Order #</th>
-                                <th>Client</th>
-                                <th>Date</th>
-                                <th>Items</th>
-                                <th>Total</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="sales-tbody">
-                            <tr><td colspan="6" class="no-data">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+        {% if session.role == 'admin' %}
+        <section class="home-section" aria-labelledby="adminMonitorTitle">
+            <h2 id="adminMonitorTitle">Admin Command Center</h2>
+            <div class="admin-monitor-grid">
+                <a class="monitor-card" href="{{ url_for('database_interface') }}">
+                    <h3 class="monitor-title">New User Requests</h3>
+                    <div class="monitor-value">{{ dashboard_data.admin_summary.pending_users }}</div>
+                    <p class="monitor-note">Pending accounts waiting for administrator review.</p>
+                </a>
+                <a class="monitor-card" href="{{ url_for('database_interface') }}">
+                    <h3 class="monitor-title">Password Change Requests</h3>
+                    <div class="monitor-value">{{ dashboard_data.admin_summary.pending_password_resets }}</div>
+                    <p class="monitor-note">Pending password reset requests in Admin Center.</p>
+                </a>
+                <a class="monitor-card" href="{{ url_for('database_interface') }}">
+                    <h3 class="monitor-title">Recent User Activities</h3>
+                    <div class="monitor-value">{{ dashboard_data.admin_summary.recent_activity_count }}</div>
+                    <p class="monitor-note">Total audit log entries currently recorded.</p>
+                </a>
             </div>
+        </section>
 
-            <!-- Invoices Tab -->
-            <div class="tab-content" id="tab-invoices">
-                <div class="table-wrap">
-                    <table id="invoices-table">
-                        <thead>
-                            <tr>
-                                <th>Invoice #</th>
-                                <th>Client</th>
-                                <th>Date</th>
-                                <th>Amount</th>
-                                <th>Paid</th>
-                                <th>Balance</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="invoices-tbody">
-                            <tr><td colspan="7" class="no-data">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+        <section class="home-section" aria-labelledby="recentActivityTitle">
+            <div class="summary-card">
+                <h2 id="recentActivityTitle" class="summary-card-title">Latest Activity</h2>
+                <ul class="activity-list">
+                    {% for activity in dashboard_data.admin_summary.recent_activities %}
+                    <li class="activity-item">
+                        <strong>{{ activity.username }} - {{ activity.action }}</strong>
+                        <span class="activity-meta">{{ activity.table_name }}{% if activity.created_at %} - {{ activity.created_at[:19].replace('T', ' ') }}{% endif %}</span>
+                    </li>
+                    {% else %}
+                    <li class="activity-item">
+                        <span class="activity-meta">No activity has been recorded yet.</span>
+                    </li>
+                    {% endfor %}
+                </ul>
             </div>
+        </section>
 
-        </div>
+        <section class="home-section" aria-labelledby="adminShortcutsTitle">
+            <h2 id="adminShortcutsTitle">Admin Shortcuts</h2>
+            <div class="secondary-grid">
+                {% for action in dashboard_data.secondary_actions %}
+                <a class="secondary-link" href="{{ url_for(action.endpoint) }}">{{ action.label }}</a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
     </main>
 
-    <!-- Accounts Receivable Modal -->
-    <div id="ar-modal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h2 style="margin: 0;">Accounts Receivable - Client Balances</h2>
-                <button type="button" class="btn btn-outline btn-sm" onclick="closeARModal()"
-                    style="padding: 0.25rem 0.5rem; font-size: 1.2rem; line-height: 1;">&times;</button>
-            </div>
-            <div id="ar-invoices-list">
-                <p class="no-data">Loading outstanding invoices...</p>
-            </div>
-        </div>
-    </div>
-
-    <div id="client-so-modal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h2 id="client-so-title" style="margin: 0;">Unpaid Sales Orders</h2>
-                <button type="button" class="btn btn-outline btn-sm" onclick="closeClientSOModal()"
-                    style="padding: 0.25rem 0.5rem; font-size: 1.2rem; line-height: 1;">&times;</button>
-            </div>
-            <div id="client-so-list">
-                <p class="no-data">No unpaid sales orders found.</p>
-            </div>
-        </div>
-    </div>
-
+    <script id="dashboardData" type="application/json">{{ dashboard_data|tojson }}</script>
     <script>
-        // Update date/time
         function updateDateTime() {
-            const now = new Date();
-            document.getElementById('datetime').textContent = now.toLocaleString();
+            const target = document.getElementById('datetime');
+            if (target) target.textContent = new Date().toLocaleString();
         }
         setInterval(updateDateTime, 1000);
         updateDateTime();
-
-        // Dashboard data
-        let dashboardData = {{ dashboard_data|tojson|safe }};
-        let cashflowChart = null;
-
-        // Format currency
-        function formatCurrency(amount) {
-            return new Intl.NumberFormat('en-PH', {
-                style: 'currency',
-                currency: 'PHP'
-            }).format(amount || 0);
-        }
-
-        function formatCurrencyCell(amount) {
-            return amount === null || amount === undefined || amount === '' ? '-' : formatCurrency(amount);
-        }
-
-        function kpiClassFor(type, amount) {
-            const value = Number(amount || 0);
-            if (type === 'accounts_receivable') {
-                if (value === 0) return 'kpi-value kpi-zero';
-                if (value > 0) return 'kpi-value kpi-black';
-                return 'kpi-value kpi-negative';
-            }
-            if (type === 'revenue') {
-                return value > 0 ? 'kpi-value kpi-positive' : 'kpi-value kpi-negative';
-            }
-            return 'kpi-value';
-        }
-
-        function setKpiValue(id, amount, type) {
-            const element = document.getElementById(id);
-            if (!element) return;
-            const formatted = formatCurrency(amount);
-            element.textContent = formatted;
-            const lengthClass = formatted.length > 22 ? ' value-xxl' : formatted.length > 17 ? ' value-xl' : formatted.length > 12 ? ' value-long' : '';
-            element.className = 'stat-value ' + kpiClassFor(type, amount) + lengthClass;
-        }
-
-        // Format date
-        function formatDate(dateString) {
-            if (!dateString) return '-';
-            return new Date(dateString).toLocaleDateString();
-        }
-
-        // Status badge
-        function statusBadge(status) {
-            const statusClass = status === 'PAID' || status === 'COMPLETED' ? 'badge-paid' : 
-                               status === 'PENDING' ? 'badge-pending' :
-                               status === 'Admin Upload' || status === 'Settled' ? 'badge-paid' : 'badge-unpaid';
-            return '<span class="badge ' + statusClass + '">' + status + '</span>';
-        }
-
-        // Load dashboard stats
-        function loadDashboardStats() {
-            setKpiValue('receivable-amount', dashboardData.accounts_receivable.total_amount, 'accounts_receivable');
-            document.getElementById('receivable-count').textContent = dashboardData.accounts_receivable.invoice_count;
-            setKpiValue('expected-revenue', dashboardData.revenue_kpis.expected_gross_revenue, 'revenue');
-            setKpiValue('actual-revenue', dashboardData.revenue_kpis.actual_gross_revenue, 'revenue');
-            document.getElementById('payment-count').textContent = dashboardData.total_revenue.payment_count;
-            setKpiValue('expected-profit', dashboardData.revenue_kpis.expected_profit, 'revenue');
-            setKpiValue('actual-profit', dashboardData.revenue_kpis.actual_profit, 'revenue');
-            setKpiValue('expenses-amount', dashboardData.total_expenses.total_amount, 'expenses');
-        }
-
-        // Load analytics for managers/admins
-        function loadAnalytics() {
-            {% if session.role in ['manager', 'admin'] %}
-            const container = document.getElementById('analytics-content');
-
-            container.innerHTML = '<div class="stats-grid" style="margin-top: 1rem;"><div class="stat-card"><div class="stat-label">Invoice Payments</div><div class="stat-value ' + kpiClassFor('revenue', dashboardData.selected_year_revenue || 0) + '">' + formatCurrency(dashboardData.selected_year_revenue || 0) + '</div></div><div class="stat-card"><div class="stat-label">Expense Total</div><div class="stat-value kpi-value">' + formatCurrency(dashboardData.total_expenses.total_amount || 0) + '</div></div><div class="stat-card"><div class="stat-label">Aging (0-30 days)</div><div class="stat-value ' + kpiClassFor('accounts_receivable', dashboardData.aging_0_30 || 0) + '">' + formatCurrency(dashboardData.aging_0_30 || 0) + '</div></div></div><p style="color:var(--text-muted);font-size:0.9rem;margin:1rem 0 0.5rem;">Monthly invoice payments, recorded expenses, and resulting net cash flow in Philippine pesos for ' + dashboardData.selected_year + '.</p><div class="cashflow-chart-wrap"><canvas id="cashflow-chart" aria-label="Monthly cash in, cash out, and net cash flow chart"></canvas></div>';
-            renderDashboardCashflowChart();
-            {% endif %}
-        }
-
-        function renderDashboardCashflowChart() {
-            {% if session.role in ['manager', 'admin'] %}
-            const chartCanvas = document.getElementById('cashflow-chart');
-            if (!chartCanvas || typeof Chart === 'undefined') {
-                return;
-            }
-            if (cashflowChart) {
-                cashflowChart.destroy();
-            }
-            cashflowChart = new Chart(chartCanvas, {
-                type: 'bar',
-                data: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-                    datasets: [
-                        {
-                            label: 'Cash In (Invoice Payments)',
-                            data: dashboardData.monthly_cashflow.map(row => row.cash_in),
-                            backgroundColor: '#2563EB',
-                            borderRadius: 6
-                        },
-                        {
-                            label: 'Cash Out (Expenses)',
-                            data: dashboardData.monthly_cashflow.map(row => row.cash_out),
-                            backgroundColor: '#F97316',
-                            borderRadius: 6
-                        },
-                        {
-                            type: 'line',
-                            label: 'Net Cash Flow',
-                            data: dashboardData.monthly_cashflow.map(row => Number(row.cash_in || 0) - Number(row.cash_out || 0)),
-                            borderColor: '#334155',
-                            backgroundColor: '#334155',
-                            borderWidth: 2,
-                            borderDash: [6, 4],
-                            pointRadius: 3,
-                            pointBackgroundColor: '#FFFFFF',
-                            pointBorderColor: '#334155',
-                            pointBorderWidth: 2,
-                            tension: 0.25
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            grid: {
-                                color: context => Number(context.tick?.value || 0) === 0
-                                    ? '#334155'
-                                    : 'rgba(148, 163, 184, 0.22)',
-                                lineWidth: context => Number(context.tick?.value || 0) === 0 ? 2 : 1
-                            },
-                            ticks: {
-                                callback: value => formatCurrency(value)
-                            }
-                        }
-                    },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: context => context.dataset.label + ': ' + formatCurrency(context.raw)
-                            }
-                        }
-                    }
-                }
-            });
-            {% endif %}
-        }
-
-        // Load tables
-        function loadTables() {
-            // Sales Orders
-            const salesTbody = document.getElementById('sales-tbody');
-            if (dashboardData.recent_sales_orders.length === 0) {
-                salesTbody.innerHTML = '<tr><td colspan="6" class="no-data">No sales orders found</td></tr>';
-            } else {
-                salesTbody.innerHTML = dashboardData.recent_sales_orders.map(order => {
-                    return '<tr><td data-label="Order #">#' + order.id + '</td><td data-label="Client">' + order.client_name + '</td><td data-label="Date">' + formatDate(order.order_date) + '</td><td data-label="Items">' + order.item_count + '</td><td data-label="Total">' + formatCurrency(order.total_amount) + '</td><td data-label="Status">' + statusBadge(order.status || 'PENDING') + '</td></tr>';
-                }).join('');
-            }
-
-            // Invoices
-            const invoicesTbody = document.getElementById('invoices-tbody');
-            if (dashboardData.recent_invoices.length === 0) {
-                invoicesTbody.innerHTML = '<tr><td colspan="7" class="no-data">No invoices found</td></tr>';
-            } else {
-                invoicesTbody.innerHTML = dashboardData.recent_invoices.map(inv => {
-                    return '<tr><td data-label="Invoice #">' + inv.invoice_number + '</td><td data-label="Client">' + inv.client_name + '</td><td data-label="Date">' + formatDate(inv.invoice_date) + '</td><td data-label="Amount">' + formatCurrencyCell(inv.total_amount) + '</td><td data-label="Paid">' + formatCurrency(inv.amount_paid) + '</td><td data-label="Balance">' + formatCurrencyCell(inv.balance) + '</td><td data-label="Status">' + statusBadge(inv.status) + '</td></tr>';
-                }).join('');
-            }
-
-        }
-
-        // Tab switching
-        function switchTab(tab) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
-            event.target.classList.add('active');
-            document.getElementById('tab-' + tab).classList.add('active');
-        }
-
-        // Modal functions
-        function openARModal() {
-            document.getElementById('ar-modal').classList.remove('hidden');
-            loadARInvoices();
-        }
-
-        function closeARModal() {
-            document.getElementById('ar-modal').classList.add('hidden');
-        }
-
-        function openClientSOModal(clientId) {
-            const client = dashboardData.clients_summary.find(item => item.id === clientId);
-            const container = document.getElementById('client-so-list');
-            document.getElementById('client-so-title').textContent = (client ? client.client_name : 'Client') + ' - Unpaid Sales Orders';
-
-            if (!client || !client.unpaid_sales_orders || client.unpaid_sales_orders.length === 0) {
-                container.innerHTML = '<p class="no-data">No unpaid sales orders found.</p>';
-            } else {
-                let tableHTML = '<div class="table-wrap"><table class="data-table"><thead><tr><th>SO #</th><th>Date</th><th>Total</th><th>Paid</th><th>Unpaid Balance</th><th>Status</th></tr></thead><tbody>';
-                client.unpaid_sales_orders.forEach(order => {
-                    tableHTML += '<tr><td data-label="SO #">' + order.so_number + '</td><td data-label="Date">' + formatDate(order.order_date) + '</td><td data-label="Total">' + formatCurrency(order.total_amount) + '</td><td data-label="Paid">' + formatCurrency(order.paid_total) + '</td><td data-label="Unpaid Balance">' + formatCurrency(order.unpaid_balance) + '</td><td data-label="Status">' + statusBadge(order.status || 'PENDING') + '</td></tr>';
-                });
-                tableHTML += '</tbody></table></div>';
-                container.innerHTML = tableHTML;
-            }
-
-            document.getElementById('client-so-modal').classList.remove('hidden');
-        }
-
-        function closeClientSOModal() {
-            document.getElementById('client-so-modal').classList.add('hidden');
-        }
-
-        function loadARInvoices() {
-            const container = document.getElementById('ar-invoices-list');
-            const clientsWithBalance = dashboardData.clients_summary.filter(client => parseFloat(client.current_balance || 0) > 0);
-            const unmappedWithBalance = (dashboardData.unmapped_clients || []).filter(client => parseFloat(client.current_balance || 0) > 0);
-            
-            if (clientsWithBalance.length === 0 && unmappedWithBalance.length === 0) {
-                container.innerHTML = '<p class="no-data">No client balances found.</p>';
-                return;
-            }
-
-            let tableHTML = '<div class="table-wrap"><table class="data-table" id="ar-table"><thead><tr><th>Client</th><th>Transaction Amount</th><th>Total Paid</th><th>Balance</th><th>Status</th></tr></thead><tbody>';
-            
-            clientsWithBalance.forEach(client => {
-                tableHTML += '<tr><td data-label="Client">' + client.client_name + '</td><td data-label="Transaction Amount" class="' + kpiClassFor('revenue', client.total_revenue || 0) + '">' + formatCurrency(client.total_revenue || 0) + '</td><td data-label="Total Paid" class="' + kpiClassFor('revenue', client.total_paid || 0) + '">' + formatCurrency(client.total_paid || 0) + '</td><td data-label="Balance" class="' + kpiClassFor('accounts_receivable', client.current_balance || 0) + '">' + formatCurrency(client.current_balance || 0) + '</td><td data-label="Status">' + statusBadge(client.balance_status || 'Unsettled Balance') + '</td></tr>';
-            });
-
-            unmappedWithBalance.forEach(client => {
-                tableHTML += '<tr><td data-label="Client">' + client.client_name + ' <span class="badge badge-pending">Unmapped</span></td><td data-label="Transaction Amount">' + formatCurrency(client.total_amount || 0) + '</td><td data-label="Total Paid">' + formatCurrency(client.total_paid || 0) + '</td><td data-label="Balance" class="' + kpiClassFor('accounts_receivable', client.current_balance || 0) + '">' + formatCurrency(client.current_balance || 0) + '</td><td data-label="Status">' + statusBadge('Unsettled Balance') + '</td></tr>';
-            });
-            
-            tableHTML += '</tbody></table></div>';
-            container.innerHTML = tableHTML;
-        }
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            loadDashboardStats();
-            loadAnalytics();
-            loadTables();
-        });
     </script>
 </body>
 </html>

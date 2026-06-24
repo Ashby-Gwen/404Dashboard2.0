@@ -3875,509 +3875,121 @@ def dashboard():
     selected_year = request.args.get('year', default=current_year, type=int)
     if selected_year is None or selected_year < 1900 or selected_year > 9998:
         selected_year = current_year
-    refresh_client_financials()
     year_start = date(selected_year, 1, 1)
     next_year_start = date(selected_year + 1, 1, 1)
-    thirty_days_ago = datetime.now() - timedelta(days=30)
+    role = session.get('role', '')
 
-    def nz(value):
-        return value or 0
-
-    available_year_rows = (
-        db.session.query(db_year(SalesOrder.order_date).label('year'))
-        .filter(SalesOrder.order_date.isnot(None))
-        .union(
-            db.session.query(db_year(Invoice.invoice_date).label('year'))
-            .filter(Invoice.invoice_date.isnot(None)),
-            db.session.query(db_year(PurchaseOrder.date).label('year'))
-            .filter(PurchaseOrder.date.isnot(None))
-        )
-        .all()
-    )
-    available_years = sorted(
-        {current_year, *(int(row.year) for row in available_year_rows if row.year)},
-        reverse=True
-    )
-
-    # Revenue and profit
-    revenue_totals = (
-        db.session.query(
-            func.coalesce(func.sum(CollectionReceipt.collected_total), 0).label('total_revenue'),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (CollectionReceipt.is_2307_checked.is_(True), CollectionReceipt.tax_amount_paid),
-                        else_=0
-                    )
-                ),
-                0
-            ).label('total_tax_collected'),
-            func.count(CollectionReceipt.id).label('payment_count')
-        )
-        .filter(
-            CollectionReceipt.receipt_date >= year_start,
-            CollectionReceipt.receipt_date < next_year_start
-        )
-        .one()
-    )
-
-    total_revenue = float(revenue_totals.total_revenue or 0)
-    total_tax_collected = float(revenue_totals.total_tax_collected or 0)
-    payment_count = int(revenue_totals.payment_count or 0)
-    legacy_revenue = (
-        db.session.query(
-            func.coalesce(func.sum(Invoice.amount_paid), 0),
-            func.coalesce(func.sum(case(
-                (Invoice.is_2307_checked.is_(True), Invoice.tax_amount_paid),
-                else_=0,
-            )), 0),
-            func.count(Invoice.id),
-        )
-        .filter(
-            Invoice.amount_paid > 0,
-            ~Invoice.collection_receipts.any(),
-            Invoice.invoice_date >= year_start,
-            Invoice.invoice_date < next_year_start,
-        )
-        .one()
-    )
-    total_revenue += float(legacy_revenue[0] or 0)
-    total_tax_collected += float(legacy_revenue[1] or 0)
-    payment_count += int(legacy_revenue[2] or 0)
-
-    # Expenses and available pondo
-    total_expenses = (
-        db.session.query(db.func.coalesce(db.func.sum(PurchaseOrder.cash_amount), 0))
-        .filter(
-            PurchaseOrder.date >= year_start,
-            PurchaseOrder.date < next_year_start
-        )
-        .scalar()
-    ) or 0
-
-    pondo_remaining = total_revenue - total_expenses
-
-    expected_gross_revenue = (
-        db.session.query(
-            db.func.coalesce(
-                db.func.sum(SalesOrderItem.quantity * SalesOrderItem.selling_price),
-                0
+    def status_summary(model, date_column, amount_column, statuses):
+        rows = (
+            db.session.query(
+                func.upper(model.status).label('status'),
+                func.count(model.id).label('count'),
+                func.coalesce(func.sum(amount_column), 0).label('total_amount')
             )
+            .filter(date_column >= year_start, date_column < next_year_start)
+            .group_by(func.upper(model.status))
+            .all()
         )
-        .join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
-        .filter(
-            SalesOrder.order_date >= year_start,
-            SalesOrder.order_date < next_year_start
-        )
-        .scalar()
-    ) or 0
-
-    expected_profit = (
-        db.session.query(
-            db.func.coalesce(
-                db.func.sum(
-                    SalesOrderItem.quantity * (
-                        SalesOrderItem.selling_price - SalesOrderItem.unit_cost
-                    )
-                ),
-                0
-            )
-        )
-        .join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
-        .filter(
-            SalesOrder.order_date >= year_start,
-            SalesOrder.order_date < next_year_start
-        )
-        .scalar()
-    ) or 0
-
-    actual_profit = total_revenue - total_expenses
-
-    recent_sales_orders = (
-        sales_order_query()
-        .filter(
-            SalesOrder.order_date >= year_start,
-            SalesOrder.order_date < next_year_start
-        )
-        .order_by(SalesOrder.order_date.desc(), SalesOrder.created_at.desc(), SalesOrder.id.desc())
-        .limit(10)
-        .all()
-    )
-
-    # Recent invoices
-    recent_invoices = (
-        db.session.query(
-            Invoice.invoice_number,
-            Invoice.invoice_type,
-            Invoice.invoice_date,
-            Invoice.total_amount,
-            Invoice.amount_paid,
-            Invoice.balance,
-            Invoice.status,
-            Client.client_name,
-            Invoice.uploaded_client_name
-        )
-        .select_from(Invoice)
-        .join(SalesOrder, Invoice.sales_order_id == SalesOrder.id, isouter=True)
-        .join(Client, SalesOrder.client_id == Client.id, isouter=True)
-        .filter(
-            Invoice.invoice_date >= year_start,
-            Invoice.invoice_date < next_year_start
-        )
-        .order_by(Invoice.created_at.desc())
-        .limit(10)
-        .all()
-    )
-
-    # Load all orders once, then group in Python to avoid repeated queries
-    all_orders = (
-        SalesOrder.query
-        .options(
-            selectinload(SalesOrder.invoices),
-            selectinload(SalesOrder.items)
-        )
-        .filter(
-            SalesOrder.order_date >= year_start,
-            SalesOrder.order_date < next_year_start
-        )
-        .order_by(SalesOrder.order_date.desc())
-        .all()
-    )
-
-    client_registry = build_client_registry()
-    client_groups = {}
-    client_key_by_id = {}
-    for client in Client.query.order_by(Client.client_name.asc(), Client.id.asc()).all():
-        client_key = normalize_client_match_key(client.client_name) or f'CLIENT-{client.id}'
-        group = client_groups.setdefault(client_key, {
-            'primary_client': client,
-            'client_ids': set(),
-        })
-        group['client_ids'].add(client.id)
-        client_key_by_id[client.id] = client_key
-
-    orders_by_client = defaultdict(list)
-    for order in all_orders:
-        client_key = client_key_by_id.get(order.client_id)
-        if not client_key:
-            client_name = order.client.client_name if order.client else order.company_name
-            client_key = normalize_client_match_key(client_name) or f'CLIENT-{order.client_id or order.id}'
-        orders_by_client[client_key].append(order)
-
-    invoice_counts_by_client = defaultdict(int)
-    standalone_financials_by_client = defaultdict(lambda: {
-        'total_amount': 0.0,
-        'total_paid': 0.0,
-        'current_balance': 0.0,
-    })
-    unmapped_clients = {}
-    year_invoices = (
-        Invoice.query
-        .options(selectinload(Invoice.sales_order))
-        .filter(
-            Invoice.invoice_date >= year_start,
-            Invoice.invoice_date < next_year_start
-        )
-        .all()
-    )
-    for invoice in year_invoices:
-        if invoice.sales_order:
-            client_key = client_key_by_id.get(invoice.sales_order.client_id)
-            if client_key:
-                invoice_counts_by_client[client_key] += 1
-            continue
-        normalized_name = normalize_client_match_key(invoice.uploaded_client_name)
-        registry_entry = client_registry['lookup'].get(normalized_name)
-        if not registry_entry:
-            fuzzy_match = find_client_match(invoice.uploaded_client_name, client_registry)
-            if (
-                fuzzy_match
-                and float(fuzzy_match.get('match_percent') or 0) >= CLIENT_REVIEW_MATCH_PERCENT
-                and not is_client_fuzzy_exception(invoice.uploaded_client_name, fuzzy_match.get('client_name'))
-            ):
-                registry_entry = {
-                    'client_id': fuzzy_match['client_id'],
-                    'client_name': fuzzy_match['client_name'],
-                }
-        if registry_entry:
-            client_key = client_key_by_id.get(registry_entry['client_id'])
-            if client_key:
-                total_amount = float(
-                    invoice.total_amount
-                    if invoice.total_amount is not None
-                    else invoice.amount_paid or 0
-                )
-                paid_amount = max(float(invoice.amount_paid or 0), 0)
-                balance = max(float(
-                    invoice.balance
-                    if invoice.balance is not None
-                    else total_amount - paid_amount
-                ), 0)
-                invoice_counts_by_client[client_key] += 1
-                standalone_financials_by_client[client_key]['total_amount'] += total_amount
-                standalone_financials_by_client[client_key]['total_paid'] += paid_amount
-                standalone_financials_by_client[client_key]['current_balance'] += balance
-                continue
-
-        display_name = clean_text(
-            invoice.uploaded_client_name,
-            keep_period=True,
-            keep_ampersand=True
-        ).upper() or 'UNMAPPED CLIENT'
-        unmapped_key = normalized_name or f'UNMAPPED-{invoice.id}'
-        unmapped = unmapped_clients.setdefault(unmapped_key, {
-            'client_name': display_name,
-            'total_invoices': 0,
-            'total_amount': 0.0,
-            'total_paid': 0.0,
-            'current_balance': 0.0,
-        })
-        total_amount = float(
-            invoice.total_amount
-            if invoice.total_amount is not None
-            else invoice.amount_paid or 0
-        )
-        paid_amount = max(float(invoice.amount_paid or 0), 0)
-        balance = max(float(
-            invoice.balance
-            if invoice.balance is not None
-            else total_amount - paid_amount
-        ), 0)
-        unmapped['total_invoices'] += 1
-        unmapped['total_amount'] += total_amount
-        unmapped['total_paid'] += paid_amount
-        unmapped['current_balance'] += balance
-
-    client_summaries = []
-    analysis_clients = get_clients_analysis(db, app_models(), year_start, next_year_start).get('clients', [])
-
-    analysis_by_client_key = defaultdict(lambda: {
-        'client_performance_score': 0.0,
-        'cohort': None,
-        'value_status': None,
-        'balance_status': None,
-        'last_purchase': None,
-    })
-    for item in analysis_clients:
-        client_ids = item.get('client_ids') or []
-        item_client_keys = {
-            client_key_by_id.get(client_id)
-            for client_id in client_ids
-            if client_key_by_id.get(client_id)
-        }
-        for client_key in item_client_keys:
-            summary = analysis_by_client_key[client_key]
-            if float(item.get('client_performance_score') or 0) > float(summary.get('client_performance_score') or 0):
-                summary['client_performance_score'] = item.get('client_performance_score')
-                summary['cohort'] = item.get('cohort')
-                summary['value_status'] = item.get('value_status')
-            if item.get('balance_status') == 'Unsettled Balance':
-                summary['balance_status'] = item.get('balance_status')
-            elif not summary.get('balance_status'):
-                summary['balance_status'] = item.get('balance_status')
-            if item.get('last_purchase') and (
-                not summary.get('last_purchase') or item.get('last_purchase') > summary.get('last_purchase')
-            ):
-                summary['last_purchase'] = item.get('last_purchase')
-
-    for client_key, group in client_groups.items():
-        client = group['primary_client']
-        client_orders = orders_by_client.get(client_key, [])
-        unpaid_sales_orders = []
-        client_revenue = 0.0
-        client_paid = 0.0
-        current_balance = 0.0
-
-        for order in client_orders:
-            order_total = sum(
-                nz(item.quantity) * nz(item.selling_price)
-                for item in order.items
-            )
-            paid_total = sum(
-                nz(invoice.amount_paid)
-                for invoice in order.invoices
-                if invoice.invoice_date
-                and year_start <= invoice.invoice_date < next_year_start
-            )
-            client_revenue += order_total
-            client_paid += paid_total
-            unpaid_balance = max(order_total - paid_total, 0)
-            current_balance += unpaid_balance
-
-            if not order.invoices or unpaid_balance > 0.01:
-                unpaid_sales_orders.append({
-                    'id': order.id,
-                    'so_number': order.so_number,
-                    'order_date': order.order_date.isoformat() if order.order_date else None,
-                    'total_amount': order_total,
-                    'paid_total': paid_total,
-                    'unpaid_balance': unpaid_balance,
-                    'status': order.status
-                })
-
-        standalone = standalone_financials_by_client.get(client_key, {})
-        client_revenue += float(standalone.get('total_amount', 0) or 0)
-        client_paid += float(standalone.get('total_paid', 0) or 0)
-        current_balance += float(standalone.get('current_balance', 0) or 0)
-
-        analysis_client = analysis_by_client_key.get(client_key, {})
-        client_summaries.append({
-            'id': client.id,
-            'client_name': client.client_name,
-            'contact_info': client.contact_info,
-            'total_invoices': invoice_counts_by_client.get(client_key, 0),
-            'current_balance': round(current_balance, 2),
-            'total_revenue': round(client_revenue, 2),
-            'total_paid': round(client_paid, 2),
-            'balance_status': analysis_client.get('balance_status') or ('Settled' if current_balance <= 0.01 else 'Unsettled Balance'),
-            'client_performance_score': analysis_client.get('client_performance_score', 0),
-            'cohort': analysis_client.get('cohort') or analysis_client.get('value_status') or 'Low Order Activity',
-            'last_purchase': analysis_client.get('last_purchase'),
-            'unpaid_sales_order_count': len(unpaid_sales_orders),
-            'unpaid_sales_orders': unpaid_sales_orders
-        })
-
-    unmapped_clients_list = sorted(
-        (
-            {
-                **item,
-                'total_amount': round(item['total_amount'], 2),
-                'total_paid': round(item['total_paid'], 2),
-                'current_balance': round(item['current_balance'], 2),
+        by_status = {
+            (row.status or '').upper(): {
+                'count': int(row.count or 0),
+                'total_amount': round(float(row.total_amount or 0), 2)
             }
-            for item in unmapped_clients.values()
-        ),
-        key=lambda item: (-item['current_balance'], item['client_name'])
-    )
-    accounts_receivable_total = sum(
-        float(client['current_balance'] or 0)
-        for client in client_summaries
-    ) + sum(float(client['current_balance'] or 0) for client in unmapped_clients_list)
-    accounts_receivable_count = sum(
-        1 for client in client_summaries
-        if float(client['current_balance'] or 0) > 0.01
-    ) + sum(
-        1 for client in unmapped_clients_list
-        if float(client['current_balance'] or 0) > 0.01
-    )
-
-    # Analytics data
-    selected_year_revenue = total_revenue
-
-    aging_0_30 = (
-        db.session.query(db.func.coalesce(db.func.sum(Invoice.balance), 0))
-        .filter(
-            Invoice.balance > MONEY_TOLERANCE,
-            Invoice.invoice_date >= max(year_start, thirty_days_ago.date()),
-            Invoice.invoice_date < next_year_start
-        )
-        .scalar()
-    ) or 0
-
-    monthly_cashflow = [
-        {
-            'month': month,
-            'cash_in': 0.0,
-            'cash_out': 0.0
+            for row in rows
         }
-        for month in range(1, 13)
-    ]
-    invoice_cash_rows = (
-        db.session.query(
-            extract('month', CollectionReceipt.receipt_date).label('month'),
-            func.coalesce(func.sum(CollectionReceipt.collected_total), 0).label('total')
-        )
-        .filter(
-            CollectionReceipt.receipt_date >= year_start,
-            CollectionReceipt.receipt_date < next_year_start
-        )
-        .group_by(extract('month', CollectionReceipt.receipt_date))
+        return [
+            {
+                'status': status,
+                'count': by_status.get(status, {}).get('count', 0),
+                'total_amount': by_status.get(status, {}).get('total_amount', 0.0)
+            }
+            for status in statuses
+        ]
+
+    available_years = report_available_years()
+    if selected_year not in available_years:
+        available_years = sorted({selected_year, *available_years}, reverse=True)
+
+    primary_actions_by_role = {
+        'staff': [
+            {'label': 'Create Invoice', 'endpoint': 'invoices', 'description': 'Record and update customer invoices.'},
+            {'label': 'Enter Sales Order', 'endpoint': 'sales_order', 'description': 'Create a new Sales Order entry.'},
+            {'label': 'Enter Expense', 'endpoint': 'expenses', 'description': 'Record business expenses.'},
+        ],
+        'sales staff': [
+            {'label': 'Enter Sales Order', 'endpoint': 'sales_order', 'description': 'Create a new Sales Order entry.'},
+        ],
+        'accounting staff': [
+            {'label': 'Create Invoice', 'endpoint': 'invoices', 'description': 'Record and update customer invoices.'},
+            {'label': 'Enter Expense', 'endpoint': 'expenses', 'description': 'Record business expenses.'},
+        ],
+        'manager': [
+            {'label': 'Generate Report', 'endpoint': 'reports', 'description': 'Open printable sales, revenue, expense, and historical reports.'},
+            {'label': 'View Analytics', 'endpoint': 'analytics', 'description': 'Review analytics, forecasts, and recommendations.'},
+        ],
+        'admin': [
+            {'label': 'New User Requests', 'endpoint': 'database_interface', 'description': 'Review pending account approvals.'},
+            {'label': 'Password Change Requests', 'endpoint': 'database_interface', 'description': 'Handle password reset requests.'},
+            {'label': 'Recent User Activities', 'endpoint': 'database_interface', 'description': 'Review recent audit activity.'},
+        ],
+    }
+    secondary_actions_by_role = {
+        'admin': [
+            {'label': 'Admin Center', 'endpoint': 'database_interface'},
+            {'label': 'Reports', 'endpoint': 'reports'},
+            {'label': 'Analytics', 'endpoint': 'analytics'},
+            {'label': 'Sales Order', 'endpoint': 'sales_order'},
+            {'label': 'Invoice', 'endpoint': 'invoices'},
+            {'label': 'Expense', 'endpoint': 'expenses'},
+        ]
+    }
+
+    staff_summary = {
+        'invoices': {
+            'title': 'Invoices',
+            'endpoint': 'invoices',
+            'rows': status_summary(Invoice, Invoice.invoice_date, Invoice.total_amount, ['UNPAID', 'PARTIAL', 'PAID'])
+        },
+        'sales_orders': {
+            'title': 'Sales Orders',
+            'endpoint': 'sales_order',
+            'rows': status_summary(SalesOrder, SalesOrder.order_date, SalesOrder.total_amount, ['PENDING', 'PARTIAL', 'COMPLETED'])
+        },
+        'expenses': {
+            'title': 'Expenses',
+            'endpoint': 'expenses',
+            'rows': status_summary(PurchaseOrder, PurchaseOrder.date, PurchaseOrder.cash_amount, ['PENDING', 'PAID'])
+        },
+    }
+
+    pending_users = User.query.filter(func.lower(User.status) == USER_STATUS_PENDING).count()
+    pending_password_resets = PasswordReset.query.filter_by(status='PENDING').count()
+    recent_activities = (
+        AuditLog.query
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .limit(5)
         .all()
     )
-    legacy_invoice_cash_rows = (
-        db.session.query(
-            extract('month', Invoice.invoice_date).label('month'),
-            func.coalesce(func.sum(Invoice.amount_paid), 0).label('total')
-        )
-        .filter(
-            Invoice.amount_paid > 0,
-            ~Invoice.collection_receipts.any(),
-            Invoice.invoice_date >= year_start,
-            Invoice.invoice_date < next_year_start,
-        )
-        .group_by(extract('month', Invoice.invoice_date))
-        .all()
-    )
-    purchase_cash_rows = (
-        db.session.query(
-            extract('month', PurchaseOrder.date).label('month'),
-            func.coalesce(func.sum(PurchaseOrder.cash_amount), 0).label('total')
-        )
-        .filter(
-            PurchaseOrder.date >= year_start,
-            PurchaseOrder.date < next_year_start
-        )
-        .group_by(extract('month', PurchaseOrder.date))
-        .all()
-    )
-    for row in invoice_cash_rows:
-        monthly_cashflow[int(row.month) - 1]['cash_in'] = float(row.total or 0)
-    for row in legacy_invoice_cash_rows:
-        monthly_cashflow[int(row.month) - 1]['cash_in'] += float(row.total or 0)
-    for row in purchase_cash_rows:
-        monthly_cashflow[int(row.month) - 1]['cash_out'] = float(row.total or 0)
 
     dashboard_data = {
-        'accounts_receivable': {
-            'total_amount': accounts_receivable_total,
-            'invoice_count': accounts_receivable_count
+        'role': role,
+        'primary_actions': primary_actions_by_role.get(role, []),
+        'secondary_actions': secondary_actions_by_role.get(role, []),
+        'staff_summary': staff_summary,
+        'admin_summary': {
+            'pending_users': pending_users,
+            'pending_password_resets': pending_password_resets,
+            'recent_activity_count': AuditLog.query.count(),
+            'recent_activities': [
+                {
+                    'username': item.username,
+                    'action': item.action,
+                    'table_name': item.table_name,
+                    'created_at': item.created_at.isoformat() if item.created_at else None
+                }
+                for item in recent_activities
+            ]
         },
-        'total_revenue': {
-            'total_amount': total_revenue,
-            'payment_count': payment_count,
-            'total_tax_collected': total_tax_collected
-        },
-        'revenue_kpis': {
-            'expected_gross_revenue': expected_gross_revenue,
-            'actual_gross_revenue': total_revenue,
-            'expected_profit': expected_profit,
-            'actual_profit': actual_profit
-        },
-        'total_expenses': {
-            'total_amount': total_expenses
-        },
-        'pondo_remaining': {
-            'total_amount': pondo_remaining
-        },
-        'recent_sales_orders': [
-            {
-                'id': order.id,
-                'client_name': order.client_name,
-                'order_date': order.order_date.isoformat() if order.order_date else None,
-                'item_count': order.item_count,
-                'total_amount': order.total_amount,
-                'status': order.status
-            }
-            for order in recent_sales_orders
-        ],
-        'recent_invoices': [
-            {
-                'invoice_number': inv.invoice_number,
-                'invoice_type': inv.invoice_type,
-                'client_name': inv.client_name or inv.uploaded_client_name or 'Admin Upload',
-                'invoice_date': inv.invoice_date.isoformat() if inv.invoice_date else None,
-                'total_amount': inv.total_amount,
-                'amount_paid': inv.amount_paid,
-                'balance': inv.balance,
-                'status': inv.status
-            }
-            for inv in recent_invoices
-        ],
-        'clients_summary': client_summaries,
-        'unmapped_clients': unmapped_clients_list,
-        'selected_year_revenue': selected_year_revenue,
-        'aging_0_30': aging_0_30,
-        'monthly_cashflow': monthly_cashflow,
         'selected_year': selected_year,
         'available_years': available_years,
         'timeline_label': str(selected_year)

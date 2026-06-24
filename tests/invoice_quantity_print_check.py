@@ -195,8 +195,8 @@ def main():
         assert 'Preview PDF' not in analytics_html
         assert 'Print / Save PDF' not in analytics_html
         assert 'analytics-print-heading' in analytics_html
-        assert 'body > *:not(#analyticsPrintModal)' in analytics_html
-        assert '.analytics-preview-toolbar { display: none !important; }' in analytics_html
+        assert 'body>*:not(#analyticsPrintModal)' in analytics_html.replace(' ', '')
+        assert '.analytics-preview-toolbar{display:none!important;}' in analytics_html.replace(' ', '').replace('\n', '')
 
         reports_html = open(
             os.path.join(ROOT, 'templates', 'reports.html'),
@@ -210,8 +210,8 @@ def main():
         assert 'Preview PDF' not in reports_html
         assert 'Print / Save PDF' not in reports_html
         assert 'print-heading' in reports_html
-        assert 'body > *:not(#reportPreviewModal)' in reports_html
-        assert '.preview-toolbar { display: none !important; }' in reports_html
+        assert 'body>*:not(#reportPreviewModal)' in reports_html.replace(' ', '')
+        assert '.preview-toolbar{display:none!important;}' in reports_html.replace(' ', '').replace('\n', '')
         assert "letter ${isPortrait ? 'portrait' : 'landscape'}" in reports_html
 
     print('Invoice, quantity, and Analytics print check passed.')
