@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <style>
         .analytics-container {
@@ -1066,6 +1066,30 @@
             return 'kpi-value';
         }
 
+        function isChartAvailable() {
+            return typeof Chart !== 'undefined';
+        }
+
+        function renderChartUnavailableState(target) {
+            const canvas = target?.canvas || target;
+            if (!canvas || canvas.dataset.chartUnavailable === 'true') return;
+            canvas.dataset.chartUnavailable = 'true';
+            canvas.style.display = 'none';
+            const fallback = document.createElement('div');
+            fallback.className = 'error-message';
+            fallback.setAttribute('role', 'status');
+            fallback.textContent = 'Chart preview is unavailable because the chart library did not load.';
+            canvas.insertAdjacentElement('afterend', fallback);
+        }
+
+        function createAnalyticsChart(target, config) {
+            if (!isChartAvailable()) {
+                renderChartUnavailableState(target);
+                return { canvas: target?.canvas || target, destroy() {} };
+            }
+            return new Chart(target, config);
+        }
+
         // Clean up existing charts
         function destroyCharts() {
             currentCharts.forEach(chart => chart.destroy());
@@ -1769,7 +1793,7 @@
                 };
             });
 
-            new Chart(ctx, {
+            createAnalyticsChart(ctx, {
                 type: 'bubble',
                 data: { datasets: datasets },
                 options: {
@@ -1845,7 +1869,7 @@
                 currentCharts.forEach(c => c.destroy());
                 currentCharts = [];
 
-                const chart = new Chart(canvas, {
+                const chart = createAnalyticsChart(canvas, {
                     type: 'line',
                     data: {
                         labels: labels,
@@ -1927,7 +1951,7 @@
                 const change = Number(comparison.overall_increase_percentage || 0);
                 summary.textContent = `${currentYear}: ${formatCurrency(comparison.year2_total)} · ${comparisonYear}: ${formatCurrency(comparison.year1_total)} · ${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
             }
-            currentCharts.push(new Chart(canvas, {
+            currentCharts.push(createAnalyticsChart(canvas, {
                 type: 'bar',
                 data: {
                     labels: comparison.monthly_comparison.map(item => item.month),
@@ -2020,7 +2044,7 @@
             if (!data) return;
             const compositionCanvas = document.getElementById('expensesCompositionChart');
             if (compositionCanvas) {
-                currentCharts.push(new Chart(compositionCanvas, {
+                currentCharts.push(createAnalyticsChart(compositionCanvas, {
                     type: 'bar',
                     data: {
                         labels: ['Expense mix'],
@@ -2051,7 +2075,7 @@
             const particularsCanvas = document.getElementById('expensesParticularsChart');
             const particulars = (data.ranked_particulars || []).slice(0, 8).reverse();
             if (particularsCanvas) {
-                currentCharts.push(new Chart(particularsCanvas, {
+                currentCharts.push(createAnalyticsChart(particularsCanvas, {
                     type: 'bar',
                     data: {
                         labels: particulars.map(item => item.label),
@@ -2167,7 +2191,7 @@
             const accuracyPeriods = accuracy.periods || [];
             const monthlyCanvas = document.getElementById('salesMonthlyTrendChart');
             if (monthlyCanvas) {
-                currentCharts.push(new Chart(monthlyCanvas, {
+                currentCharts.push(createAnalyticsChart(monthlyCanvas, {
                     type: 'line',
                     data: { labels: trend.map(item => item.period), datasets: [{ label: 'Revenue', data: trend.map(item => item.revenue), borderColor: '#FF6A00', backgroundColor: 'rgba(255,106,0,0.12)', fill: true, tension: 0.35 }] },
                     options: { responsive: true, maintainAspectRatio: false }
@@ -2175,7 +2199,7 @@
             }
             const productCanvas = document.getElementById('productDistributionChart');
             if (productCanvas) {
-                currentCharts.push(new Chart(productCanvas, {
+                currentCharts.push(createAnalyticsChart(productCanvas, {
                     type: 'bar',
                     data: {
                         labels: [...products].reverse().map(item => item.item),
@@ -2206,7 +2230,7 @@
             }
             const forecastCanvas = document.getElementById('forecastValidationChart');
             if (forecastCanvas) {
-                currentCharts.push(new Chart(forecastCanvas, {
+                currentCharts.push(createAnalyticsChart(forecastCanvas, {
                     type: 'bar',
                     data: {
                         labels: (accuracy.actual || []).map((_, idx) => accuracyPeriods[idx]?.label || `P${idx + 1} = Forecast Period ${idx + 1}`),
@@ -2250,7 +2274,7 @@
             if (peakCanvas) {
                 const peakMonths = descriptive.peak_periods?.months || [];
                 const maxRevenue = Math.max(...peakMonths.map(item => Number(item.revenue || 0)), 0);
-                currentCharts.push(new Chart(peakCanvas, {
+                currentCharts.push(createAnalyticsChart(peakCanvas, {
                     type: 'bar',
                     data: {
                         labels: [...peakMonths].reverse().map(item => item.period),
@@ -2287,7 +2311,7 @@
             const weekdayCanvas = document.getElementById('peakWeekdayChart');
             if (weekdayCanvas) {
                 const weekdays = descriptive.peak_periods?.weekdays || [];
-                currentCharts.push(new Chart(weekdayCanvas, {
+                currentCharts.push(createAnalyticsChart(weekdayCanvas, {
                     type: 'bar',
                     data: {
                         labels: [...weekdays].reverse().map(item => item.weekday),
@@ -2598,7 +2622,7 @@
                         const year1Data = comp.monthly_comparison.map(m => m.year1);
                         const year2Data = comp.monthly_comparison.map(m => m.year2);
 
-                        const chart = new Chart(canvas, {
+                        const chart = createAnalyticsChart(canvas, {
                             type: 'bar',
                             data: {
                                 labels: labels,
