@@ -84,6 +84,15 @@ def main():
                 balance=0,
                 status='PAID',
             ),
+            Invoice(
+                invoice_number='HOME-INV-OLD',
+                invoice_type='SALES',
+                invoice_date=date(2025, 12, 30),
+                total_amount=250,
+                amount_paid=0,
+                balance=250,
+                status='UNPAID',
+            ),
             SalesOrder(
                 so_number='HOME-SO-PENDING',
                 client_id=client_record.id,
@@ -134,15 +143,22 @@ def main():
             assert 'Create Invoice' in staff_html
             assert 'Enter Sales Order' in staff_html
             assert 'Enter Expense' in staff_html
+            assert 'id="homeDateFilter"' in staff_html
+            assert '<option value="all"' in staff_html
             assert 'Transaction Summary for 2026' in staff_html
             assert 'Invoices' in staff_html
             assert 'UNPAID' in staff_html
             assert 'PHP 1,000.00' in staff_html
+            assert 'PHP 1,250.00' not in staff_html
             assert 'Sales Orders' in staff_html
             assert 'COMPLETED' in staff_html
             assert 'Expenses' in staff_html
             assert 'Cashflow Report' not in staff_html
             assert 'Historical Records' not in staff_html
+
+            all_html = client.get('/dashboard?period=all').get_data(as_text=True)
+            assert 'Transaction Summary for All dates' in all_html
+            assert 'PHP 1,250.00' in all_html
 
         with app.test_client() as client:
             login_as(client, manager, 'manager')
@@ -158,6 +174,9 @@ def main():
             assert 'New User Requests' in admin_html
             assert 'Password Change Requests' in admin_html
             assert 'Recent User Activities' in admin_html
+            assert 'Quick Actions' not in admin_html
+            assert '/database-interface?tab=requests' in admin_html
+            assert '/database-interface?tab=audit' in admin_html
             assert 'Latest Activity' in admin_html
             assert 'Admin Shortcuts' in admin_html
             assert 'Admin Center' in admin_html

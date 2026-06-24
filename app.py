@@ -3713,8 +3713,6 @@ def login():
             log_audit('LOGIN', 'session_records', session_record.id, None, {'username': user.username, 'role': user.role.role_name})
             db.session.commit()
             flash(f'Welcome back, {username}!', 'success')
-            if session['role'] == 'admin':
-                return redirect(url_for('database_interface'))
             return redirect(url_for('dashboard'))
         else:
             flash('Invalid login credentials. Please check your details and try again.', 'error')
@@ -3872,24 +3870,23 @@ def logout():
 def dashboard():
     today = datetime.now().date()
     current_year = today.year
+    all_dates = request.args.get('period') == 'all'
     selected_year = request.args.get('year', default=current_year, type=int)
     if selected_year is None or selected_year < 1900 or selected_year > 9998:
         selected_year = current_year
-    year_start = date(selected_year, 1, 1)
-    next_year_start = date(selected_year + 1, 1, 1)
+    year_start = None if all_dates else date(selected_year, 1, 1)
+    next_year_start = None if all_dates else date(selected_year + 1, 1, 1)
     role = session.get('role', '')
 
     def status_summary(model, date_column, amount_column, statuses):
-        rows = (
-            db.session.query(
-                func.upper(model.status).label('status'),
-                func.count(model.id).label('count'),
-                func.coalesce(func.sum(amount_column), 0).label('total_amount')
-            )
-            .filter(date_column >= year_start, date_column < next_year_start)
-            .group_by(func.upper(model.status))
-            .all()
+        query = db.session.query(
+            func.upper(model.status).label('status'),
+            func.count(model.id).label('count'),
+            func.coalesce(func.sum(amount_column), 0).label('total_amount')
         )
+        if not all_dates:
+            query = query.filter(date_column >= year_start, date_column < next_year_start)
+        rows = query.group_by(func.upper(model.status)).all()
         by_status = {
             (row.status or '').upper(): {
                 'count': int(row.count or 0),
@@ -3906,7 +3903,19 @@ def dashboard():
             for status in statuses
         ]
 
-    available_years = report_available_years()
+    home_year_rows = (
+        db.session.query(db_year(User.created_at).label('year'))
+        .filter(User.created_at.isnot(None))
+        .union(
+            db.session.query(db_year(PasswordReset.requested_at).label('year')).filter(PasswordReset.requested_at.isnot(None)),
+            db.session.query(db_year(AuditLog.created_at).label('year')).filter(AuditLog.created_at.isnot(None)),
+        )
+        .all()
+    )
+    available_years = sorted(
+        {current_year, *report_available_years(), *(int(row.year) for row in home_year_rows if row.year)},
+        reverse=True
+    )
     if selected_year not in available_years:
         available_years = sorted({selected_year, *available_years}, reverse=True)
 
@@ -3926,11 +3935,6 @@ def dashboard():
         'manager': [
             {'label': 'Generate Report', 'endpoint': 'reports', 'description': 'Open printable sales, revenue, expense, and historical reports.'},
             {'label': 'View Analytics', 'endpoint': 'analytics', 'description': 'Review analytics, forecasts, and recommendations.'},
-        ],
-        'admin': [
-            {'label': 'New User Requests', 'endpoint': 'database_interface', 'description': 'Review pending account approvals.'},
-            {'label': 'Password Change Requests', 'endpoint': 'database_interface', 'description': 'Handle password reset requests.'},
-            {'label': 'Recent User Activities', 'endpoint': 'database_interface', 'description': 'Review recent audit activity.'},
         ],
     }
     secondary_actions_by_role = {
@@ -3962,14 +3966,17 @@ def dashboard():
         },
     }
 
-    pending_users = User.query.filter(func.lower(User.status) == USER_STATUS_PENDING).count()
-    pending_password_resets = PasswordReset.query.filter_by(status='PENDING').count()
-    recent_activities = (
-        AuditLog.query
-        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
-        .limit(5)
-        .all()
-    )
+    pending_user_query = User.query.filter(func.lower(User.status) == USER_STATUS_PENDING)
+    pending_reset_query = PasswordReset.query.filter_by(status='PENDING')
+    activity_query = AuditLog.query
+    if not all_dates:
+        pending_user_query = pending_user_query.filter(User.created_at >= year_start, User.created_at < next_year_start)
+        pending_reset_query = pending_reset_query.filter(PasswordReset.requested_at >= year_start, PasswordReset.requested_at < next_year_start)
+        activity_query = activity_query.filter(AuditLog.created_at >= year_start, AuditLog.created_at < next_year_start)
+    pending_users = pending_user_query.count()
+    pending_password_resets = pending_reset_query.count()
+    recent_activity_count = activity_query.count()
+    recent_activities = activity_query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(5).all()
 
     dashboard_data = {
         'role': role,
@@ -3979,7 +3986,7 @@ def dashboard():
         'admin_summary': {
             'pending_users': pending_users,
             'pending_password_resets': pending_password_resets,
-            'recent_activity_count': AuditLog.query.count(),
+            'recent_activity_count': recent_activity_count,
             'recent_activities': [
                 {
                     'username': item.username,
@@ -3992,7 +3999,9 @@ def dashboard():
         },
         'selected_year': selected_year,
         'available_years': available_years,
-        'timeline_label': str(selected_year)
+        'all_dates': all_dates,
+        'selected_filter': 'all' if all_dates else str(selected_year),
+        'timeline_label': 'All dates' if all_dates else str(selected_year)
     }
 
     return render_template('dashboard.html', dashboard_data=dashboard_data)

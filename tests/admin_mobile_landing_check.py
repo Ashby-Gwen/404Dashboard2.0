@@ -43,11 +43,14 @@ def main():
                 'username': 'mobile_admin', 'password': 'test123',
             })
             assert admin_login.status_code == 302
-            assert admin_login.headers['Location'].endswith('/database-interface')
+            assert admin_login.headers['Location'].endswith('/dashboard')
             admin_page = client.get('/database-interface')
             assert admin_page.status_code == 200
             html = admin_page.get_data(as_text=True)
             assert 'id="recordsTab"' in html and 'nav-link active' in html
+            assert 'activateInitialAdminTab' in html
+            assert "requests: { id: 'notificationsTab', load: loadNotifications }" in html
+            assert "audit: { id: 'auditTab', load: loadAuditLogs }" in html
 
         with app.test_client() as client:
             manager_login = client.post('/login', data={

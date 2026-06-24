@@ -30,6 +30,45 @@
             line-height: 1.5;
         }
 
+        .home-header-row {
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .home-date-filter {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+            box-shadow: var(--shadow);
+        }
+
+        .home-date-filter label {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .home-date-filter select {
+            min-height: 42px;
+            min-width: 130px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+            color: var(--text-main);
+            font: inherit;
+            font-weight: 700;
+            padding: 0.5rem 0.75rem;
+        }
+
         .home-grid,
         .summary-grid,
         .admin-monitor-grid,
@@ -237,13 +276,27 @@
 
     <main class="page-shell">
         <section class="home-hero" aria-labelledby="homeTitle">
-            <div class="home-eyebrow">Home</div>
-            <h1 id="homeTitle">Welcome, {{ session.username }}</h1>
-            <p class="home-subtitle">
-                You are signed in as {{ session.role|title }}. Choose a task below to continue with the interfaces already available to your role.
-            </p>
+            <div class="home-header-row">
+                <div>
+                    <div class="home-eyebrow">Home</div>
+                    <h1 id="homeTitle">Welcome, {{ session.username }}</h1>
+                    <p class="home-subtitle">
+                        You are signed in as {{ session.role|title }}. Choose a task below to continue with the interfaces already available to your role.
+                    </p>
+                </div>
+                <form class="home-date-filter" method="get" action="{{ url_for('dashboard') }}">
+                    <label for="homeDateFilter">Date</label>
+                    <select id="homeDateFilter" aria-label="Home date filter" onchange="applyHomeDateFilter(this.value)">
+                        <option value="all" {{ 'selected' if dashboard_data.all_dates else '' }}>All</option>
+                        {% for year in dashboard_data.available_years %}
+                        <option value="{{ year }}" {{ 'selected' if not dashboard_data.all_dates and year == dashboard_data.selected_year else '' }}>{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
         </section>
 
+        {% if session.role != 'admin' %}
         <section class="home-section" aria-labelledby="quickActionsTitle">
             <h2 id="quickActionsTitle">Quick Actions</h2>
             <div class="home-grid">
@@ -261,6 +314,7 @@
                 {% endfor %}
             </div>
         </section>
+        {% endif %}
 
         {% if session.role in ['staff', 'sales staff', 'accounting staff'] %}
         <section class="home-section" aria-labelledby="staffSummaryTitle">
@@ -313,17 +367,17 @@
         <section class="home-section" aria-labelledby="adminMonitorTitle">
             <h2 id="adminMonitorTitle">Admin Command Center</h2>
             <div class="admin-monitor-grid">
-                <a class="monitor-card" href="{{ url_for('database_interface') }}">
+                <a class="monitor-card" href="{{ url_for('database_interface') }}?tab=requests">
                     <h3 class="monitor-title">New User Requests</h3>
                     <div class="monitor-value">{{ dashboard_data.admin_summary.pending_users }}</div>
                     <p class="monitor-note">Pending accounts waiting for administrator review.</p>
                 </a>
-                <a class="monitor-card" href="{{ url_for('database_interface') }}">
+                <a class="monitor-card" href="{{ url_for('database_interface') }}?tab=requests">
                     <h3 class="monitor-title">Password Change Requests</h3>
                     <div class="monitor-value">{{ dashboard_data.admin_summary.pending_password_resets }}</div>
                     <p class="monitor-note">Pending password reset requests in Admin Center.</p>
                 </a>
-                <a class="monitor-card" href="{{ url_for('database_interface') }}">
+                <a class="monitor-card" href="{{ url_for('database_interface') }}?tab=audit">
                     <h3 class="monitor-title">Recent User Activities</h3>
                     <div class="monitor-value">{{ dashboard_data.admin_summary.recent_activity_count }}</div>
                     <p class="monitor-note">Total audit log entries currently recorded.</p>
@@ -365,6 +419,16 @@
         function updateDateTime() {
             const target = document.getElementById('datetime');
             if (target) target.textContent = new Date().toLocaleString();
+        }
+        function applyHomeDateFilter(value) {
+            const url = new URL(window.location.href);
+            url.search = '';
+            if (value === 'all') {
+                url.searchParams.set('period', 'all');
+            } else {
+                url.searchParams.set('year', value);
+            }
+            window.location.href = url.toString();
         }
         setInterval(updateDateTime, 1000);
         updateDateTime();

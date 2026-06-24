@@ -1218,10 +1218,29 @@
         };
 
         document.addEventListener('DOMContentLoaded', () => {
-            loadGrid();
+            activateInitialAdminTab();
             enableAdminTabKeyboardNavigation();
         });
         setInterval(() => document.getElementById('datetime').textContent = new Date().toLocaleString(), 1000);
+
+        function activateInitialAdminTab() {
+            const tabParam = new URLSearchParams(window.location.search).get('tab');
+            const tabConfig = {
+                requests: { id: 'notificationsTab', load: loadNotifications },
+                audit: { id: 'auditTab', load: loadAuditLogs },
+            }[tabParam];
+            if (!tabConfig) {
+                loadGrid();
+                return;
+            }
+            const tabButton = document.getElementById(tabConfig.id);
+            if (!tabButton) {
+                loadGrid();
+                return;
+            }
+            bootstrap.Tab.getOrCreateInstance(tabButton).show();
+            tabConfig.load();
+        }
 
         function resetGrid() {
             gridPage = 1;
