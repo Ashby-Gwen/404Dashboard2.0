@@ -43,6 +43,7 @@ def main():
     assert 'Upload Historical CSV/Excel' in analytics
     assert 'data-section="evaluation"' not in analytics
     assert 'Web App Evaluation Questionnaire' in evaluation
+    assert "category === 'Design/User Experience' ? 'Usability' : category" in evaluation
     assert 'evaluationPrintOverlay' in evaluation
     assert 'evaluation-rating-cell' in evaluation
     assert 'evaluation-score-track' in evaluation

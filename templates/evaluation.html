@@ -142,6 +142,7 @@
         let evaluationQuestions = [];
         let evaluationLastFocus = null;
         const escapeEvaluationHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]));
+        const evaluationCategoryDisplayLabel = category => category === 'Design/User Experience' ? 'Usability' : category;
 
         async function loadEvaluationPage() {
             const response = await fetch('/api/evaluation/questions');
@@ -154,7 +155,7 @@
             }, {});
             let number = 1;
             document.getElementById('evaluationQuestions').innerHTML = Object.entries(grouped).map(([category, questions]) => `
-                <div class="evaluation-category-row">${escapeEvaluationHtml(category)}</div>
+                <div class="evaluation-category-row">${escapeEvaluationHtml(evaluationCategoryDisplayLabel(category))}</div>
                 ${questions.map(question => {
                     const currentNumber = number++;
                     return `<div class="evaluation-question-row">
@@ -210,6 +211,11 @@
             const response = await fetch('/api/evaluation/results');
             const payload = await response.json();
             if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to load evaluation results.');
+            const displayCategories = (payload.categories || []).map(item => ({
+                ...item,
+                category: evaluationCategoryDisplayLabel(item.category)
+            }));
+            payload.categories = displayCategories;
             document.getElementById('evaluationResultsContent').innerHTML = `
                 <div class="evaluation-result-summary">
                     <div class="evaluation-kpi"><span>Overall Mean</span><strong>${Number(payload.overall_mean || 0).toFixed(2)} / 5</strong></div>
