@@ -21,6 +21,7 @@ def main():
     evaluation = read(os.path.join('templates', 'evaluation.html'))
     admin = read(os.path.join('templates', 'admin.html'))
     invoices = read(os.path.join('templates', 'invoices.html'))
+    sales_order = read(os.path.join('templates', 'sales_order.html'))
     generated_theme = build_theme_css(default_theme_settings())
 
     assert '--ui-control-height: 44px' in styles
@@ -59,6 +60,15 @@ def main():
     assert 'min-height: 44px !important' in generated_theme
     assert 'padding: 16px !important' in generated_theme
     assert 'id="tax2307Checked"' in invoices
+    assert sales_order.count('id="field-companyName"') == 1
+    assert sales_order.count('id="salesOrderFormPanel"') == 1
+    assert 'id="manualFormSlot"' in sales_order
+    assert 'id="excelFormSlot"' in sales_order
+    assert 'class="mapper-container workflow-upload-grid"' in sales_order
+    assert 'id="excelPreview"' in sales_order
+    assert 'targetSlot.appendChild(formPanel)' in sales_order
+    assert 'manualPane.hidden = !manualSelected' in sales_order
+    assert 'excelPane.hidden = manualSelected' in sales_order
 
     print('Interface layout check passed.')
 

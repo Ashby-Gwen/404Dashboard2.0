@@ -153,7 +153,12 @@
         }
 
         .workflow-upload-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns: minmax(360px, 0.85fr) minmax(520px, 1.15fr);
+            align-items: start;
+        }
+
+        .upload-form-slot:empty {
+            display: none;
         }
 
         .upload-workflow-toolbar {
@@ -499,6 +504,10 @@
             .mapper-container {
                 grid-template-columns: 1fr;
             }
+
+            .workflow-upload-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -589,9 +598,9 @@
         </div>
 
         <section id="manualWorkflowPane" class="sales-workflow-pane" role="tabpanel" aria-labelledby="manualWorkflowTab">
-        <div class="mapper-container workflow-manual-grid">
+        <div id="manualFormSlot" class="mapper-container workflow-manual-grid">
             <!-- Left Panel: Form Entry -->
-            <div class="form-section" style="height: fit-content;">
+            <div id="salesOrderFormPanel" class="form-section" style="height: fit-content;">
                 <div class="section-header-row">
                     <h3><i data-lucide="file-text"></i> Order Information</h3>
                     <button onclick="handleAutoIdentify()" class="btn btn-sm btn-outline">
@@ -752,15 +761,12 @@
         <section id="excelWorkflowPane" class="sales-workflow-pane" role="tabpanel" aria-labelledby="excelWorkflowTab" hidden>
             <div class="card" style="margin-bottom:1rem;">
                 <h2 style="margin-bottom:0.35rem;">Excel Mapping</h2>
-                <p style="color:var(--text-muted); margin-top:0;">Upload a workbook, inspect its sheets, and map cells into the Sales Order form. Selecting a field will return you to this spreadsheet viewer.</p>
+                <p style="color:var(--text-muted); margin-top:0;">Upload a workbook, inspect its sheets, and map cells into the Sales Order form while keeping the spreadsheet preview visible.</p>
                 <div class="upload-workflow-toolbar">
                     <input type="file" id="fileInput" class="hidden" accept=".xlsx, .xls, .csv" multiple>
                     <button type="button" onclick="document.getElementById('fileInput').click()" class="btn btn-primary">
                         <i data-lucide="upload" style="width:18px; height:18px;"></i>
                         Choose Files
-                    </button>
-                    <button type="button" class="btn btn-outline" onclick="showSalesOrderWorkflowTab('manual')">
-                        Review Mapped Order
                     </button>
                 </div>
             </div>
@@ -782,6 +788,7 @@
             {% endif %}
 
         <div class="mapper-container workflow-upload-grid">
+            <div id="excelFormSlot" class="upload-form-slot"></div>
             <!-- Right Panel: Excel Preview -->
             <div class="excel-panel">
                 <div class="excel-header">
@@ -885,10 +892,19 @@
             const excelTab = document.getElementById('excelWorkflowTab');
             const manualPane = document.getElementById('manualWorkflowPane');
             const excelPane = document.getElementById('excelWorkflowPane');
+            const formPanel = document.getElementById('salesOrderFormPanel');
+            const manualFormSlot = document.getElementById('manualFormSlot');
+            const excelFormSlot = document.getElementById('excelFormSlot');
             manualTab.classList.toggle('active', manualSelected);
             excelTab.classList.toggle('active', !manualSelected);
             manualTab.setAttribute('aria-selected', String(manualSelected));
             excelTab.setAttribute('aria-selected', String(!manualSelected));
+            if (formPanel) {
+                const targetSlot = manualSelected ? manualFormSlot : excelFormSlot;
+                if (targetSlot && formPanel.parentElement !== targetSlot) {
+                    targetSlot.appendChild(formPanel);
+                }
+            }
             manualPane.hidden = !manualSelected;
             excelPane.hidden = manualSelected;
             if (!manualSelected && window.lucide) lucide.createIcons();
