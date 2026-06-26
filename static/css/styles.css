@@ -2466,6 +2466,464 @@ body.ashby-sidebar-collapsed .ashby-verse-sidebar {
     }
 }
 
+/* System-wide UX foundation: consistent operational layout across all screens. */
+:root {
+    --system-page-max: 1480px;
+    --system-page-gutter: clamp(0.875rem, 2.5vw, 2rem);
+    --system-section-gap: clamp(1rem, 2vw, 1.5rem);
+    --system-panel-padding: clamp(1rem, 2vw, 1.5rem);
+    --system-muted-surface: color-mix(in srgb, var(--card-bg) 78%, var(--bg-base, var(--bg)) 22%);
+}
+
+html,
+body {
+    max-width: 100%;
+    overflow-x: clip;
+}
+
+@supports not (overflow-x: clip) {
+    html,
+    body {
+        overflow-x: hidden;
+    }
+}
+
+main,
+.page-shell,
+.analytics-container,
+.admin-shell,
+.evaluation-page-shell,
+.invoice-container {
+    width: min(var(--system-page-max), calc(100% - (var(--system-page-gutter) * 2))) !important;
+    max-width: var(--system-page-max) !important;
+    margin-inline: auto !important;
+}
+
+.section-header,
+.analytics-header,
+.reports-header,
+.evaluation-page-header,
+.home-header-row {
+    min-width: 0;
+    padding: var(--system-panel-padding);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    background: var(--card-bg);
+    box-shadow: var(--shadow-soft);
+}
+
+.section-header,
+.analytics-header,
+.reports-header,
+.home-header-row,
+.client-review-toolbar,
+.excel-header,
+.preview-toolbar,
+.evaluation-results-heading,
+.expense-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ui-space-3, 0.875rem);
+    flex-wrap: wrap;
+}
+
+.section-header h1,
+.analytics-header h1,
+.reports-header h1,
+.evaluation-page-header h1,
+.page-title h1,
+.auth-title {
+    letter-spacing: 0 !important;
+    text-wrap: balance;
+}
+
+.page-title p,
+.analytics-header p,
+.reports-header p,
+.evaluation-page-header p,
+.auth-subtitle,
+.page-notice,
+.home-subtitle {
+    max-width: 78ch;
+}
+
+.card,
+.report-card,
+.form-card,
+.form-section,
+.profile-card,
+.admin-card,
+.summary-card,
+.home-action-card,
+.monitor-card,
+.evaluation-feedback,
+.evaluation-results-card,
+.evaluation-kpi,
+.analytics-section .card,
+.excel-panel,
+.client-review-panel,
+.sales-order-viewer,
+.purchase-order-container,
+.invoice-container,
+.debit-section,
+.calculation-section,
+.preview-shell,
+.auth-card {
+    border: 1px solid var(--border-color) !important;
+    background: var(--card-bg) !important;
+    box-shadow: var(--shadow-soft) !important;
+}
+
+.summary-card,
+.home-action-card,
+.monitor-card,
+.stat-card,
+.summary-item,
+.evaluation-kpi {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.home-section,
+.analytics-section,
+.evaluation-results,
+.sales-order-history,
+#reportContent {
+    margin-top: var(--system-section-gap) !important;
+}
+
+.report-toolbar,
+.upload-workflow-toolbar,
+.history-toolbar,
+.admin-toolbar,
+.grid-toolbar,
+.filter-controls,
+.form-actions,
+.modal-actions,
+.preview-actions,
+.evaluation-page-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: var(--ui-space-2, 0.625rem) !important;
+    flex-wrap: wrap !important;
+}
+
+.home-date-filter,
+.report-filter,
+.filter-group,
+.view-toggle,
+.analytics-tabs,
+.sales-workflow-tabs,
+.report-toolbar:has(.report-tab),
+.toolbar-surface {
+    padding: 0.5rem !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-xl) !important;
+    background: var(--system-muted-surface) !important;
+    box-shadow: none !important;
+}
+
+.analytics-tab,
+.report-tab,
+.sales-workflow-tab,
+.tab-btn,
+.filter-btn,
+.view-toggle button {
+    min-height: 42px !important;
+    border: 1px solid transparent !important;
+    border-radius: var(--radius-lg) !important;
+    background: transparent !important;
+    color: var(--text-muted) !important;
+    font-weight: 800 !important;
+    white-space: nowrap;
+}
+
+.analytics-tab.active,
+.report-tab.active,
+.sales-workflow-tab.active,
+.tab-btn.active,
+.filter-btn.active,
+.view-toggle button.active {
+    background: var(--brand-orange) !important;
+    border-color: var(--brand-orange) !important;
+    color: #000 !important;
+}
+
+.analytics-tab:hover,
+.report-tab:hover,
+.sales-workflow-tab:hover,
+.tab-btn:hover,
+.filter-btn:hover,
+.view-toggle button:hover {
+    border-color: var(--border-color) !important;
+    color: var(--text-main) !important;
+}
+
+.form-grid,
+.form-grid-2col,
+.form-grid-3col,
+.manual-entry-grid,
+.so-details-grid,
+.profile-grid,
+.evaluation-result-summary,
+.evaluation-result-list,
+.report-summary,
+.stats-grid,
+.summary-grid,
+.home-grid,
+.admin-monitor-grid,
+.secondary-grid {
+    gap: var(--ui-space-4, 1.125rem) !important;
+}
+
+.form-group,
+.readonly-field,
+.filter-field,
+.so-detail-item {
+    min-width: 0;
+}
+
+.section-title,
+.form-section h3,
+.card h2,
+.report-card h2,
+.evaluation-results-card h3 {
+    letter-spacing: 0;
+    line-height: 1.25;
+}
+
+.table-wrap,
+.table-responsive,
+.table-scroll,
+.client-table-scroll,
+.particulars-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table-wrap table,
+.table-responsive table,
+.table-scroll table,
+.client-table-scroll table,
+.particulars-container table,
+.invoice-table,
+.report-table,
+.client-table,
+.data-table,
+.history-table,
+.excel-table {
+    min-width: 760px;
+}
+
+th,
+td,
+.report-table th,
+.report-table td,
+.client-table th,
+.client-table td,
+.data-table th,
+.data-table td,
+.history-table th,
+.history-table td {
+    overflow-wrap: anywhere;
+}
+
+.report-table .numeric,
+.history-table td.amount,
+.amount,
+.total-row td {
+    overflow-wrap: normal;
+    white-space: nowrap;
+}
+
+.empty-state,
+.no-data,
+.upload-placeholder,
+.evaluation-results-empty {
+    min-height: 120px;
+    display: grid;
+    place-items: center;
+    gap: 0.5rem;
+    padding: var(--system-panel-padding) !important;
+    color: var(--text-muted) !important;
+    text-align: center;
+}
+
+.recommendation-modal,
+.analytics-print-modal,
+.evaluation-print-dialog,
+.expense-modal,
+.preview-shell,
+.modal-content {
+    width: min(100%, 1120px);
+    max-height: min(92vh, 920px);
+}
+
+.recommendation-modal-backdrop,
+.analytics-print-modal,
+.evaluation-print-overlay,
+.expense-modal-overlay,
+.report-preview-modal {
+    padding: clamp(0.75rem, 2vw, 1.5rem) !important;
+}
+
+.auth-container {
+    padding: clamp(1rem, 4vw, 2rem) !important;
+}
+
+.auth-card {
+    width: min(100%, 440px) !important;
+    padding: clamp(1.25rem, 4vw, 2rem) !important;
+}
+
+.role-info,
+.flash-message,
+.system-feedback,
+.save-state {
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--brand-orange);
+    background: var(--system-muted-surface) !important;
+}
+
+@media (max-width: 980px) {
+    .section-header,
+    .analytics-header,
+    .reports-header,
+    .evaluation-page-header,
+    .home-header-row {
+        align-items: stretch;
+    }
+
+    .report-toolbar,
+    .upload-workflow-toolbar,
+    .history-toolbar,
+    .admin-toolbar,
+    .grid-toolbar,
+    .filter-controls,
+    .form-actions,
+    .modal-actions,
+    .preview-actions,
+    .evaluation-page-actions {
+        align-items: stretch !important;
+    }
+
+    .report-toolbar > *,
+    .upload-workflow-toolbar > *,
+    .history-toolbar > *,
+    .admin-toolbar > *,
+    .grid-toolbar > *,
+    .filter-controls > *,
+    .form-actions > *,
+    .modal-actions > *,
+    .preview-actions > *,
+    .evaluation-page-actions > * {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 767px) {
+    main,
+    .page-shell,
+    .analytics-container,
+    .admin-shell,
+    .evaluation-page-shell,
+    .invoice-container {
+        width: 100% !important;
+        padding-inline: 0.75rem !important;
+    }
+
+    .table-wrap table,
+    .table-wrap .invoice-table,
+    .table-responsive table,
+    .table-scroll table,
+    .client-table-scroll table,
+    .particulars-container table,
+    .table-wrap thead,
+    .table-wrap .invoice-table thead,
+    .table-responsive thead,
+    .table-scroll thead,
+    .client-table-scroll thead,
+    .particulars-container thead,
+    .table-wrap tbody,
+    .table-wrap .invoice-table tbody,
+    .table-responsive tbody,
+    .table-scroll tbody,
+    .client-table-scroll tbody,
+    .particulars-container tbody,
+    .table-wrap tr,
+    .table-wrap .invoice-table tr,
+    .table-responsive tr,
+    .table-scroll tr,
+    .client-table-scroll tr,
+    .particulars-container tr,
+    .table-wrap th,
+    .table-wrap .invoice-table th,
+    .table-responsive th,
+    .table-scroll th,
+    .client-table-scroll th,
+    .particulars-container th,
+    .table-wrap td,
+    .table-wrap .invoice-table td,
+    .table-responsive td,
+    .table-scroll td,
+    .client-table-scroll td,
+    .particulars-container td {
+        display: revert !important;
+    }
+
+    .table-wrap thead,
+    .table-wrap .invoice-table thead,
+    .table-responsive thead,
+    .table-scroll thead,
+    .client-table-scroll thead,
+    .particulars-container thead {
+        display: table-header-group !important;
+    }
+
+    .table-wrap tr,
+    .table-wrap .invoice-table tr,
+    .table-responsive tr,
+    .table-scroll tr,
+    .client-table-scroll tr,
+    .particulars-container tr {
+        border-bottom: 0 !important;
+        background: transparent !important;
+    }
+
+    .table-wrap td::before,
+    .table-wrap .invoice-table td::before,
+    .table-responsive td::before,
+    .table-scroll td::before,
+    .client-table-scroll td::before,
+    .particulars-container td::before {
+        content: none !important;
+    }
+
+    .btn,
+    button:not(.nav-link):not(.recommendation-card),
+    .primary-btn,
+    .secondary-btn,
+    .tiny-btn,
+    .logout-btn,
+    .filter-btn,
+    .view-toggle button,
+    .analytics-tab,
+    .report-tab,
+    .sales-workflow-tab {
+        min-width: 0;
+    }
+
+    .report-toolbar > .btn,
+    .upload-workflow-toolbar > .btn,
+    .history-toolbar > .btn,
+    .modal-actions > button,
+    .preview-actions > button,
+    .evaluation-page-actions > button {
+        flex: 1 1 150px;
+    }
+}
+
 .autocomplete-list,
 .dropdown-menu {
     border: 1px solid rgba(255, 255, 255, 0.72);

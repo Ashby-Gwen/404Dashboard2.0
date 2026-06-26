@@ -30,6 +30,15 @@ def main():
     assert '.form-grid-3col' in styles
     assert '.button-group-responsive' in styles
     assert '@media (max-width: 760px)' in styles
+    assert 'System-wide UX foundation' in styles
+    assert '--system-page-max: 1480px' in styles
+    assert '.sales-workflow-tabs' in styles
+    assert '.evaluation-page-header' in styles
+    assert '.report-filter' in styles
+    assert '.table-wrap table' in styles
+    assert '-webkit-overflow-scrolling: touch' in styles
+    assert 'display: revert !important' in styles
+    assert '.auth-card' in styles
 
     assert '.recommendation-list' in analytics
     assert '.recommendation-row-metrics' in analytics
