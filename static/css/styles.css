@@ -2468,7 +2468,7 @@ body.ashby-sidebar-collapsed .ashby-verse-sidebar {
 
 /* System-wide UX foundation: consistent operational layout across all screens. */
 :root {
-    --system-page-max: 1480px;
+    --system-page-max: 1760px;
     --system-page-gutter: clamp(0.875rem, 2.5vw, 2rem);
     --system-section-gap: clamp(1rem, 2vw, 1.5rem);
     --system-panel-padding: clamp(1rem, 2vw, 1.5rem);
@@ -2704,7 +2704,9 @@ main,
 .table-responsive,
 .table-scroll,
 .client-table-scroll,
-.particulars-container {
+.particulars-container,
+.component-scroll,
+.analytics-flow-row {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
 }
@@ -2721,6 +2723,27 @@ main,
 .history-table,
 .excel-table {
     min-width: 760px;
+}
+
+.analytics-row-stack {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    min-width: 0;
+}
+
+.analytics-flow-row {
+    min-width: 0;
+    width: 100%;
+}
+
+.analytics-flow-row > .card,
+.analytics-flow-row > .surface-panel,
+.analytics-flow-row > .table-wrap,
+.analytics-flow-row > .client-table-scroll {
+    min-width: 0;
+    width: 100%;
 }
 
 th,

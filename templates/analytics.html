@@ -1679,8 +1679,9 @@
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 300px; gap: 2rem; margin-bottom: 2rem; ">
-                <div class="card" style="max-height: 500px; display: flex; flex-direction: column; width: 100%; box-sizing: border-box;">
+            <div class="analytics-row-stack">
+                <div class="analytics-flow-row">
+                    <div class="card" style="max-height: 500px; display: flex; flex-direction: column; width: 100%; box-sizing: border-box;">
                     <h3 style="color: var(--text-main); margin-bottom: 1.5rem;">Store Overview</h3>
                     
                     <div id="clients-dynamic-view" style="overflow-y: auto; flex-grow: 1; scrollbar-width: thin; -webkit-overflow-scrolling: touch;">
@@ -1695,9 +1696,10 @@
 
             clientsHTML += `
                     </div>
+                    </div>
                 </div>
 
-                <div>
+                <div class="analytics-flow-row">
                     <div class="card" style="margin-bottom: 1rem;">
                         <h3 style="color: var(--text-main); margin-bottom: 1rem; font-size: 1rem;">Top Performers</h3>
     `;
@@ -1716,13 +1718,15 @@
             clientsHTML += `
                     </div>
                 </div>
-            </div>
 
-            <div class="card" style="margin-top: 2rem;">
-                <h3 style="color: var(--text-main);">Client Opportunity Map</h3>
-                <p class="chart-subtitle">Order count versus Sales Order value for ${escapeHtml(data.filter?.label || '')}. Bubble size represents branch count; color represents ordering cohort.</p>
-                <div style="position: relative; height: 400px; width: 100%;">
-                    <canvas id="clientBubbleChart" aria-label="Client opportunity relationship chart"></canvas>
+                <div class="analytics-flow-row">
+                    <div class="card">
+                        <h3 style="color: var(--text-main);">Client Opportunity Map</h3>
+                        <p class="chart-subtitle">Order count versus Sales Order value for ${escapeHtml(data.filter?.label || '')}. Bubble size represents branch count; color represents ordering cohort.</p>
+                        <div style="position: relative; height: 400px; width: 100%;">
+                            <canvas id="clientBubbleChart" aria-label="Client opportunity relationship chart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2036,21 +2040,19 @@
                         <div class="stat-card"><div style="color:var(--text-muted);">Fixed</div><div style="font-size:1.7rem;font-weight:800;">${formatCurrency(data.fixed_expenses)}</div><div class="kpi-comparison">${Number(data.fixed_share_percent || 0).toFixed(1)}% of expenses</div></div>
                         <div class="stat-card"><div style="color:var(--text-muted);">Variable</div><div style="font-size:1.7rem;font-weight:800;">${formatCurrency(data.variable_expenses)}</div><div class="kpi-comparison">${Number(data.variable_share_percent || 0).toFixed(1)}% of expenses</div></div>
                     </div>
-                    <div class="chart-grid-two" style="margin-bottom:1.5rem;">
-                        <div class="card">
+                    <div class="analytics-row-stack">
+                        <div class="analytics-flow-row"><div class="card">
                             <h3>Expense Composition</h3>
                             <p class="chart-subtitle">Fixed and variable shares of recorded cash expenses for ${escapeHtml(data.filter?.label || '')}.</p>
                             <div style="height:240px;"><canvas id="expensesCompositionChart" aria-label="Fixed and variable expense composition chart"></canvas></div>
-                        </div>
-                        <div class="card">
+                        </div></div>
+                        <div class="analytics-flow-row"><div class="card">
                             <h3>Largest Expense Particulars</h3>
                             <p class="chart-subtitle">Top recorded expense descriptions ranked by Philippine-peso amount.</p>
                             <div style="height:320px;"><canvas id="expensesParticularsChart" aria-label="Largest expense particulars chart"></canvas></div>
-                        </div>
-                    </div>
-                    <div class="chart-grid-two">
-                        <div class="card"><h3>Expense Particulars</h3><div class="client-table-scroll"><table class="client-table"><thead><tr><th>Particular</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Share</th></tr></thead><tbody>${rankedRows(topParticulars)}</tbody></table></div></div>
-                        <div class="card"><h3>Suppliers / Payees</h3><div class="client-table-scroll"><table class="client-table"><thead><tr><th>Supplier / Payee</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Share</th></tr></thead><tbody>${rankedRows(topSuppliers)}</tbody></table></div></div>
+                        </div></div>
+                        <div class="analytics-flow-row"><div class="card"><h3>Expense Particulars</h3><div class="client-table-scroll"><table class="client-table"><thead><tr><th>Particular</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Share</th></tr></thead><tbody>${rankedRows(topParticulars)}</tbody></table></div></div></div>
+                        <div class="analytics-flow-row"><div class="card"><h3>Suppliers / Payees</h3><div class="client-table-scroll"><table class="client-table"><thead><tr><th>Supplier / Payee</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Share</th></tr></thead><tbody>${rankedRows(topSuppliers)}</tbody></table></div></div></div>
                     </div>
                 </div>`;
         }
@@ -2157,25 +2159,23 @@
 
                     ${(descriptive.early_warnings || []).map(item => `<div class="surface-panel" style="margin-bottom: 0.75rem; padding: 0.75rem; border-color: #F59E0B !important;">${item}</div>`).join('')}
 
-                    <div style="display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr); gap: 1.5rem; margin-bottom: 1.5rem;">
-                        <div class="card"><h3>Sales Trend by Month</h3><p class="chart-subtitle">Sales Order value in Philippine pesos for ${escapeHtml(data.filter?.label || '')}, ordered chronologically.</p><div style="height: 320px;"><canvas id="salesMonthlyTrendChart" aria-label="Monthly Sales Order value trend chart"></canvas></div></div>
-                        <div class="card"><h3>Top Product Contributions</h3><p class="chart-subtitle">Top products ranked by Sales Order value; remaining products are grouped as Other.</p><div style="height: 360px;"><canvas id="productDistributionChart" aria-label="Top product contribution ranking chart"></canvas></div></div>
-                    </div>
+                    <div class="analytics-row-stack">
+                        <div class="analytics-flow-row"><div class="card"><h3>Sales Trend by Month</h3><p class="chart-subtitle">Sales Order value in Philippine pesos for ${escapeHtml(data.filter?.label || '')}, ordered chronologically.</p><div style="height: 320px;"><canvas id="salesMonthlyTrendChart" aria-label="Monthly Sales Order value trend chart"></canvas></div></div></div>
+                        <div class="analytics-flow-row"><div class="card"><h3>Top Product Contributions</h3><p class="chart-subtitle">Top products ranked by Sales Order value; remaining products are grouped as Other.</p><div style="height: 360px;"><canvas id="productDistributionChart" aria-label="Top product contribution ranking chart"></canvas></div></div></div>
 
-                    <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; margin-bottom: 1.5rem;">
-                        <div class="card">
+                        <div class="analytics-flow-row"><div class="card">
                             <h3>Forecast vs Actual Validation</h3>
                             <p class="chart-subtitle">Historical actual and forecasted Sales Order value in Philippine pesos. Tooltips show variance and percentage error; MAPE status is ${escapeHtml(accuracy.status || 'insufficient data')}.</p>
                             <div style="height: 300px;"><canvas id="forecastValidationChart"></canvas></div>
                             <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.75rem;">This forecast estimates possible future sales based on previous sales patterns. P1, P2, and P3 represent the next forecasted periods after the latest available actual sales data. Each period is also labeled with its actual month, week, or date range for easier interpretation.</p>
-                        </div>
-                        <div class="card">
+                        </div></div>
+                        <div class="analytics-flow-row"><div class="card">
                             <h3>Peak Sales Periods</h3>
                             <p class="chart-subtitle">Highest Sales Order value periods, ranked rather than shown chronologically.</p>
                             <div style="height: 220px; margin-bottom: 1rem;"><canvas id="peakSalesPeriodChart" aria-label="Peak sales months ranking chart"></canvas></div>
                             <div style="height: 220px;"><canvas id="peakWeekdayChart" aria-label="Peak sales weekdays ranking chart"></canvas></div>
                             <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.85rem;">${peakSummary}</p>
-                        </div>
+                        </div></div>
                     </div>
 
                     <div class="card" style="margin-bottom: 1.5rem;">

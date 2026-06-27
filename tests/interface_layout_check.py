@@ -31,12 +31,15 @@ def main():
     assert '.button-group-responsive' in styles
     assert '@media (max-width: 760px)' in styles
     assert 'System-wide UX foundation' in styles
-    assert '--system-page-max: 1480px' in styles
+    assert '--system-page-max: 1760px' in styles
     assert '.sales-workflow-tabs' in styles
     assert '.evaluation-page-header' in styles
     assert '.report-filter' in styles
     assert '.table-wrap table' in styles
     assert '-webkit-overflow-scrolling: touch' in styles
+    assert '.component-scroll' in styles
+    assert '.analytics-row-stack' in styles
+    assert '.analytics-flow-row' in styles
     assert '@media (min-width: 1024px) and (pointer: fine)' in styles
     assert 'overflow-x: auto;' in styles
     assert 'display: revert !important' in styles
@@ -54,6 +57,11 @@ def main():
     assert 'Generate Analytics Report' in analytics
     assert 'Upload Historical CSV/Excel' in analytics
     assert 'data-section="evaluation"' not in analytics
+    assert 'class="analytics-row-stack"' in analytics
+    assert 'class="analytics-flow-row"' in analytics
+    assert 'grid-template-columns: 1fr 300px' not in analytics
+    assert 'grid-template-columns: minmax(0, 1.2fr)' not in analytics
+    assert 'grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)' not in analytics
     assert 'Web App Evaluation Questionnaire' in evaluation
     assert "category === 'Design/User Experience' ? 'Usability' : category" in evaluation
     assert 'evaluationPrintOverlay' in evaluation
