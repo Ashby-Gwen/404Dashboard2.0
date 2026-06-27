@@ -25,6 +25,13 @@ REQUIRED_COLUMNS = {
     "sales_order_items": {
         "sales_order_branch_id": "INTEGER REFERENCES sales_order_branches(id)",
     },
+    "session_records": {
+        "device_id": "VARCHAR(80)",
+        "device_label": "VARCHAR(120)",
+        "user_agent": "TEXT",
+        "ip_address": "VARCHAR(80)",
+        "concurrent_note": "TEXT",
+    },
 }
 
 SQLITE_INDEXES = (
@@ -48,6 +55,8 @@ SQLITE_INDEXES = (
     "ON collection_receipts (normalized_cr_number)",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_collection_receipts_invoice_cr "
     "ON collection_receipts (invoice_id, normalized_cr_number)",
+    "CREATE INDEX IF NOT EXISTS idx_session_records_user_status_device "
+    "ON session_records (user_id, status, device_id)",
 )
 
 SQLITE_COLLECTION_RECEIPTS_TABLE = """

@@ -68,6 +68,7 @@ def main():
                 sales_order_id=order.id,
                 invoice_type='SERVICE',
                 invoice_date=date(2026, 6, 19),
+                summary='Whole item service summary',
                 total_amount=1000,
                 amount_paid=0,
                 balance=1000,
@@ -134,6 +135,7 @@ def main():
             assert {row['invoice_number'] for row in service_payload['invoices']} == {
                 'SVI-CONFLICT-1', 'SVI-NEW-1', 'LEGACY-1'
             }
+            assert next(row for row in sales_payload['invoices'] if row['invoice_number'] == 'SI-CONFLICT-1')['summary'] == 'Whole item service summary'
             assert all(row['invoice_type'] == 'SALES' for row in sales_payload['invoices'])
             assert all(row['invoice_type'] == 'SERVICE' for row in service_payload['invoices'])
 
@@ -213,6 +215,18 @@ def main():
         assert 'body>*:not(#reportPreviewModal)' in reports_html.replace(' ', '')
         assert '.preview-toolbar{display:none!important;}' in reports_html.replace(' ', '').replace('\n', '')
         assert "letter ${isPortrait ? 'portrait' : 'landscape'}" in reports_html
+        assert '.print-table .value-positive' in reports_html
+        assert '.print-table .value-negative' in reports_html
+        assert 'print-color-adjust: exact' in reports_html
+
+        invoices_html = open(
+            os.path.join(ROOT, 'templates', 'invoices.html'),
+            encoding='utf-8'
+        ).read()
+        assert 'Particular Summary' in invoices_html
+        assert 'invoice-summary-cell' in invoices_html
+        assert 'colspan="11"' in invoices_html
+        assert "inv.summary || inv.admin_upload_note || '-'" in invoices_html
 
     print('Invoice, quantity, and Analytics print check passed.')
 

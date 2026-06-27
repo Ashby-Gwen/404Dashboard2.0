@@ -37,6 +37,8 @@ def main():
     assert '.report-filter' in styles
     assert '.table-wrap table' in styles
     assert '-webkit-overflow-scrolling: touch' in styles
+    assert '@media (min-width: 1024px) and (pointer: fine)' in styles
+    assert 'overflow-x: auto;' in styles
     assert 'display: revert !important' in styles
     assert '.auth-card' in styles
 

@@ -31,6 +31,7 @@ except ImportError as e:
 from datetime import UTC, date, datetime, timedelta
 import os
 import json
+import secrets
 from functools import wraps
 from io import StringIO, TextIOWrapper, BytesIO# <--- MAKE SURE THIS IS HERE
 import re
@@ -73,6 +74,8 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = bool(IS_PRODUCTION or os.environ.get('SESSION_COOKIE_SECURE') == 'true')
 app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_UPLOAD_BYTES', 10 * 1024 * 1024))
+SESSION_IDLE_TIMEOUT_SECONDS = 5 * 60
+DEVICE_COOKIE_NAME = 'syluxent_device_id'
 basedir = os.path.abspath(os.path.dirname(__file__))
 database_url = os.environ.get("DATABASE_URL")
 if database_url and database_url.startswith("postgres://"):
@@ -305,6 +308,11 @@ class SessionRecord(db.Model):
     login_at = db.Column(db.DateTime, default=datetime.utcnow)
     logout_at = db.Column(db.DateTime)
     status = db.Column(db.String(20), default='ACTIVE')
+    device_id = db.Column(db.String(80))
+    device_label = db.Column(db.String(120))
+    user_agent = db.Column(db.Text)
+    ip_address = db.Column(db.String(80))
+    concurrent_note = db.Column(db.Text)
 
     user = db.relationship('User', backref='session_records')
 
@@ -497,6 +505,82 @@ def user_has_role(user, allowed_roles):
     allowed = {role.lower() for role in allowed_roles}
     return user_role_name(user) in allowed
 
+def utc_now():
+    return datetime.now(UTC)
+
+def session_timestamp(value):
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+def request_ip_address():
+    forwarded_for = (request.headers.get('X-Forwarded-For') or '').split(',')[0].strip()
+    return forwarded_for or request.remote_addr or ''
+
+def request_device_label(user_agent):
+    value = (user_agent or '').strip()
+    if not value:
+        return 'Unknown device'
+    lowered = value.lower()
+    if 'edg/' in lowered:
+        browser = 'Edge'
+    elif 'chrome/' in lowered:
+        browser = 'Chrome'
+    elif 'firefox/' in lowered:
+        browser = 'Firefox'
+    elif 'safari/' in lowered:
+        browser = 'Safari'
+    else:
+        browser = 'Browser'
+    if 'windows' in lowered:
+        platform = 'Windows'
+    elif 'android' in lowered:
+        platform = 'Android'
+    elif 'iphone' in lowered or 'ipad' in lowered:
+        platform = 'iOS'
+    elif 'mac os' in lowered or 'macintosh' in lowered:
+        platform = 'macOS'
+    else:
+        platform = 'Device'
+    return f'{browser} on {platform}'
+
+def valid_device_id(value):
+    value = (value or '').strip()
+    return value if re.fullmatch(r'[A-Za-z0-9_\-]{20,100}', value) else ''
+
+def close_current_session_record(status='LOGGED_OUT', action='LOGOUT'):
+    session_record_id = session.get('session_record_id')
+    if not session_record_id:
+        return None
+    session_record = db.session.get(SessionRecord, session_record_id)
+    if session_record and session_record.status == 'ACTIVE':
+        session_record.logout_at = utc_now()
+        session_record.status = status
+        log_audit(action, 'session_records', session_record.id, None, {'username': session.get('username')})
+        db.session.commit()
+    return session_record
+
+def expire_inactive_session_if_needed():
+    if 'user_id' not in session:
+        return None
+    now = utc_now()
+    last_activity = session_timestamp(session.get('last_activity_at'))
+    if last_activity and (now - last_activity).total_seconds() > SESSION_IDLE_TIMEOUT_SECONDS:
+        close_current_session_record('TIMED_OUT', 'SESSION_TIMEOUT')
+        session.clear()
+        if wants_json_response():
+            return jsonify({'success': False, 'error': 'Your session timed out after 5 minutes of inactivity. Sign in again.'}), 401
+        flash('Your session timed out after 5 minutes of inactivity. Please sign in again.', 'warning')
+        return redirect(url_for('login'))
+    session['last_activity_at'] = now.isoformat()
+    return None
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -504,6 +588,9 @@ def login_required(f):
             if wants_json_response():
                 return jsonify({'success': False, 'error': 'Your session has expired. Sign in again.'}), 401
             return redirect(url_for('login'))
+        timeout_response = expire_inactive_session_if_needed()
+        if timeout_response:
+            return timeout_response
         user = db.session.get(User, session['user_id'])
         if not is_user_approved(user):
             session.clear()
@@ -522,6 +609,9 @@ def role_required(*allowed_roles):
                 if wants_json_response():
                     return jsonify({'success': False, 'error': 'Your session has expired. Sign in again.'}), 401
                 return redirect(url_for('login'))
+            timeout_response = expire_inactive_session_if_needed()
+            if timeout_response:
+                return timeout_response
             
             user = db.session.get(User, session['user_id'])
             if not is_user_approved(user) or not user_has_role(user, allowed_roles):
@@ -3693,21 +3783,65 @@ def login():
             if not is_user_approved(user):
                 flash(user_access_message(user), 'error')
                 return render_template('login.html')
+            device_id = valid_device_id(request.cookies.get(DEVICE_COOKIE_NAME)) or secrets.token_urlsafe(24)
+            user_agent = request.headers.get('User-Agent', '')
+            device_label = request_device_label(user_agent)
+            active_other_devices = (
+                SessionRecord.query
+                .filter(
+                    SessionRecord.user_id == user.id,
+                    SessionRecord.status == 'ACTIVE',
+                    or_(SessionRecord.device_id.is_(None), SessionRecord.device_id != device_id),
+                )
+                .count()
+            )
+            concurrent_note = (
+                f'{active_other_devices} other active device session(s) detected.'
+                if active_other_devices else None
+            )
             session['user_id'] = user.id
             session['username'] = user.username
             session['role'] = user_role_name(user)
+            session['device_id'] = device_id
+            session['last_activity_at'] = utc_now().isoformat()
             session_record = SessionRecord(
                 user_id=user.id,
                 username=user.username,
-                role_name=user.role.role_name
+                role_name=user.role.role_name,
+                device_id=device_id,
+                device_label=device_label,
+                user_agent=user_agent[:1000] if user_agent else '',
+                ip_address=request_ip_address()[:80],
+                concurrent_note=concurrent_note
             )
             db.session.add(session_record)
             db.session.commit()
             session['session_record_id'] = session_record.id
             log_audit('LOGIN', 'session_records', session_record.id, None, {'username': user.username, 'role': user.role.role_name})
+            if concurrent_note:
+                log_audit(
+                    'CONCURRENT_DEVICE_LOGIN',
+                    'session_records',
+                    session_record.id,
+                    None,
+                    {
+                        'username': user.username,
+                        'device_label': device_label,
+                        'active_other_devices': active_other_devices,
+                    },
+                )
             db.session.commit()
             flash(f'Welcome back, {username}!', 'success')
-            return redirect(url_for('dashboard'))
+            response = redirect(url_for('dashboard'))
+            response.set_cookie(
+                DEVICE_COOKIE_NAME,
+                device_id,
+                max_age=60 * 60 * 24 * 365,
+                httponly=True,
+                samesite='Lax',
+                secure=app.config['SESSION_COOKIE_SECURE'],
+            )
+            return response
         else:
             flash('Invalid login credentials. Please check your details and try again.', 'error')
     
@@ -3848,16 +3982,19 @@ def profile():
 
 @app.route('/logout')
 def logout():
-    session_record_id = session.get('session_record_id')
-    if session_record_id:
-        session_record = db.session.get(SessionRecord, session_record_id)
-        if session_record and session_record.status == 'ACTIVE':
-            session_record.logout_at = datetime.now(UTC)
-            session_record.status = 'LOGGED_OUT'
-            log_audit('LOGOUT', 'session_records', session_record.id, None, {'username': session.get('username')})
-            db.session.commit()
+    if request.args.get('timeout') == '1':
+        close_current_session_record('TIMED_OUT', 'SESSION_TIMEOUT')
+    else:
+        close_current_session_record('LOGGED_OUT', 'LOGOUT')
     session.clear()
     return render_template('logout.html', login_url=url_for('login'))
+
+@app.route('/session-timeout')
+def session_timeout():
+    close_current_session_record('TIMED_OUT', 'SESSION_TIMEOUT')
+    session.clear()
+    flash('Your session timed out after 5 minutes of inactivity. Please sign in again.', 'warning')
+    return redirect(url_for('login'))
 
 @app.route('/dashboard')
 @login_required
@@ -5827,7 +5964,11 @@ def get_session_records():
                     'role_name': item.role_name,
                     'login_at': item.login_at.isoformat() if item.login_at else None,
                     'logout_at': item.logout_at.isoformat() if item.logout_at else None,
-                    'status': item.status
+                    'status': item.status,
+                    'device_id': item.device_id,
+                    'device_label': item.device_label,
+                    'ip_address': item.ip_address,
+                    'concurrent_note': item.concurrent_note,
                 } for item in sessions
             ]
         })

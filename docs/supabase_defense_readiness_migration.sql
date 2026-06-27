@@ -29,6 +29,13 @@ ALTER TABLE public.users
 ALTER TABLE public.evaluation_sessions
     ADD COLUMN IF NOT EXISTS user_id integer REFERENCES public.users(id);
 
+ALTER TABLE public.session_records
+    ADD COLUMN IF NOT EXISTS device_id varchar(80),
+    ADD COLUMN IF NOT EXISTS device_label varchar(120),
+    ADD COLUMN IF NOT EXISTS user_agent text,
+    ADD COLUMN IF NOT EXISTS ip_address varchar(80),
+    ADD COLUMN IF NOT EXISTS concurrent_note text;
+
 CREATE TABLE IF NOT EXISTS public.sales_order_branches (
     id serial PRIMARY KEY,
     sales_order_id integer NOT NULL REFERENCES public.sales_orders(id) ON DELETE CASCADE,
@@ -120,6 +127,9 @@ CREATE INDEX IF NOT EXISTS idx_users_status
 
 CREATE INDEX IF NOT EXISTS idx_evaluation_sessions_user_id_created
     ON public.evaluation_sessions (user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_session_records_user_status_device
+    ON public.session_records (user_id, status, device_id);
 
 CREATE INDEX IF NOT EXISTS idx_sales_orders_order_date_created
     ON public.sales_orders (order_date DESC, created_at DESC, id DESC);

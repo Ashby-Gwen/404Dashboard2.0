@@ -21,6 +21,9 @@ def main():
         'initializePageLifecycle',
         'noTransition',
         'loadingDelay',
+        'initializeSessionIdleLogout',
+        '/session-timeout',
+        '5 * 60 * 1000',
     ):
         assert symbol in system_states
 

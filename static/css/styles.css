@@ -2488,6 +2488,13 @@ body {
     }
 }
 
+@media (min-width: 1024px) and (pointer: fine) {
+    html,
+    body {
+        overflow-x: auto;
+    }
+}
+
 main,
 .page-shell,
 .analytics-container,

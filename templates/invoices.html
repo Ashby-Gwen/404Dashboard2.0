@@ -630,6 +630,13 @@
             border-bottom: 1px solid var(--border-color);
         }
 
+        .invoice-summary-cell {
+            min-width: 220px;
+            max-width: 360px;
+            overflow-wrap: anywhere;
+            color: var(--text-muted);
+        }
+
         .invoice-table tbody tr:hover {
             background: #f9fafb;
         }
@@ -872,6 +879,7 @@
                                     <th>Invoice #</th>
                                     <th>Type</th>
                                     <th>Client</th>
+                                    <th>Particular Summary</th>
                                     <th>Date</th>
                                     <th>Total Amount</th>
                                     <th>Amount Paid</th>
@@ -883,7 +891,7 @@
                             </thead>
                             <tbody id="invoices-tbody">
                                 <tr>
-                                    <td colspan="10" class="no-data">Loading invoices...</td>
+                                    <td colspan="11" class="no-data">Loading invoices...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1268,7 +1276,7 @@
                         if (data.count === 0) {
                             const tbody = document.getElementById('invoices-tbody');
                             allInvoices = [];
-                            tbody.innerHTML = '<tr><td colspan="10" class="no-data">No invoices found</td></tr>';
+                            tbody.innerHTML = '<tr><td colspan="11" class="no-data">No invoices found</td></tr>';
                             renderInvoicePagination(data.count || 0);
                             updateCalculations();
                             showToast('No invoices found', 'info');
@@ -1295,7 +1303,7 @@
             const filtered = allInvoices;
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="no-data">No invoices found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" class="no-data">No invoices found</td></tr>';
                 return;
             }
 
@@ -1304,6 +1312,7 @@
                     <td><strong>${inv.invoice_number}</strong></td>
                     <td>${formatInvoiceType(inv.invoice_type)}</td>
                     <td>${inv.client_name}</td>
+                    <td class="invoice-summary-cell">${escapeHtml(inv.summary || inv.admin_upload_note || '-')}</td>
                     <td>${formatDate(inv.invoice_date)}</td>
                     <td>${formatCurrencyCell(inv.total_amount)}</td>
                     <td>₱${formatCurrency(inv.amount_paid)}</td>
@@ -1313,7 +1322,7 @@
                     <td><button class="btn btn-outline receipt-action-btn" onclick="toggleReceiptHistory(${inv.id})">View / Add Receipts</button></td>
                 </tr>
                 <tr id="receipt-row-${inv.id}" hidden>
-                    <td colspan="10"><div id="receipt-history-${inv.id}" class="receipt-history-panel">Loading Collection Receipts...</div></td>
+                    <td colspan="11"><div id="receipt-history-${inv.id}" class="receipt-history-panel">Loading Collection Receipts...</div></td>
                 </tr>
             `).join('');
         }

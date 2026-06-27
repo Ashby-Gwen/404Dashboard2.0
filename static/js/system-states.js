@@ -6,6 +6,9 @@
     let interruptionRequest = null;
     let pageTransitionTimer = null;
     let pageTransitionTarget = null;
+    let idleLogoutTimer = null;
+    let idleLogoutInitialized = false;
+    const idleLogoutMs = 5 * 60 * 1000;
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
 
     document.documentElement.classList.add('syluxent-js', 'syluxent-page-pending');
@@ -606,6 +609,26 @@
         }
     };
 
+    function initializeSessionIdleLogout() {
+        if (idleLogoutInitialized) return;
+        const hasAuthenticatedLogout = Boolean(document.querySelector('a[href*="/logout"]'));
+        if (!hasAuthenticatedLogout) return;
+        idleLogoutInitialized = true;
+
+        const resetIdleTimer = () => {
+            window.clearTimeout(idleLogoutTimer);
+            idleLogoutTimer = window.setTimeout(() => {
+                dataCache.clear();
+                window.location.assign('/session-timeout');
+            }, idleLogoutMs);
+        };
+
+        ['click', 'keydown', 'mousemove', 'scroll', 'touchstart', 'focus'].forEach(eventName => {
+            window.addEventListener(eventName, resetIdleTimer, { passive: true });
+        });
+        resetIdleTimer();
+    }
+
     const ashbyBible = {
         version: 'en-kjv',
         startDate: '2026-01-01',
@@ -1029,6 +1052,7 @@
             initializeGlobalButtonLoading();
             initializeFutureDateWarnings();
             initializeLogoutCacheCleanup();
+            initializeSessionIdleLogout();
             initializeEvaluationModal();
             updateThemeBranding();
             renderAshbyVerse();
@@ -1039,6 +1063,7 @@
         initializeGlobalButtonLoading();
         initializeFutureDateWarnings();
         initializeLogoutCacheCleanup();
+        initializeSessionIdleLogout();
         initializeEvaluationModal();
         updateThemeBranding();
         renderAshbyVerse();
@@ -1046,6 +1071,7 @@
     document.addEventListener('syluxent-content-updated', event => {
         initializeFutureDateWarnings(event.target || document);
         initializeLogoutCacheCleanup(event.target || document);
+        initializeSessionIdleLogout();
         initializeEvaluationModal();
         updateThemeBranding();
     });

@@ -25,7 +25,7 @@ TABLE_CONFIG = {
     "sales_orders": {"model": "SalesOrder", "search": ["so_number", "company_name", "store_name", "sales_staff", "notes"], "status": "status"},
     "invoices": {"model": "Invoice", "search": ["invoice_number", "invoice_type", "summary", "status", "cr_number"], "status": "status"},
     "purchase_orders": {"model": "PurchaseOrder", "search": ["check_voucher_number", "check_number", "supplier_payee", "particulars", "status"], "status": "status"},
-    "session_records": {"model": "SessionRecord", "search": ["username", "role_name", "status"], "status": "status"},
+    "session_records": {"model": "SessionRecord", "search": ["username", "role_name", "status", "device_label", "ip_address", "concurrent_note"], "status": "status"},
     "analytics_data": {"model": "AnalyticsData", "search": ["source_type", "source_id", "party_name", "party_role", "category", "status", "description"], "status": "status"},
 }
 

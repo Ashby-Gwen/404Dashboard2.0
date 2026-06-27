@@ -66,6 +66,8 @@
         .print-table .month-total { break-before: avoid; page-break-before: avoid; }
         .print-table .grand-total td { border-top: 1.5pt double #1E293B; border-bottom: 1.5pt double #1E293B; font-weight: 800; }
         .print-table .numeric { text-align: right; white-space: nowrap; }
+        .print-table .value-positive { color: #166534; font-weight: 700; }
+        .print-table .value-negative { color: #B91C1C; font-weight: 700; }
         @page { size: letter landscape; margin: 0; }
         @media print {
             body > *:not(#reportPreviewModal) { display: none !important; }
@@ -75,6 +77,16 @@
             .preview-viewport { display: block; overflow: visible; padding: 0; background: white; }
             .report-paper { width: 279mm; min-height: 216mm; margin: 0; box-shadow: none; }
             .report-paper.portrait { width: 216mm; min-height: 279mm; }
+            .print-table .value-positive {
+                color: #166534 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .print-table .value-negative {
+                color: #B91C1C !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
     </style>
 </head>
