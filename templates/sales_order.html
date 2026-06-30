@@ -116,17 +116,20 @@
             display: grid;
             grid-template-columns: 1fr;
             gap: 1.5rem;
+            min-width: 0;
         }
 
         .sales-workflow-tabs {
             display: flex;
             flex-wrap: wrap;
             gap: 0.65rem;
-            margin-bottom: 1rem;
+            width: min(100%, 920px);
+            margin: 0 auto 1rem;
             padding: 0.4rem;
             border: 1px solid var(--border-color);
             border-radius: var(--radius-lg);
             background: var(--bg-surface);
+            justify-content: center;
         }
 
         .sales-workflow-tab {
@@ -148,13 +151,40 @@
             display: none;
         }
 
+        .sales-workflow-pane {
+            width: min(100%, 1280px);
+            margin: 0 auto;
+            min-width: 0;
+        }
+
         .workflow-manual-grid {
+            width: min(100%, 920px);
             max-width: 920px;
+            margin: 0 auto;
+            justify-items: stretch;
         }
 
         .workflow-upload-grid {
+            width: min(100%, 1280px);
+            max-width: 1280px;
+            margin: 0 auto;
             grid-template-columns: minmax(360px, 0.85fr) minmax(520px, 1.15fr);
             align-items: start;
+        }
+
+        .workflow-upload-grid > * {
+            min-width: 0;
+        }
+
+        #salesOrderFormPanel {
+            width: 100%;
+            min-width: 0;
+        }
+
+        #excelWorkflowPane > .card {
+            width: min(100%, 1280px);
+            margin-left: auto !important;
+            margin-right: auto !important;
         }
 
         .upload-form-slot:empty {
@@ -177,6 +207,7 @@
             display: flex;
             flex-direction: column;
             min-height: 500px;
+            min-width: 0;
         }
 
         .excel-header {
@@ -288,7 +319,7 @@
             color: white;
             padding: 0.5rem 1rem;
             border-radius: var(--radius-lg);
-            font-size: 0.75rem;
+            font-size: var(--ui-font-xs);
             font-weight: 700;
         }
 
@@ -340,13 +371,13 @@
         .particulars-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.8rem;
+            font-size: var(--ui-font-table);
         }
 
         .particulars-table th {
             background: #F8FAFC;
             padding: 0.75rem;
-            font-size: 0.65rem;
+            font-size: var(--ui-font-xs);
             font-weight: 800;
             color: var(--text-muted);
             text-transform: uppercase;
@@ -407,7 +438,7 @@
             padding: 0.75rem 1.25rem;
             border-top: 1px solid var(--border-color);
             background: #F8FAFC;
-            font-size: 0.75rem;
+            font-size: var(--ui-font-xs);
             border-radius: 0 0 16px 16px ;
         }
 
@@ -447,7 +478,9 @@
         }
 
         .sales-order-history {
-            margin-top: 1.5rem;
+            width: min(100%, 1280px);
+            margin: 1.5rem auto 0;
+            min-width: 0;
         }
 
         .history-toolbar {
@@ -458,10 +491,43 @@
             margin-bottom: 0.75rem;
         }
 
+        .history-actions {
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .history-actions > .btn {
+            align-self: flex-end;
+        }
+
+        .history-filter {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .history-filter label {
+            font-weight: 700;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .history-filter select {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--surface-card);
+            color: var(--text-main);
+        }
+
         .history-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.85rem;
+            font-size: var(--ui-font-table);
         }
 
         .history-table th,
@@ -474,7 +540,7 @@
         .history-table th {
             background: #F8FAFC;
             color: var(--text-muted);
-            font-size: 0.7rem;
+            font-size: var(--ui-font-xs);
             font-weight: 800;
             text-transform: uppercase;
         }
@@ -799,7 +865,7 @@
                         </div>
                         <div>
                             <span
-                                style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Spreadsheet
+                                style="font-size: var(--ui-font-xs); font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Spreadsheet
                                 Viewer</span>
                             <div id="sheetSelectorContainer" class="hidden"
                                 style="display: flex; align-items: center; gap: 0.5rem;">
@@ -834,7 +900,7 @@
                     <span id="statusMsg" style="color: var(--text-muted);">Ready for input</span>
                     <div id="gridStats" class="hidden" style="margin-left: auto;">
                         <span id="statsText"
-                            style="font-family: monospace; background: #E2E8F0; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem;"></span>
+                            style="font-family: monospace; background: #E2E8F0; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: var(--ui-font-xs);"></span>
                     </div>
                 </div>
             </div>
@@ -843,13 +909,24 @@
         <div class="card sales-order-history">
             <div class="history-toolbar">
                 <h2 style="margin: 0;">Sales Order History</h2>
-                <button type="button" onclick="loadSalesOrderHistory()" class="btn btn-outline btn-sm">
-                    <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
-                    Refresh
-                </button>
+                <div class="history-actions">
+                    <div class="history-filter">
+                        <label for="salesOrderStatusFilter">Status</label>
+                        <select id="salesOrderStatusFilter" onchange="renderSalesOrderHistory()">
+                            <option value="">All Statuses</option>
+                            <option value="PENDING">Pending</option>
+                            <option value="PARTIAL">Partial</option>
+                            <option value="COMPLETED">Completed</option>
+                        </select>
+                    </div>
+                    <button type="button" onclick="loadSalesOrderHistory()" class="btn btn-outline btn-sm">
+                        <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+                        Refresh
+                    </button>
+                </div>
             </div>
             <div class="table-wrap" style="margin-bottom: 0;">
-                <table class="history-table">
+                <table class="history-table history-fit-table sales-order-history-table">
                     <thead>
                         <tr>
                             <th>SO Number</th>
@@ -877,6 +954,7 @@
         let workbook = null;
         let uploadedWorkbooks = [];
         let gridData = [];
+        let salesOrderHistoryRows = [];
         let selectionMode = null;
         let activeTarget = null;
         let particulars = [];
@@ -2456,9 +2534,20 @@
                     throw new Error(result.error || 'Unable to load sales orders.');
                 }
 
-                const rows = result.sales_orders || [];
+                salesOrderHistoryRows = result.sales_orders || [];
+                renderSalesOrderHistory();
+            } catch (error) {
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #B91C1C; padding: 1.5rem;">${escapeHtml(error.message || 'Unable to load sales orders.')}</td></tr>`;
+            }
+        }
+
+        function renderSalesOrderHistory() {
+            const tbody = document.getElementById('salesOrderHistoryBody');
+            if (!tbody) return;
+            const statusFilter = (document.getElementById('salesOrderStatusFilter')?.value || '').toUpperCase();
+            const rows = salesOrderHistoryRows.filter(row => !statusFilter || String(row.status || '').toUpperCase() === statusFilter);
                 if (!rows.length) {
-                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No sales orders found.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No sales orders match the selected status.</td></tr>';
                     return;
                 }
 
@@ -2481,9 +2570,6 @@
                     </tr>
                 `).join('');
                 lucide.createIcons();
-            } catch (error) {
-                tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #B91C1C; padding: 1.5rem;">${escapeHtml(error.message || 'Unable to load sales orders.')}</td></tr>`;
-            }
         }
 
         let adminCleanRows = [];

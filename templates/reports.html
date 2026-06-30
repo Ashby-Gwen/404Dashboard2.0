@@ -591,7 +591,12 @@
         setInterval(() => document.getElementById('datetime').textContent = new Date().toLocaleString(), 1000);
         window.addEventListener('DOMContentLoaded', () => {
             if (initialReportYears.length) document.getElementById('reportYear').value = initialReportYears[0];
-            onReportPeriodChange();
+            const requestedReport = new URLSearchParams(window.location.search).get('report');
+            if (requestedReport && reports[requestedReport]) {
+                switchReport(requestedReport);
+            } else {
+                onReportPeriodChange();
+            }
         });
     </script>
 </body>

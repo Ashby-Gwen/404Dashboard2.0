@@ -24,6 +24,7 @@ from app import (  # noqa: E402
     db,
     init_db,
 )
+from analytics_services import build_monthly_revenue_forecast  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
 
@@ -47,6 +48,7 @@ def main():
             password_hash=generate_password_hash('manager123'),
             role_id=manager_role.id,
             status='ACTIVE',
+            evaluation_enabled=True,
         )
         admin_role = Role.query.filter_by(role_name='admin').first()
         admin = User(
@@ -152,6 +154,18 @@ def main():
                 ),
                 AnalyticsData(
                     source_type='TEST',
+                    source_id='overview-expense-current',
+                    transaction_date=pd.Timestamp(2026, 1, 1).date(),
+                    financial_stage='PAID_OUT',
+                    flow_direction='OUTFLOW',
+                    flow_status='ACTUAL',
+                    party_name='TEST SUPPLIER',
+                    party_role='SUPPLIER',
+                    amount=750,
+                    category='EXPENSE_PAYMENT',
+                ),
+                AnalyticsData(
+                    source_type='TEST',
                     source_id='overview-previous',
                     transaction_date=pd.Timestamp(2025, 1, 1).date(),
                     financial_stage='PAID',
@@ -173,6 +187,8 @@ def main():
                 overview_payload['kpis']['gross_revenue']
                 - overview_payload['kpis']['total_cost_of_goods']
             )
+            assert overview_payload['trend_data']['revenue_values'][0] == 2000
+            assert overview_payload['trend_data']['expense_values'][0] == 750
 
             clients_payload = client.get('/api/analytics/clients').get_json()
             assert clients_payload['success'] is True
@@ -193,6 +209,28 @@ def main():
             assert sales_payload['success'] is True
             assert sales_payload['forecast_accuracy']['mape_threshold'] == 25
             assert 'descriptive' in sales_payload and 'predictive' in sales_payload and 'prescriptive' in sales_payload
+            assert sales_payload['descriptive']['monthly_trend'][0]['period_label'] == 'January 2026'
+            assert 'quantity' in sales_payload['descriptive']['peak_periods']['months'][0]
+            assert 'quantity' in sales_payload['descriptive']['peak_periods']['weekdays'][0]
+            assert 'average_quantity' in sales_payload['descriptive']['peak_periods']['months'][0]
+            assert 'average_quantity' in sales_payload['descriptive']['peak_periods']['weekdays'][0]
+            assert 'active_sales_days' in sales_payload['descriptive']['peak_periods']['months'][0]
+            assert 'active_sales_days' in sales_payload['descriptive']['peak_periods']['weekdays'][0]
+            assert sales_payload['descriptive']['peak_periods']['months'][0]['average_quantity'] >= sales_payload['descriptive']['peak_periods']['months'][-1]['average_quantity']
+            assert sales_payload['descriptive']['peak_periods']['weekdays'][0]['average_quantity'] >= sales_payload['descriptive']['peak_periods']['weekdays'][-1]['average_quantity']
+            monthly_forecast = sales_payload['predictive']['monthly_revenue_forecast']
+            assert monthly_forecast['status'] == 'ready'
+            assert monthly_forecast['latest_historical_month'] == '2026-08'
+            assert monthly_forecast['forecast_start_month'] == '2026-09'
+            assert [item['period'] for item in monthly_forecast['forecast_points'][:3]] == ['2026-09', '2026-10', '2026-11']
+            assert len(monthly_forecast['forecast_points']) == 12
+            assert monthly_forecast['default_horizon'] == 3
+            assert monthly_forecast['horizon_options'] == [3, 6, 12]
+            assert monthly_forecast['historical_points'][0]['label'] == 'January 2026'
+            assert all(item['type'] == 'forecast' for item in monthly_forecast['forecast_points'])
+            insufficient_forecast = build_monthly_revenue_forecast(['2026-01', '2026-02'], [1000, 1200])
+            assert insufficient_forecast['status'] == 'insufficient_data'
+            assert insufficient_forecast['message'] == 'Not enough historical data to generate a reliable 3-month forecast.'
 
             questions = client.get('/api/evaluation/questions').get_json()
             assert questions['success'] is True

@@ -124,11 +124,21 @@ def main():
             assert 'vendor/chartjs/chart.umd.min.js' not in analytics_html
             assert 'createAnalyticsChart' in analytics_html
             assert 'data-section="expenses"' in analytics_html
-            assert 'aria-label="Monthly revenue trend chart"' in analytics_html
+            assert 'aria-label="Revenue forecast chart"' in analytics_html
             assert 'aria-label="Client opportunity relationship chart"' in analytics_html
             assert 'aria-label="Fixed and variable expense composition chart"' in analytics_html
 
             login(client, accounting, 'accounting staff')
+            blocked_evaluation_access = client.get('/api/evaluation/access').get_json()
+            assert blocked_evaluation_access['can_access'] is False
+            accounting.evaluation_enabled = True
+            db.session.commit()
+            enabled_evaluation_access = client.get('/api/evaluation/access').get_json()
+            assert enabled_evaluation_access['can_access'] is True
+            evaluation_html = client.get('/evaluation').get_data(as_text=True)
+            assert 'role="tablist"' in evaluation_html
+            assert 'role="tab"' in evaluation_html
+            assert 'role="tabpanel"' in evaluation_html
             expense_html = client.get('/expenses').get_data(as_text=True)
             expense_parser = assert_unique_ids(expense_html)
             assert 'href="#expenseMain"' in expense_html
@@ -153,11 +163,14 @@ def main():
 
     admin_source = open(os.path.join(ROOT, 'templates', 'admin.html'), encoding='utf-8').read()
     analytics_source = open(os.path.join(ROOT, 'templates', 'analytics.html'), encoding='utf-8').read()
+    evaluation_source = open(os.path.join(ROOT, 'templates', 'evaluation.html'), encoding='utf-8').read()
     expense_source = open(os.path.join(ROOT, 'templates', 'purchase_orders.html'), encoding='utf-8').read()
+    system_states_source = open(os.path.join(ROOT, 'static', 'js', 'system-states.js'), encoding='utf-8').read()
     styles = open(os.path.join(ROOT, 'static', 'css', 'styles.css'), encoding='utf-8').read()
 
     for key in ('ArrowRight', 'ArrowLeft', 'Home', 'End'):
         assert key in admin_source
+        assert key in evaluation_source
     assert "event.key === 'Escape'" in expense_source
     assert "event.key !== 'Tab'" in expense_source
     assert 'expenseModalReturnFocus' in expense_source
@@ -167,6 +180,9 @@ def main():
     assert 'recommendationModalReturnFocus' in analytics_source
     assert "indexAxis: 'y'" in analytics_source
     assert 'loadOverviewComparison' in analytics_source
+    assert '/api/evaluation/access' in system_states_source
+    assert 'payload.can_access' in system_states_source
+    assert 'evaluationLauncherChecked' in system_states_source
     dashboard_source = open(os.path.join(ROOT, 'templates', 'dashboard.html'), encoding='utf-8').read()
     assert 'Quick Actions' in dashboard_source
     assert 'Admin Command Center' in dashboard_source

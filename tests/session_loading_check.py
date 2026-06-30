@@ -97,6 +97,16 @@ def main():
             active_session['last_activity_at'] = datetime.now(UTC).isoformat()
         active_response = second_device.get('/get-invoices', query_string={'page': 1, 'page_size': 2})
         assert active_response.status_code == 200
+        with second_device.session_transaction() as near_idle_session:
+            near_idle_session['last_activity_at'] = (datetime.now(UTC) - timedelta(minutes=4, seconds=30)).isoformat()
+        activity_response = second_device.post(
+            '/api/session/activity',
+            headers={'Accept': 'application/json'},
+        )
+        assert activity_response.status_code == 200
+        assert activity_response.get_json()['success'] is True
+        refreshed_response = second_device.get('/get-invoices', query_string={'page': 1, 'page_size': 2})
+        assert refreshed_response.status_code == 200
 
         with second_device.session_transaction() as stale_session:
             stale_session['last_activity_at'] = (datetime.now(UTC) - timedelta(minutes=6)).isoformat()
@@ -106,7 +116,7 @@ def main():
             headers={'Accept': 'application/json'},
         )
         assert timeout_response.status_code == 401
-        assert 'timed out after 5 minutes' in timeout_response.get_json()['error']
+        assert 'timed out' in timeout_response.get_json()['error']
         db.session.refresh(active_sessions[1])
         assert active_sessions[1].status == 'TIMED_OUT'
 

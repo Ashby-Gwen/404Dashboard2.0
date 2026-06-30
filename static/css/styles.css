@@ -3066,8 +3066,8 @@ canvas {
 }
 
 .auth-title {
-    font-size: clamp(1.9rem, 5vw, 2.5rem) !important;
-    letter-spacing: -0.06em;
+    font-size: var(--ui-font-page-title) !important;
+    letter-spacing: 0;
 }
 
 .flash-messages {
@@ -4583,6 +4583,15 @@ body[data-theme-mode="contrast"] .table-wrap {
     --ui-space-5: 1.5rem;
     --ui-space-6: 2rem;
     --ui-control-height: 44px;
+    --ui-font-body: 0.95rem;
+    --ui-font-small: 0.86rem;
+    --ui-font-xs: 0.78rem;
+    --ui-font-label: 0.84rem;
+    --ui-font-table: 0.84rem;
+    --ui-font-page-title: clamp(1.4rem, 1.8vw, 1.8rem);
+    --ui-font-section-title: 1.05rem;
+    --ui-font-card-title: 0.95rem;
+    --ui-font-kpi: clamp(1.25rem, 1.8vw, 1.55rem);
 }
 
 main,
@@ -4605,7 +4614,73 @@ main,
 .reports-header h1,
 .page-title h1 {
     margin: 0 !important;
+    font-size: var(--ui-font-page-title) !important;
     line-height: 1.2 !important;
+}
+
+.home-title,
+.auth-title {
+    font-size: var(--ui-font-page-title) !important;
+    letter-spacing: 0 !important;
+}
+
+.section-title,
+.analytics-section h2,
+.reports-header h2,
+.evaluation-results-heading h2 {
+    font-size: var(--ui-font-section-title) !important;
+}
+
+.card h2,
+.card h3,
+.form-section h3,
+.report-card h2,
+.report-card h3,
+.admin-card h2,
+.admin-card h3,
+.analytics-section .card h3,
+.evaluation-results-card h3 {
+    font-size: var(--ui-font-card-title) !important;
+}
+
+.stat-value,
+.summary-item p,
+.evaluation-kpi strong,
+.metric-card strong,
+.dashboard-card strong {
+    font-size: var(--ui-font-kpi) !important;
+    letter-spacing: 0 !important;
+}
+
+.stat-label,
+.summary-item h3,
+.metric-card span,
+.dashboard-card span {
+    font-size: var(--ui-font-xs) !important;
+    letter-spacing: 0 !important;
+}
+
+body,
+.card,
+.form-section,
+.admin-card,
+.analytics-section,
+.report-card {
+    font-size: var(--ui-font-body);
+}
+
+p,
+small,
+.text-muted,
+.page-title p,
+.analytics-header p,
+.reports-header p,
+.evaluation-page-header p,
+.auth-subtitle,
+.page-notice,
+.home-subtitle,
+.chart-subtitle {
+    font-size: var(--ui-font-small) !important;
 }
 
 .card,
@@ -4646,6 +4721,7 @@ main,
 .readonly-field label {
     display: block;
     margin: 0 !important;
+    font-size: var(--ui-font-label) !important;
     line-height: 1.35;
 }
 
@@ -4658,6 +4734,7 @@ textarea,
 .autocomplete-input {
     min-height: var(--ui-control-height) !important;
     padding: 0.7rem 0.85rem !important;
+    font-size: var(--ui-font-body);
     line-height: 1.35;
 }
 
@@ -4699,6 +4776,7 @@ button:not(.nav-link):not(.recommendation-card),
 .view-toggle button {
     min-height: var(--ui-control-height) !important;
     padding: 0.65rem 1rem !important;
+    font-size: var(--ui-font-small) !important;
     line-height: 1.2;
 }
 
@@ -4734,6 +4812,7 @@ button.btn-sm,
 .report-tab {
     min-height: 40px !important;
     padding: 0.55rem 0.85rem !important;
+    font-size: var(--ui-font-small) !important;
 }
 
 .table-wrap,
@@ -4749,7 +4828,200 @@ td,
 .data-table th,
 .data-table td {
     padding: 0.75rem 0.875rem !important;
+    font-size: var(--ui-font-table) !important;
     vertical-align: middle;
+}
+
+th,
+.invoice-table th,
+.data-table th,
+.history-table th,
+.particulars-table th,
+.excel-table th {
+    font-size: var(--ui-font-xs) !important;
+}
+
+.history-fit-table {
+    width: max-content !important;
+    min-width: 100% !important;
+    table-layout: auto;
+}
+
+.table-wrap .history-fit-table th,
+.table-wrap .history-fit-table td {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    hyphens: auto;
+}
+
+.history-fit-table .amount,
+.history-fit-table td.amount,
+.history-fit-table .numeric {
+    white-space: nowrap !important;
+    overflow-wrap: normal;
+}
+
+.history-fit-table .btn {
+    max-width: 100%;
+    white-space: nowrap;
+}
+
+.invoice-history-table .invoice-summary-cell {
+    min-width: 0;
+    max-width: none;
+}
+
+.invoice-history-table th:nth-child(1),
+.invoice-history-table td:nth-child(1) {
+    min-width: 105px;
+}
+
+.invoice-history-table th:nth-child(2),
+.invoice-history-table td:nth-child(2),
+.invoice-history-table th:nth-child(10),
+.invoice-history-table td:nth-child(10) {
+    min-width: 96px;
+}
+
+.invoice-history-table th:nth-child(3),
+.invoice-history-table td:nth-child(3) {
+    min-width: 150px;
+    max-width: 220px;
+}
+
+.invoice-history-table th:nth-child(4),
+.invoice-history-table td:nth-child(4) {
+    min-width: 180px;
+    max-width: 280px;
+}
+
+.invoice-history-table th:nth-child(5),
+.invoice-history-table td:nth-child(5),
+.invoice-history-table th:nth-child(6),
+.invoice-history-table td:nth-child(6),
+.invoice-history-table th:nth-child(7),
+.invoice-history-table td:nth-child(7),
+.invoice-history-table th:nth-child(9),
+.invoice-history-table td:nth-child(9) {
+    min-width: 115px;
+}
+
+.invoice-history-table th:nth-child(8),
+.invoice-history-table td:nth-child(8) {
+    min-width: 150px;
+    max-width: 210px;
+}
+
+.invoice-history-table th:nth-child(11),
+.invoice-history-table td:nth-child(11) {
+    min-width: 165px;
+}
+
+.invoice-history-table th:nth-child(6),
+.invoice-history-table td:nth-child(6),
+.invoice-history-table th:nth-child(7),
+.invoice-history-table td:nth-child(7),
+.invoice-history-table th:nth-child(9),
+.invoice-history-table td:nth-child(9),
+.invoice-history-table th:nth-child(10),
+.invoice-history-table td:nth-child(10),
+.invoice-history-table th:nth-child(11),
+.invoice-history-table td:nth-child(11) {
+    white-space: nowrap !important;
+    overflow-wrap: normal;
+}
+
+.sales-order-history-table th:nth-child(1),
+.sales-order-history-table td:nth-child(1),
+.sales-order-history-table th:nth-child(5),
+.sales-order-history-table td:nth-child(5),
+.sales-order-history-table th:nth-child(7),
+.sales-order-history-table td:nth-child(7),
+.sales-order-history-table th:nth-child(8),
+.sales-order-history-table td:nth-child(8),
+.sales-order-history-table th:nth-child(9),
+.sales-order-history-table td:nth-child(9) {
+    min-width: 105px;
+}
+
+.sales-order-history-table th:nth-child(2),
+.sales-order-history-table td:nth-child(2) {
+    min-width: 180px;
+    max-width: 260px;
+}
+
+.sales-order-history-table th:nth-child(3),
+.sales-order-history-table td:nth-child(3),
+.sales-order-history-table th:nth-child(4),
+.sales-order-history-table td:nth-child(4),
+.sales-order-history-table th:nth-child(6),
+.sales-order-history-table td:nth-child(6) {
+    min-width: 135px;
+    max-width: 210px;
+}
+
+.sales-order-history-table th:nth-child(7),
+.sales-order-history-table td:nth-child(7),
+.sales-order-history-table th:nth-child(9),
+.sales-order-history-table td:nth-child(9) {
+    min-width: 125px;
+    white-space: nowrap !important;
+    overflow-wrap: normal;
+}
+
+.sales-order-history-table th:nth-child(8),
+.sales-order-history-table td:nth-child(8) {
+    min-width: 112px;
+    white-space: nowrap !important;
+    overflow-wrap: normal;
+}
+
+.expense-history-table th:nth-child(1),
+.expense-history-table td:nth-child(1),
+.expense-history-table th:nth-child(2),
+.expense-history-table td:nth-child(2),
+.expense-history-table th:nth-child(4),
+.expense-history-table td:nth-child(4),
+.expense-history-table th:nth-child(6),
+.expense-history-table td:nth-child(6),
+.expense-history-table th:nth-child(7),
+.expense-history-table td:nth-child(7),
+.expense-history-table th:nth-child(8),
+.expense-history-table td:nth-child(8),
+.expense-history-table th:nth-child(9),
+.expense-history-table td:nth-child(9) {
+    min-width: 105px;
+}
+
+.expense-history-table th:nth-child(3),
+.expense-history-table td:nth-child(3) {
+    min-width: 160px;
+    max-width: 240px;
+}
+
+.expense-history-table th:nth-child(5),
+.expense-history-table td:nth-child(5) {
+    min-width: 170px;
+    max-width: 280px;
+}
+
+.expense-history-table th:nth-child(6),
+.expense-history-table td:nth-child(6),
+.expense-history-table th:nth-child(7),
+.expense-history-table td:nth-child(7),
+.expense-history-table th:nth-child(9),
+.expense-history-table td:nth-child(9) {
+    min-width: 125px;
+    white-space: nowrap !important;
+    overflow-wrap: normal;
+}
+
+.expense-history-table th:nth-child(8),
+.expense-history-table td:nth-child(8) {
+    min-width: 105px;
+    white-space: nowrap !important;
+    overflow-wrap: normal;
 }
 
 .badge,

@@ -1299,6 +1299,7 @@ def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_d
             month_key,
             func.sum(SalesOrderItem.quantity * SalesOrderItem.selling_price).label('revenue'),
             func.sum(SalesOrderItem.quantity).label('quantity'),
+            func.count(func.distinct(SalesOrder.order_date)).label('active_sales_days'),
         )
         .join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
     )
@@ -1309,7 +1310,17 @@ def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_d
         .all()
     )
     monthly_trend = [
-        {"period": row.month, "revenue": numeric(row.revenue, 2), "quantity": int(row.quantity or 0)}
+        {
+            "period": row.month,
+            "period_label": month_label(row.month),
+            "revenue": numeric(row.revenue, 2),
+            "quantity": int(row.quantity or 0),
+            "active_sales_days": int(row.active_sales_days or 0),
+            "average_quantity": numeric(
+                float(row.quantity or 0) / float(row.active_sales_days or 1),
+                2,
+            ),
+        }
         for row in monthly_rows if row.month
     ]
     item_query = (
@@ -1335,18 +1346,29 @@ def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_d
         db.session.query(
             weekday_number,
             func.sum(SalesOrderItem.total).label('revenue'),
+            func.sum(SalesOrderItem.quantity).label('quantity'),
+            func.count(func.distinct(SalesOrder.order_date)).label('active_sales_days'),
         )
         .join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
     )
     weekday_rows = (
         _apply_date_bounds(weekday_query, SalesOrder.order_date, start_date, end_date)
         .group_by(weekday_number)
-        .order_by(func.sum(SalesOrderItem.total).desc())
+        .order_by(func.sum(SalesOrderItem.quantity).desc())
         .all()
     )
     weekday_names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     peak_weekdays = [
-        {"weekday": weekday_names[int(row.weekday or 0)], "revenue": numeric(row.revenue, 2)}
+        {
+            "weekday": weekday_names[int(row.weekday or 0)],
+            "revenue": numeric(row.revenue, 2),
+            "quantity": int(row.quantity or 0),
+            "active_sales_days": int(row.active_sales_days or 0),
+            "average_quantity": numeric(
+                float(row.quantity or 0) / float(row.active_sales_days or 1),
+                2,
+            ),
+        }
         for row in weekday_rows
     ]
     trend_direction = "stable"
@@ -1371,8 +1393,8 @@ def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_d
         "top_products": product_distribution[:10],
         "declining_products": declining_products,
         "peak_periods": {
-            "months": sorted(monthly_trend, key=lambda item: item["revenue"], reverse=True)[:5],
-            "weekdays": peak_weekdays[:5],
+            "months": sorted(monthly_trend, key=lambda item: item["average_quantity"], reverse=True)[:5],
+            "weekdays": sorted(peak_weekdays, key=lambda item: item["average_quantity"], reverse=True)[:5],
         },
         "trend_direction": trend_direction,
         "early_warnings": early_warning,
@@ -1510,6 +1532,59 @@ def month_label(month_key: str) -> str:
         return str(month_key or "Unknown period")
 
 
+def build_monthly_revenue_forecast(monthly_periods: list[str], monthly_revenue: list[float], horizon: int = 12) -> dict[str, Any]:
+    historical_points = [
+        {
+            "period": period,
+            "label": month_label(period),
+            "revenue": round(float(revenue or 0), 2),
+            "type": "historical",
+        }
+        for period, revenue in zip(monthly_periods, monthly_revenue)
+    ]
+    if len(historical_points) < 3:
+        return {
+            "status": "insufficient_data",
+            "message": "Not enough historical data to generate a reliable 3-month forecast.",
+            "latest_historical_month": monthly_periods[-1] if monthly_periods else None,
+            "forecast_start_month": None,
+            "points": historical_points,
+            "forecast_points": [],
+            "historical_points": historical_points,
+            "default_horizon": 3,
+            "max_horizon": max(int(horizon or 0), 0),
+            "horizon_options": [3, 6, 12],
+        }
+
+    working_values = [float(value or 0) for value in monthly_revenue]
+    forecast_points = []
+    latest_month = monthly_periods[-1]
+    forecast_horizon = max(int(horizon or 0), 3)
+    for offset in range(1, forecast_horizon + 1):
+        forecast_revenue = round(holt_winters_forecast(working_values), 2)
+        forecast_period = add_months(latest_month, offset)
+        forecast_points.append({
+            "period": forecast_period,
+            "label": month_label(forecast_period),
+            "revenue": forecast_revenue,
+            "type": "forecast",
+        })
+        working_values.append(forecast_revenue)
+
+    return {
+        "status": "ready",
+        "message": "Revenue forecast generated from historical Sales Order value.",
+        "latest_historical_month": latest_month,
+        "forecast_start_month": forecast_points[0]["period"],
+        "points": historical_points + forecast_points,
+        "forecast_points": forecast_points,
+        "historical_points": historical_points,
+        "default_horizon": 3,
+        "max_horizon": forecast_horizon,
+        "horizon_options": [3, 6, 12],
+    }
+
+
 def get_sales_forecast(
     db: Any,
     SalesOrderItem: Any,
@@ -1571,6 +1646,8 @@ def get_sales_forecast(
 
     monthly_revenue = []
     monthly_profit = []
+    forecast_monthly_periods = []
+    forecast_monthly_revenue = []
     if SalesOrder is not None:
         month_key = db_month_key(db, SalesOrder.order_date).label('month')
         revenue_query = (
@@ -1585,6 +1662,9 @@ def get_sales_forecast(
         monthly_periods = [row.month for row in rows if row.month]
         monthly_revenue = [float(row.revenue or 0) for row in rows]
         monthly_profit = [float(row.profit or 0) for row in rows]
+        all_revenue_rows = revenue_query.group_by(month_key).order_by(month_key).all()
+        forecast_monthly_periods = [row.month for row in all_revenue_rows if row.month]
+        forecast_monthly_revenue = [float(row.revenue or 0) for row in all_revenue_rows if row.month]
     else:
         monthly_periods = []
 
@@ -1592,6 +1672,7 @@ def get_sales_forecast(
     profit_backtest = backtest_holt_winters(monthly_profit)
     revenue_next = round(holt_winters_forecast(monthly_revenue), 2)
     profit_next = round(holt_winters_forecast(monthly_profit), 2)
+    monthly_revenue_forecast = build_monthly_revenue_forecast(forecast_monthly_periods, forecast_monthly_revenue)
     revenue_mape = revenue_backtest["mape"]
     accepted = revenue_mape is not None and revenue_mape <= float(mape_threshold)
     if revenue_backtest["status"] == "insufficient_data":
@@ -1633,6 +1714,7 @@ def get_sales_forecast(
         "predictive": {
             "item_forecasts": forecast_data,
             "monthly_revenue_forecast": {
+                **monthly_revenue_forecast,
                 "next_period_revenue": revenue_next,
                 "next_period_profit": profit_next,
                 "accuracy": revenue_backtest,
@@ -1648,6 +1730,77 @@ def build_rule_based_recommendations(
     clients: list[dict[str, Any]],
     pondo: float,
 ) -> dict[str, Any]:
+    rule_label_map = {
+        "high_sales_low_margin": "Strong sales but weak margin",
+        "high_profit_store": "Healthy profit margin",
+        "low_order_activity": "Low ordering activity",
+        "declining_store_trend": "Recent sales decline",
+        "insufficient_trend_history": "Not enough trend history",
+        "frequently_ordered_item": "Clear lead item",
+        "high_cost_low_sales_items": "High-cost items need review",
+        "insufficient_cost_data": "Incomplete cost data",
+        "monitor_store": "Continue monitoring",
+    }
+
+    def rule_labels(rule_matches: list[str]) -> list[str]:
+        return [rule_label_map.get(rule, rule.replace("_", " ").title()) for rule in rule_matches]
+
+    def business_summary(rule_matches: list[str], store_name: str) -> tuple[str, str]:
+        if "high_sales_low_margin" in rule_matches:
+            return (
+                "This store has strong Sales Order value, but its profit margin is below the healthy range.",
+                "The store is active, but the business may not be earning enough from those sales. Pricing, discounts, or supplier cost should be reviewed.",
+            )
+        if "declining_store_trend" in rule_matches:
+            return (
+                "This store's recent complete-month Sales Order value declined by at least 10%.",
+                "Recent demand may be weakening. The account may need follow-up before the decline becomes larger.",
+            )
+        if "low_order_activity" in rule_matches:
+            return (
+                "This store orders less often than most stores in the selected period.",
+                "The store may need a reorder reminder, promotion, or account follow-up to encourage repeat purchases.",
+            )
+        if "insufficient_cost_data" in rule_matches:
+            return (
+                "Some cost values are missing or zero for this store's items.",
+                "Profit and margin results may be incomplete until the item cost data is corrected.",
+            )
+        if "high_cost_low_sales_items" in rule_matches:
+            return (
+                "Some items have high cost compared with their store-level sales value.",
+                "These products may need a price or sourcing review before they are promoted further.",
+            )
+        if "high_profit_store" in rule_matches:
+            return (
+                "This store has a healthy profit margin in the selected period.",
+                "The account is performing well and can be maintained through relationship care, bundles, or loyalty offers.",
+            )
+        if "insufficient_trend_history" in rule_matches:
+            return (
+                "This store does not yet have enough complete monthly history for a reliable trend reading.",
+                "Use the current sales evidence, but avoid making a strong trend conclusion until more data is available.",
+            )
+        if "frequently_ordered_item" in rule_matches:
+            return (
+                "This store has a clear lead item based on item movement.",
+                "That item can guide follow-up conversations, bundles, or cross-selling.",
+            )
+        return (
+            f"No urgent issue was detected for {store_name}.",
+            "The store should continue to be monitored using sales value, frequency, branch coverage, and item mix.",
+        )
+
+    def evidence_payload(client: dict[str, Any], store_name: str, sales_value: float, top_item: Any) -> list[dict[str, Any]]:
+        return [
+            {"label": "Store", "value": store_name},
+            {"label": "Sales Order Value", "value": round(sales_value, 2), "type": "currency"},
+            {"label": "Profit Margin", "value": client.get("profit_margin"), "suffix": "%"},
+            {"label": "Order Count", "value": client.get("order_count")},
+            {"label": "Branch Count", "value": client.get("branches_count")},
+            {"label": "Top Item", "value": (top_item or {}).get("item") or "None"},
+        ]
+
     def percentile(values: list[float], percentile_value: float) -> float:
         clean = sorted(float(value or 0) for value in values)
         if not clean:
@@ -1747,15 +1900,24 @@ def build_rule_based_recommendations(
             actions.append("Continue monitoring this store's Sales Order value, frequency, branch coverage, and item mix.")
             rule_matches.append("monitor_store")
 
+        why_this_appeared, what_it_means = business_summary(rule_matches, store_name)
+        friendly_rule_labels = rule_labels(rule_matches)
+        evidence = evidence_payload(client, store_name, sales_value, top_item)
+
         recommendation = {
             "type": "store_performance",
             "severity": severity,
             "store_key": client.get("store_key"),
             "store_name": store_name,
             "company_name": client.get("company_name"),
-            "title": f"What can I do for {store_name}?",
-            "reason": f"{len(rule_matches)} store-specific rule(s) were evaluated from this store's Sales Orders.",
+            "title": f"Recommendation for {store_name}",
+            "reason": why_this_appeared,
             "trigger_condition": ", ".join(rule_matches),
+            "friendly_trigger_labels": friendly_rule_labels,
+            "why_this_appeared": why_this_appeared,
+            "what_it_means": what_it_means,
+            "recommended_action": " ".join(actions),
+            "evidence": evidence,
             "data_used": [
                 f"Store: {store_name}",
                 f"Company: {client.get('company_name')}",
@@ -1769,7 +1931,7 @@ def build_rule_based_recommendations(
             ],
             "calculation_process": "The store was compared with the selected dataset's 75th-percentile Sales Order value and 25th-percentile order frequency. Margin rules use 15% and 30%; decline rules use the latest two complete months after at least three complete months of history.",
             "result": f"{store_name} generated {round(sales_value, 2)} in Sales Order value across {int(order_count)} order(s).",
-            "business_interpretation": "Item performance is used as evidence inside the store result; no global item recommendation is generated.",
+            "business_interpretation": what_it_means,
             "suggested_action": " ".join(actions),
             "actions": actions,
             "rule_matches": rule_matches,

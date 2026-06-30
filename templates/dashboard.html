@@ -154,7 +154,7 @@
 
         .summary-table th {
             color: var(--text-muted);
-            font-size: 0.75rem;
+            font-size: var(--ui-font-xs);
             text-transform: uppercase;
         }
 
@@ -170,10 +170,157 @@
         }
 
         .monitor-value {
-            font-size: clamp(1.5rem, 3vw, 2rem);
+            font-size: var(--ui-font-kpi);
             font-weight: 900;
             line-height: 1;
             color: var(--brand-orange);
+        }
+
+        .revenue-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 1rem;
+        }
+
+        .revenue-card,
+        .revenue-chart-card {
+            min-width: 0;
+            display: grid;
+            gap: 0.65rem;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+            color: var(--text-main);
+            text-decoration: none;
+            box-shadow: var(--shadow);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+
+        .revenue-card:hover,
+        .revenue-card:focus-visible,
+        .revenue-chart-card:hover,
+        .revenue-chart-card:focus-visible,
+        .revenue-client-row:hover,
+        .revenue-client-row:focus-visible {
+            transform: translateY(-2px);
+            border-color: var(--brand-orange);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+            outline: none;
+        }
+
+        .revenue-card-label {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: var(--ui-font-xs);
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .revenue-card-value {
+            font-size: var(--ui-font-kpi);
+            font-weight: 900;
+            line-height: 1.1;
+            color: var(--brand-orange);
+        }
+
+        .revenue-card-note {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.86rem;
+            line-height: 1.4;
+        }
+
+        .revenue-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.85fr);
+            gap: 1rem;
+            align-items: stretch;
+        }
+
+        .revenue-chart-bars {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(34px, 1fr));
+            gap: 0.55rem;
+            min-height: 180px;
+            align-items: end;
+            padding-top: 0.5rem;
+        }
+
+        .revenue-bar-group {
+            display: grid;
+            grid-template-rows: 1fr auto;
+            gap: 0.4rem;
+            min-width: 0;
+            height: 160px;
+            align-items: end;
+            justify-items: center;
+        }
+
+        .revenue-bar-track {
+            position: relative;
+            width: 100%;
+            height: 128px;
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--brand-orange) 10%, transparent);
+            overflow: hidden;
+        }
+
+        .revenue-bar-fill {
+            position: absolute;
+            inset-inline: 0;
+            bottom: 0;
+            min-height: 4px;
+            border-radius: 8px 8px 0 0;
+            background: var(--brand-orange);
+        }
+
+        .revenue-bar-label {
+            color: var(--text-muted);
+            font-size: 0.74rem;
+            font-weight: 800;
+            text-align: center;
+        }
+
+        .revenue-empty-state {
+            min-height: 180px;
+            display: grid;
+            place-items: center;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .revenue-client-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .revenue-client-table th,
+        .revenue-client-table td {
+            padding: 0.58rem 0;
+            border-bottom: 1px solid var(--border-color);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .revenue-client-table th {
+            color: var(--text-muted);
+            font-size: var(--ui-font-xs);
+            text-transform: uppercase;
+        }
+
+        .revenue-client-table th:nth-child(2),
+        .revenue-client-table td:nth-child(2),
+        .revenue-client-table th:nth-child(3),
+        .revenue-client-table td:nth-child(3) {
+            text-align: right;
+        }
+
+        .revenue-client-row {
+            cursor: pointer;
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
         }
 
         .activity-list {
@@ -189,6 +336,12 @@
             gap: 0.15rem;
             padding-bottom: 0.65rem;
             border-bottom: 1px solid var(--border-color);
+        }
+
+        .activity-day-group {
+            padding: 0.35rem 0 0.15rem;
+            color: var(--brand-orange);
+            border-bottom: 0;
         }
 
         .activity-item:last-child {
@@ -230,6 +383,8 @@
         @media (max-width: 700px) {
             .home-grid,
             .summary-grid,
+            .revenue-kpi-grid,
+            .revenue-layout,
             .admin-monitor-grid,
             .secondary-grid {
                 grid-template-columns: minmax(0, 1fr);
@@ -301,7 +456,7 @@
             <h2 id="quickActionsTitle">Quick Actions</h2>
             <div class="home-grid">
                 {% for action in dashboard_data.primary_actions %}
-                <a class="home-action-card" href="{{ url_for(action.endpoint) }}">
+                <a class="home-action-card" href="{{ action.href if action.href is defined else url_for(action.endpoint) }}">
                     <h3 class="home-action-title">{{ action.label }}</h3>
                     <p class="home-action-description">{{ action.description }}</p>
                     <span class="home-action-arrow">Open</span>
@@ -353,12 +508,87 @@
         {% endif %}
 
         {% if session.role == 'manager' %}
-        <section class="home-section" aria-labelledby="managerNoteTitle">
-            <div class="summary-card">
-                <h2 id="managerNoteTitle" class="summary-card-title">Reporting Workspace</h2>
-                <p class="summary-note">
-                    Reports and Analytics remain the source for detailed totals, forecasts, recommendations, and printable outputs for {{ dashboard_data.timeline_label }}.
-                </p>
+        {% set revenue = dashboard_data.manager_revenue_summary %}
+        <section class="home-section" aria-labelledby="managerRevenueTitle">
+            <h2 id="managerRevenueTitle">Revenue Overview for {{ dashboard_data.timeline_label }}</h2>
+            <div class="revenue-kpi-grid">
+                <a class="revenue-card" href="{{ revenue.links.revenue_report }}" aria-label="Open revenue report for collected revenue">
+                    <p class="revenue-card-label">Collected Revenue</p>
+                    <div class="revenue-card-value">PHP {{ "{:,.2f}".format(revenue.collected_revenue) }}</div>
+                    <p class="revenue-card-note">Actual collected payments for the selected period.</p>
+                </a>
+                <a class="revenue-card" href="{{ revenue.links.client_analytics }}" aria-label="Open client analytics for unpaid receivable revenue">
+                    <p class="revenue-card-label">Unpaid / Receivable Revenue</p>
+                    <div class="revenue-card-value">PHP {{ "{:,.2f}".format(revenue.receivable_revenue) }}</div>
+                    <p class="revenue-card-note">Outstanding invoice balance that still needs collection.</p>
+                </a>
+                <a class="revenue-card" href="{{ revenue.links.revenue_report }}" aria-label="Open revenue report for paid invoice count">
+                    <p class="revenue-card-label">Paid Invoice Count</p>
+                    <div class="revenue-card-value">{{ revenue.paid_invoice_count }}</div>
+                    <p class="revenue-card-note">Unique invoices with collected payment.</p>
+                </a>
+                <a class="revenue-card" href="{{ revenue.links.revenue_report }}" aria-label="Open revenue report for average paid invoice">
+                    <p class="revenue-card-label">Average Paid Invoice</p>
+                    <div class="revenue-card-value">PHP {{ "{:,.2f}".format(revenue.average_paid_invoice) }}</div>
+                    <p class="revenue-card-note">Collected revenue divided by paid invoice count.</p>
+                </a>
+            </div>
+        </section>
+
+        <section class="home-section" aria-labelledby="managerRevenueTrendTitle">
+            <div class="revenue-layout">
+                <a class="revenue-chart-card" href="{{ revenue.links.revenue_analytics }}" aria-label="Open revenue analytics for revenue trend graph">
+                    <h2 id="managerRevenueTrendTitle" class="summary-card-title">Revenue Trend</h2>
+                    <p class="summary-note">Collected revenue movement for {{ dashboard_data.timeline_label }}.</p>
+                    {% if revenue.has_revenue_data %}
+                    <div class="revenue-chart-bars" aria-hidden="true">
+                        {% for row in revenue.trend_rows %}
+                        <div class="revenue-bar-group">
+                            <div class="revenue-bar-track" title="{{ row.label }} - PHP {{ "{:,.2f}".format(row.value) }}">
+                                <div class="revenue-bar-fill" style="height: {{ row.percent }}%;"></div>
+                            </div>
+                            <div class="revenue-bar-label">{{ row.label }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="revenue-empty-state">No revenue data for this period.</div>
+                    {% endif %}
+                    <span class="home-action-arrow">Open Revenue Analytics</span>
+                </a>
+
+                <article class="summary-card" aria-labelledby="topRevenueClientsTitle">
+                    <h2 id="topRevenueClientsTitle" class="summary-card-title">Top Revenue Clients</h2>
+                    <p class="summary-note">Top 5 clients by collected revenue.</p>
+                    <table class="revenue-client-table">
+                        <thead>
+                            <tr>
+                                <th>Client</th>
+                                <th>Paid</th>
+                                <th>Invoices</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for client in revenue.top_clients %}
+                            <tr class="revenue-client-row" tabindex="0" role="link" aria-label="Open client analytics for {{ client.client_name }}" onclick="openManagerRevenueLink('{{ revenue.links.client_analytics }}')" onkeydown="handleRevenueRowKey(event, '{{ revenue.links.client_analytics }}')">
+                                <td>
+                                    <strong>{{ client.client_name }}</strong>
+                                    <div class="activity-meta">Latest: {{ client.latest_date or 'No date' }}</div>
+                                </td>
+                                <td>PHP {{ "{:,.2f}".format(client.paid_amount) }}</td>
+                                <td>{{ client.invoice_count }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="3">No revenue data for this period.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <div class="summary-card-footer">
+                        <a class="btn btn-outline btn-sm" href="{{ revenue.links.client_analytics }}">Open Client Analytics</a>
+                    </div>
+                </article>
             </div>
         </section>
         {% endif %}
@@ -389,11 +619,16 @@
             <div class="summary-card">
                 <h2 id="recentActivityTitle" class="summary-card-title">Latest Activity</h2>
                 <ul class="activity-list">
-                    {% for activity in dashboard_data.admin_summary.recent_activities %}
+                    {% for group in dashboard_data.admin_summary.recent_activity_groups %}
+                    <li class="activity-item activity-day-group">
+                        <strong>{{ group.label }}</strong>
+                    </li>
+                    {% for activity in group.activities %}
                     <li class="activity-item">
                         <strong>{{ activity.username }} - {{ activity.action }}</strong>
                         <span class="activity-meta">{{ activity.table_name }}{% if activity.created_at %} - {{ activity.created_at[:19].replace('T', ' ') }}{% endif %}</span>
                     </li>
+                    {% endfor %}
                     {% else %}
                     <li class="activity-item">
                         <span class="activity-meta">No activity has been recorded yet.</span>
@@ -429,6 +664,15 @@
                 url.searchParams.set('year', value);
             }
             window.location.href = url.toString();
+        }
+        function openManagerRevenueLink(target) {
+            window.location.href = target;
+        }
+        function handleRevenueRowKey(event, target) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openManagerRevenueLink(target);
+            }
         }
         setInterval(updateDateTime, 1000);
         updateDateTime();

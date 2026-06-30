@@ -163,10 +163,29 @@ def main():
         with app.test_client() as client:
             login_as(client, manager, 'manager')
             manager_html = client.get('/dashboard?year=2026').get_data(as_text=True)
-            assert 'Generate Report' in manager_html
-            assert 'View Analytics' in manager_html
-            assert 'Reporting Workspace' in manager_html
+            assert 'Open Revenue Report' in manager_html
+            assert 'Open Revenue Analytics' in manager_html
+            assert 'Revenue Overview for 2026' in manager_html
+            assert 'Collected Revenue' in manager_html
+            assert 'PHP 500.00' in manager_html
+            assert 'Unpaid / Receivable Revenue' in manager_html
+            assert 'Paid Invoice Count' in manager_html
+            assert 'Average Paid Invoice' in manager_html
+            assert 'Revenue Trend' in manager_html
+            assert 'Top Revenue Clients' in manager_html
+            assert '/reports?report=revenue' in manager_html
+            assert '/analytics?section=sales' in manager_html
+            assert '/analytics?section=clients' in manager_html
+            assert 'Reporting Workspace' not in manager_html
             assert 'Cashflow Report' not in manager_html
+
+            reports_html = client.get('/reports?report=revenue').get_data(as_text=True)
+            assert 'const requestedReport = new URLSearchParams(window.location.search).get' in reports_html
+            assert 'switchReport(requestedReport)' in reports_html
+
+            analytics_sales_html = client.get('/analytics?section=sales').get_data(as_text=True)
+            assert 'const requestedSection = new URLSearchParams(window.location.search).get' in analytics_sales_html
+            assert 'activateAnalyticsSection(requestedSection ||' in analytics_sales_html
 
         with app.test_client() as client:
             login_as(client, admin, 'admin')
@@ -178,6 +197,8 @@ def main():
             assert '/database-interface?tab=requests' in admin_html
             assert '/database-interface?tab=audit' in admin_html
             assert 'Latest Activity' in admin_html
+            assert 'activity-day-group' in admin_html
+            assert 'home_admin - LOGIN' in admin_html
             assert 'Admin Shortcuts' in admin_html
             assert 'Admin Center' in admin_html
 

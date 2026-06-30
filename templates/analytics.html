@@ -23,7 +23,7 @@
 
         .analytics-header h1 {
             color: var(--text-main);
-            font-size: 2rem;
+            font-size: var(--ui-font-page-title);
             margin-bottom: 0.5rem;
         }
 
@@ -218,8 +218,8 @@
 
         .recommendation-row {
             display: grid;
-            grid-template-columns: minmax(190px, 1.2fr) minmax(240px, 2fr) minmax(330px, 1.7fr) auto;
-            align-items: center;
+            grid-template-columns: minmax(190px, 1fr) minmax(280px, 2fr) minmax(330px, 1.4fr) auto;
+            align-items: start;
             gap: 1rem;
             padding: 1rem;
             border: 1px solid var(--border-color);
@@ -284,6 +284,38 @@
             line-height: 1.5;
         }
 
+        .recommendation-card-section {
+            display: grid;
+            gap: 0.25rem;
+        }
+
+        .recommendation-card-section strong {
+            color: var(--text-main);
+            font-size: 0.78rem;
+        }
+
+        .recommendation-card-section span {
+            color: var(--text-muted);
+            font-size: 0.86rem;
+            line-height: 1.45;
+        }
+
+        .recommendation-rule-labels {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin-top: 0.5rem;
+        }
+
+        .recommendation-rule-label {
+            padding: 0.2rem 0.45rem;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+
         .recommendation-row-metrics {
             display: grid;
             grid-template-columns: repeat(4, minmax(70px, 1fr));
@@ -313,6 +345,49 @@
             border-radius: var(--radius-lg);
             color: var(--text-muted);
             text-align: center;
+        }
+
+        .recommendation-detail-grid {
+            display: grid;
+            gap: 0.85rem;
+            margin-top: 1rem;
+        }
+
+        .recommendation-detail-section {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.75rem;
+        }
+
+        .recommendation-detail-section strong,
+        .recommendation-calculation-summary {
+            color: var(--text-main);
+            font-weight: 800;
+        }
+
+        .recommendation-detail-section p,
+        .recommendation-calculation-body {
+            margin: 0.35rem 0 0;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .recommendation-evidence-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        #revenueForecastMessage {
+            border: 1px solid color-mix(in srgb, var(--accent, #F97316) 22%, var(--border-color));
+            border-left: 4px solid var(--accent, #F97316);
+            border-radius: var(--radius-md);
+            background: color-mix(in srgb, var(--accent, #F97316) 7%, var(--bg-card, #ffffff));
+            box-shadow: none !important;
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            line-height: 1.45;
+            padding: 0.72rem 0.85rem;
         }
 
         @media (max-width: 1100px) {
@@ -365,13 +440,64 @@
         }
 
         .recommendation-modal {
-            width: min(720px, 100%);
+            width: min(760px, calc(100vw - 2rem)) !important;
+            max-width: calc(100vw - 2rem) !important;
+            min-width: 0;
             max-height: 86vh;
             overflow: auto;
             border-radius: var(--radius-lg);
             background: var(--bg-card, #fff);
             color: var(--text-main);
             padding: 1.25rem;
+        }
+
+        .recommendation-modal,
+        .recommendation-modal * {
+            overflow-wrap: anywhere;
+            word-break: normal;
+        }
+
+        .recommendation-modal .recommendation-detail-grid,
+        .recommendation-modal .recommendation-detail-section,
+        .recommendation-modal .recommendation-calculation-body,
+        .recommendation-modal .recommendation-evidence-grid {
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        .recommendation-modal .table-wrap {
+            max-width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .recommendation-modal .data-table {
+            width: 100%;
+            min-width: 560px;
+            table-layout: fixed;
+        }
+
+        .recommendation-modal .data-table th,
+        .recommendation-modal .data-table td {
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+
+        .recommendation-modal .badge {
+            max-width: 100%;
+            white-space: normal;
+        }
+
+        @media (max-width: 640px) {
+            .recommendation-modal {
+                width: calc(100vw - 1rem) !important;
+                max-width: calc(100vw - 1rem) !important;
+                padding: 1rem;
+            }
+
+            .recommendation-modal .data-table {
+                min-width: 480px;
+            }
         }
 
         #analytics-content {
@@ -953,6 +1079,7 @@
         let latestClientAnalytics = null;
         let latestExpenseAnalytics = null;
         let latestSalesAnalytics = null;
+        let revenueForecastChart = null;
         const initialAnalyticsYears = {{ available_years| tojson }};
 
         function escapeHtml(value) {
@@ -1105,6 +1232,7 @@
         function destroyCharts() {
             currentCharts.forEach(chart => chart.destroy());
             currentCharts = [];
+            revenueForecastChart = null;
             analyticsChartRenderCount = 0;
             delete document.documentElement.dataset.analyticsChartCount;
         }
@@ -1323,26 +1451,26 @@
         <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
             <div class="stat-card">
                 <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Gross Revenue</div>
-                <div class="${kpiClassFor('revenue', kpis.gross_revenue)}" style="font-size: 2rem; font-weight: bold;">${formatCurrency(kpis.gross_revenue)}</div>
+                <div class="${kpiClassFor('revenue', kpis.gross_revenue)}" style="font-size: var(--ui-font-kpi); font-weight: bold;">${formatCurrency(kpis.gross_revenue)}</div>
                 <div class="kpi-comparison">${formatChange(kpis.revenue_change_percent, kpis.comparison_label)}</div>
             </div>
             <div class="stat-card">
                 <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Total Cost of Goods</div>
-                <div style="font-size: 2rem; font-weight: bold; color: var(--text-main);">${formatCurrency(kpis.total_cost_of_goods)}</div>
+                <div style="font-size: var(--ui-font-kpi); font-weight: bold; color: var(--text-main);">${formatCurrency(kpis.total_cost_of_goods)}</div>
                 <div class="kpi-comparison">${formatChange(kpis.cost_change_percent, kpis.comparison_label)}</div>
             </div>
             <div class="stat-card">
-                <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Profit</div>
-                <div class="${kpiClassFor('revenue', kpis.profit)}" style="font-size: 2rem; font-weight: bold;">${formatCurrency(kpis.profit)}</div>
+                <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Profit/Loss</div>
+                <div class="${kpiClassFor('revenue', kpis.profit)}" style="font-size: var(--ui-font-kpi); font-weight: bold;">${formatCurrency(kpis.profit)}</div>
                 <div class="kpi-comparison">${formatChange(kpis.profit_change_percent, kpis.comparison_label)}</div>
             </div>
         </div>
 
         <div class="card surface-card" style="margin-bottom: 2rem; padding: 1.5rem;">
-            <h3 style="color: var(--text-main);">Monthly Revenue Trend</h3>
-            <p class="chart-subtitle">Actual inflow in Philippine pesos for ${escapeHtml(data.filter?.label || data.selected_year)}. Points follow transaction months chronologically.</p>
+            <h3 style="color: var(--text-main);">Revenue vs Expense IN vs OUT</h3>
+            <p class="chart-subtitle">Actual inflow and outflow from analytics data in Philippine pesos for ${escapeHtml(data.filter?.label || data.selected_year)}.</p>
             <div style="position: relative; height: 300px; width: 100%;">
-                <canvas id="trendChart" aria-label="Monthly revenue trend chart"></canvas>
+                <canvas id="trendChart" aria-label="Monthly revenue versus expense chart"></canvas>
             </div>
         </div>
 
@@ -1868,8 +1996,8 @@
                     year: 'numeric'
                 });
             });
-            const values = trendData && trendData.values ? trendData.values : [];
-            const comparisonValues = trendData && trendData.comparison_values ? trendData.comparison_values : [];
+            const revenueValues = trendData && trendData.revenue_values ? trendData.revenue_values : (trendData && trendData.values ? trendData.values : []);
+            const expenseValues = trendData && trendData.expense_values ? trendData.expense_values : [];
 
             if (!ensureChartLibraryAvailable(canvas)) {
                 currentCharts.push({ canvas, destroy() {} });
@@ -1887,8 +2015,8 @@
                         labels: labels,
                         datasets: [
                             {
-                                label: periodLabel || 'Selected period',
-                                data: values,
+                                label: 'Revenue IN',
+                                data: revenueValues,
                                 borderColor: '#F97316',
                                 backgroundColor: 'rgba(249, 115, 22, 0.12)',
                                 borderWidth: 2,
@@ -1898,16 +2026,15 @@
                                 pointHoverRadius: 6
                             },
                             {
-                                label: trendData?.comparison_label || 'Comparison period',
-                                data: comparisonValues,
-                                borderColor: '#64748B',
-                                backgroundColor: 'transparent',
+                                label: 'Expense OUT',
+                                data: expenseValues,
+                                borderColor: '#0EA5E9',
+                                backgroundColor: 'rgba(14, 165, 233, 0.1)',
                                 borderWidth: 2,
-                                borderDash: [6, 4],
                                 tension: 0.35,
-                                fill: false,
-                                pointRadius: 3,
-                                pointStyle: 'rectRot'
+                                fill: true,
+                                pointRadius: 4,
+                                pointHoverRadius: 6
                             }
                         ]
                     },
@@ -1919,7 +2046,7 @@
                             tooltip: {
                                 callbacks: {
                                     title: items => `${items[0].label} · ${periodLabel || ''}`,
-                                    label: context => `Revenue: ${formatCurrency(context.parsed.y || 0)}`
+                                    label: context => `${context.dataset.label}: ${formatCurrency(context.parsed.y || 0)}`
                                 }
                             }
                         },
@@ -2136,7 +2263,7 @@
             updateRecommendationBadge('sales');
             const peakMonth = (descriptive.peak_periods?.months || [])[0];
             const peakSummary = peakMonth
-                ? `${peakMonth.period} recorded the highest sales performance with ${formatCurrency(peakMonth.revenue)} total sales, indicating a strong peak period.`
+                ? `${peakMonth.period_label || peakMonth.period} recorded the highest average sales activity with ${Number(peakMonth.average_quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} item(s) sold per active sales day.`
                 : 'No peak sales period is available yet.';
             const itemIncrease = forecastRows.filter(row => Number(row.predicted_qty || 0) > 0 && row.confidence !== 'Insufficient Data').slice(0, 2).map(row => row.item);
             const itemReview = forecastRows.filter(row => row.confidence !== 'High').slice(0, 2).map(row => row.item);
@@ -2160,18 +2287,53 @@
                     ${(descriptive.early_warnings || []).map(item => `<div class="surface-panel" style="margin-bottom: 0.75rem; padding: 0.75rem; border-color: #F59E0B !important;">${item}</div>`).join('')}
 
                     <div class="analytics-row-stack">
-                        <div class="analytics-flow-row"><div class="card"><h3>Sales Trend by Month</h3><p class="chart-subtitle">Sales Order value in Philippine pesos for ${escapeHtml(data.filter?.label || '')}, ordered chronologically.</p><div style="height: 320px;"><canvas id="salesMonthlyTrendChart" aria-label="Monthly Sales Order value trend chart"></canvas></div></div></div>
-                        <div class="analytics-flow-row"><div class="card"><h3>Top Product Contributions</h3><p class="chart-subtitle">Top products ranked by Sales Order value; remaining products are grouped as Other.</p><div style="height: 360px;"><canvas id="productDistributionChart" aria-label="Top product contribution ranking chart"></canvas></div></div></div>
+                        <div class="analytics-flow-row"><div class="card">
+                            <h3>Revenue Forecast</h3>
+                            <p class="chart-subtitle">Historical Sales Order value with next 3 months forecast.</p>
+                            <div class="filter-controls" style="margin: 0.85rem 0 0.75rem; display:flex; gap:0.75rem; flex-wrap:wrap; align-items:end;">
+                                <label style="display:grid; gap:0.25rem; font-weight:700; color:var(--text-main);">Range
+                                    <select id="revenueForecastRange" onchange="renderRevenueForecastChart()">
+                                        <option value="last12">Last 12 months</option>
+                                        <option value="thisYear">This year</option>
+                                        <option value="last3Years">Last 3 years</option>
+                                        <option value="all">All time</option>
+                                        <option value="custom">Custom range</option>
+                                    </select>
+                                </label>
+                                <label style="display:grid; gap:0.25rem; font-weight:700; color:var(--text-main);">Grouping
+                                    <select id="revenueForecastGrouping" onchange="renderRevenueForecastChart()">
+                                        <option value="auto">Auto</option>
+                                        <option value="monthly">Monthly</option>
+                                        <option value="quarterly">Quarterly</option>
+                                        <option value="yearly">Yearly</option>
+                                    </select>
+                                </label>
+                                <label style="display:grid; gap:0.25rem; font-weight:700; color:var(--text-main);">Forecast
+                                    <select id="revenueForecastHorizon" onchange="renderRevenueForecastChart()">
+                                        <option value="3">3 months</option>
+                                        <option value="6">6 months</option>
+                                        <option value="12">12 months</option>
+                                    </select>
+                                </label>
+                                <span id="revenueForecastCustomFields" style="display:none; gap:0.5rem; flex-wrap:wrap; align-items:end;">
+                                    <label style="display:grid; gap:0.25rem; font-weight:700; color:var(--text-main);">From
+                                        <input id="revenueForecastStart" type="month" onchange="renderRevenueForecastChart()">
+                                    </label>
+                                    <label style="display:grid; gap:0.25rem; font-weight:700; color:var(--text-main);">To
+                                        <input id="revenueForecastEnd" type="month" onchange="renderRevenueForecastChart()">
+                                    </label>
+                                </span>
+                            </div>
+                            <div id="revenueForecastMessage" class="surface-panel" style="display:none; margin:0.75rem 0;"></div>
+                            <div style="height: 340px;"><canvas id="revenueForecastChart" aria-label="Revenue forecast chart"></canvas></div>
+                            <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.75rem;">The Revenue Forecast chart shows historical Sales Order value and extends it into the next forecast period based on the most recent available data. Historical revenue is calculated from Sales Order item quantity multiplied by selling price, grouped by date. The forecasted section estimates possible future booked sales activity and does not represent actual collected cash.</p>
+                            <p style="color:var(--text-muted); font-size:0.86rem; margin-top:0.45rem;"><strong>Revenue Forecast</strong> = historical and predicted Sales Order value. <strong>Overview Revenue IN</strong> = actual cash inflow.</p>
+                        </div></div>
+                        <div class="analytics-flow-row"><div class="card"><h3>Top Product Contributions</h3><p class="chart-subtitle">Top 15 products ranked by Sales Order value. Products outside the displayed list are summarized below instead of grouped into one bar.</p><div style="height: 420px;"><canvas id="productDistributionChart" aria-label="Top product contribution ranking chart"></canvas></div><p id="productContributionSummary" style="color:var(--text-muted); font-size:0.9rem; margin-top:0.85rem;"></p></div></div>
 
                         <div class="analytics-flow-row"><div class="card">
-                            <h3>Forecast vs Actual Validation</h3>
-                            <p class="chart-subtitle">Historical actual and forecasted Sales Order value in Philippine pesos. Tooltips show variance and percentage error; MAPE status is ${escapeHtml(accuracy.status || 'insufficient data')}.</p>
-                            <div style="height: 300px;"><canvas id="forecastValidationChart"></canvas></div>
-                            <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.75rem;">This forecast estimates possible future sales based on previous sales patterns. P1, P2, and P3 represent the next forecasted periods after the latest available actual sales data. Each period is also labeled with its actual month, week, or date range for easier interpretation.</p>
-                        </div></div>
-                        <div class="analytics-flow-row"><div class="card">
                             <h3>Peak Sales Periods</h3>
-                            <p class="chart-subtitle">Highest Sales Order value periods, ranked rather than shown chronologically.</p>
+                            <p class="chart-subtitle">Highest sales activity periods ranked by average item quantity sold per active sales day.</p>
                             <div style="height: 220px; margin-bottom: 1rem;"><canvas id="peakSalesPeriodChart" aria-label="Peak sales months ranking chart"></canvas></div>
                             <div style="height: 220px;"><canvas id="peakWeekdayChart" aria-label="Peak sales weekdays ranking chart"></canvas></div>
                             <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.85rem;">${peakSummary}</p>
@@ -2191,28 +2353,241 @@
                 </div>`;
         }
 
+        function parseForecastPeriod(period) {
+            const [year, month] = String(period || '').split('-').map(Number);
+            if (!year || !month) return null;
+            return new Date(year, month - 1, 1);
+        }
+
+        function formatForecastLabel(period, grouping = 'monthly') {
+            const date = parseForecastPeriod(period);
+            if (!date) return period || 'Unknown period';
+            const year = date.getFullYear();
+            const month = date.getMonth();
+            if (grouping === 'yearly') return String(year);
+            if (grouping === 'quarterly') return `Q${Math.floor(month / 3) + 1} ${year}`;
+            return date.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
+        }
+
+        function addForecastMonths(period, offset) {
+            const date = parseForecastPeriod(period);
+            if (!date) return period;
+            date.setMonth(date.getMonth() + offset);
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        function compareForecastPeriods(a, b) {
+            return String(a || '').localeCompare(String(b || ''));
+        }
+
+        function selectRevenueForecastHistory(historicalPoints, rangeValue, latestPeriod) {
+            const points = [...historicalPoints].sort((a, b) => compareForecastPeriods(a.period, b.period));
+            if (!points.length) return [];
+            if (rangeValue === 'all') return points;
+            if (rangeValue === 'thisYear') {
+                const latestYear = String(latestPeriod || points[points.length - 1].period || '').slice(0, 4);
+                return points.filter(item => String(item.period || '').startsWith(latestYear));
+            }
+            if (rangeValue === 'last3Years') {
+                const start = addForecastMonths(latestPeriod || points[points.length - 1].period, -35);
+                return points.filter(item => compareForecastPeriods(item.period, start) >= 0);
+            }
+            if (rangeValue === 'custom') {
+                const start = document.getElementById('revenueForecastStart')?.value;
+                const end = document.getElementById('revenueForecastEnd')?.value;
+                return points.filter(item => (!start || compareForecastPeriods(item.period, start) >= 0) && (!end || compareForecastPeriods(item.period, end) <= 0));
+            }
+            return points.slice(-12);
+        }
+
+        function resolveRevenueForecastGrouping(selectedGrouping, historicalCount) {
+            if (selectedGrouping && selectedGrouping !== 'auto') return selectedGrouping;
+            if (historicalCount <= 18) return 'monthly';
+            if (historicalCount <= 36) return 'quarterly';
+            return 'yearly';
+        }
+
+        function aggregateRevenueForecastPoints(points, grouping) {
+            if (grouping === 'monthly') {
+                return points.map(item => ({
+                    ...item,
+                    label: formatForecastLabel(item.period, 'monthly'),
+                    revenue: Number(item.revenue || 0),
+                }));
+            }
+            const grouped = [];
+            points.forEach(item => {
+                const label = formatForecastLabel(item.period, grouping);
+                const last = grouped[grouped.length - 1];
+                if (last && last.label === label && last.type === item.type) {
+                    last.revenue += Number(item.revenue || 0);
+                    last.end_period = item.period;
+                    return;
+                }
+                grouped.push({
+                    period: item.period,
+                    end_period: item.period,
+                    label,
+                    revenue: Number(item.revenue || 0),
+                    type: item.type,
+                });
+            });
+            return grouped.map(item => ({ ...item, revenue: Math.round(item.revenue * 100) / 100 }));
+        }
+
+        function destroyRevenueForecastChart() {
+            if (revenueForecastChart && typeof revenueForecastChart.destroy === 'function') {
+                revenueForecastChart.destroy();
+                currentCharts = currentCharts.filter(chart => chart !== revenueForecastChart);
+                revenueForecastChart = null;
+            }
+        }
+
+        function renderRevenueForecastChart(data = latestSalesAnalytics) {
+            const revenueForecast = data?.predictive?.monthly_revenue_forecast || {};
+            const forecastCanvas = document.getElementById('revenueForecastChart');
+            const forecastMessage = document.getElementById('revenueForecastMessage');
+            const rangeSelect = document.getElementById('revenueForecastRange');
+            const groupingSelect = document.getElementById('revenueForecastGrouping');
+            const horizonSelect = document.getElementById('revenueForecastHorizon');
+            const customFields = document.getElementById('revenueForecastCustomFields');
+            if (!forecastCanvas) return;
+
+            const rangeValue = rangeSelect?.value || 'last12';
+            if (customFields) customFields.style.display = rangeValue === 'custom' ? 'flex' : 'none';
+            destroyRevenueForecastChart();
+
+            if (revenueForecast.status !== 'ready') {
+                if (forecastMessage) {
+                    forecastMessage.style.display = 'block';
+                    forecastMessage.textContent = revenueForecast.message || 'Not enough historical data to generate a reliable 3-month forecast.';
+                }
+                forecastCanvas.parentElement.style.display = 'none';
+                return;
+            }
+
+            const historicalPoints = revenueForecast.historical_points || [];
+            const forecastHorizon = Math.min(Number(horizonSelect?.value || revenueForecast.default_horizon || 3), Number(revenueForecast.max_horizon || 12));
+            const selectedHistorical = selectRevenueForecastHistory(historicalPoints, rangeValue, revenueForecast.latest_historical_month);
+            const selectedForecast = (revenueForecast.forecast_points || []).slice(0, forecastHorizon);
+            const grouping = resolveRevenueForecastGrouping(groupingSelect?.value || 'auto', selectedHistorical.length);
+            const points = aggregateRevenueForecastPoints([...selectedHistorical, ...selectedForecast], grouping);
+            const forecastStartIndex = points.findIndex(item => item.type === 'forecast');
+            const maxTickLimit = grouping === 'monthly' ? 12 : grouping === 'quarterly' ? 10 : 8;
+
+            if (!selectedHistorical.length || forecastStartIndex < 0) {
+                if (forecastMessage) {
+                    forecastMessage.style.display = 'block';
+                    forecastMessage.textContent = 'No Sales Order revenue data is available for the selected forecast range.';
+                }
+                forecastCanvas.parentElement.style.display = 'none';
+                return;
+            }
+
+            if (forecastMessage) {
+                forecastMessage.style.display = 'block';
+                forecastMessage.textContent = `Showing ${selectedHistorical.length.toLocaleString()} historical month(s), grouped by ${grouping}, with a ${forecastHorizon}-month forecast.`;
+            }
+            forecastCanvas.parentElement.style.display = 'block';
+            const forecastStartPlugin = {
+                id: 'forecastStartMarker',
+                afterDatasetsDraw(chart) {
+                    if (forecastStartIndex < 0) return;
+                    const { ctx, chartArea, scales } = chart;
+                    const xScale = scales.x;
+                    const markerX = xScale.getPixelForValue(forecastStartIndex);
+                    ctx.save();
+                    ctx.strokeStyle = '#64748B';
+                    ctx.setLineDash([4, 4]);
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(markerX, chartArea.top);
+                    ctx.lineTo(markerX, chartArea.bottom);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.fillStyle = '#64748B';
+                    ctx.font = '12px sans-serif';
+                    ctx.textAlign = 'left';
+                    ctx.fillText('Forecast starts here', Math.min(markerX + 8, chartArea.right - 120), chartArea.top + 16);
+                    ctx.restore();
+                }
+            };
+            revenueForecastChart = createAnalyticsChart(forecastCanvas, {
+                type: 'line',
+                data: {
+                    labels: points.map(item => item.label),
+                    datasets: [{
+                        label: 'Revenue Forecast',
+                        data: points.map(item => Number(item.revenue || 0)),
+                        borderColor: '#F97316',
+                        backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.28,
+                        pointRadius: points.map(item => item.type === 'forecast' ? 4 : 3),
+                        pointBackgroundColor: points.map(item => item.type === 'forecast' ? '#2563EB' : '#F97316'),
+                        segment: {
+                            borderDash: context => points[context.p1DataIndex]?.type === 'forecast' ? [6, 4] : undefined,
+                            borderColor: context => points[context.p1DataIndex]?.type === 'forecast' ? '#2563EB' : '#F97316',
+                        }
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title(items) {
+                                    const point = points[items[0]?.dataIndex] || {};
+                                    return point.label || '';
+                                },
+                                label(context) {
+                                    const point = points[context.dataIndex] || {};
+                                    const prefix = point.type === 'forecast' ? 'Forecast' : 'Historical';
+                                    return `${prefix} Sales Order value: ${formatCurrency(context.parsed.y || 0)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                autoSkip: true,
+                                maxTicksLimit: maxTickLimit,
+                                maxRotation: grouping === 'monthly' ? 35 : 0,
+                                minRotation: 0,
+                            }
+                        },
+                        y: { beginAtZero: true, ticks: { callback: value => formatCurrency(value, { maximumFractionDigits: 0 }) } }
+                    }
+                },
+                plugins: [forecastStartPlugin]
+            });
+            currentCharts.push(revenueForecastChart);
+        }
+
         // Initialize Sales Charts
         function initSalesCharts(data = latestSalesAnalytics) {
             if (!data) return;
             const descriptive = data.descriptive || {};
             const trend = descriptive.monthly_trend || [];
             const allProducts = descriptive.product_distribution || [];
-            const leadingProducts = allProducts.slice(0, 7);
-            const otherRevenue = allProducts.slice(7).reduce((sum, item) => sum + Number(item.revenue || 0), 0);
-            const products = otherRevenue > 0
-                ? [...leadingProducts, { item: 'Other', revenue: otherRevenue }]
-                : leadingProducts;
-            const totalProductRevenue = products.reduce((sum, item) => sum + Number(item.revenue || 0), 0);
-            const accuracy = data.forecast_accuracy || {};
-            const accuracyPeriods = accuracy.periods || [];
-            const monthlyCanvas = document.getElementById('salesMonthlyTrendChart');
-            if (monthlyCanvas) {
-                currentCharts.push(createAnalyticsChart(monthlyCanvas, {
-                    type: 'line',
-                    data: { labels: trend.map(item => item.period), datasets: [{ label: 'Revenue', data: trend.map(item => item.revenue), borderColor: '#FF6A00', backgroundColor: 'rgba(255,106,0,0.12)', fill: true, tension: 0.35 }] },
-                    options: { responsive: true, maintainAspectRatio: false }
-                }));
+            const products = allProducts.slice(0, 15);
+            const totalProductRevenue = allProducts.reduce((sum, item) => sum + Number(item.revenue || 0), 0);
+            const displayedProductRevenue = products.reduce((sum, item) => sum + Number(item.revenue || 0), 0);
+            const remainingProductCount = Math.max(allProducts.length - products.length, 0);
+            const remainingProductRevenue = Math.max(totalProductRevenue - displayedProductRevenue, 0);
+            const productSummary = document.getElementById('productContributionSummary');
+            if (productSummary) {
+                const remainingShare = totalProductRevenue ? remainingProductRevenue / totalProductRevenue * 100 : 0;
+                productSummary.textContent = remainingProductCount
+                    ? `Products outside the top 15 account for ${formatCurrency(remainingProductRevenue)} (${remainingShare.toFixed(1)}% of Sales Order value). They are not combined into one bar to avoid making the remainder look like a single product.`
+                    : 'All products in the selected period are shown.';
             }
+            renderRevenueForecastChart(data);
             const productCanvas = document.getElementById('productDistributionChart');
             if (productCanvas) {
                 currentCharts.push(createAnalyticsChart(productCanvas, {
@@ -2232,7 +2607,9 @@
                                     label(context) {
                                         const value = Number(context.parsed.x || 0);
                                         const share = totalProductRevenue ? value / totalProductRevenue * 100 : 0;
-                                        return `${formatCurrency(value)} · ${share.toFixed(1)}% of displayed value`;
+                                        const product = [...products].reverse()[context.dataIndex] || {};
+                                        const quantity = Number(product.quantity || 0).toLocaleString();
+                                        return `${formatCurrency(value)} - ${share.toFixed(1)}% of total Sales Order value - ${quantity} item(s) sold`;
                                     }
                                 }
                             }
@@ -2244,60 +2621,18 @@
                     }
                 }));
             }
-            const forecastCanvas = document.getElementById('forecastValidationChart');
-            if (forecastCanvas) {
-                currentCharts.push(createAnalyticsChart(forecastCanvas, {
-                    type: 'bar',
-                    data: {
-                        labels: (accuracy.actual || []).map((_, idx) => accuracyPeriods[idx]?.label || `P${idx + 1} = Forecast Period ${idx + 1}`),
-                        datasets: [
-                            { label: 'Historical actual sales', data: accuracy.actual || [], backgroundColor: '#3B82F6' },
-                            { label: 'Forecasted sales', data: accuracy.predicted || [], backgroundColor: '#FF6A00' }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { position: 'bottom' },
-                            tooltip: {
-                                callbacks: {
-                                    afterTitle(items) {
-                                        const item = items[0];
-                                        return accuracyPeriods[item.dataIndex]?.description || '';
-                                    },
-                                    label(context) {
-                                        return `${context.dataset.label}: ${formatCurrency(context.parsed.y || 0)}`;
-                                    },
-                                    afterBody(items) {
-                                        const index = items[0]?.dataIndex;
-                                        const actual = Number((accuracy.actual || [])[index] || 0);
-                                        const predicted = Number((accuracy.predicted || [])[index] || 0);
-                                        const variance = predicted - actual;
-                                        const error = actual ? Math.abs(variance) / actual * 100 : null;
-                                        return [
-                                            `Variance: ${variance >= 0 ? '+' : ''}${formatCurrency(variance)}`,
-                                            `Absolute error: ${error == null ? 'Not comparable' : error.toFixed(1) + '%'}`
-                                        ];
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }));
-            }
             const peakCanvas = document.getElementById('peakSalesPeriodChart');
             if (peakCanvas) {
                 const peakMonths = descriptive.peak_periods?.months || [];
-                const maxRevenue = Math.max(...peakMonths.map(item => Number(item.revenue || 0)), 0);
+                const maxAverageQuantity = Math.max(...peakMonths.map(item => Number(item.average_quantity || 0)), 0);
                 currentCharts.push(createAnalyticsChart(peakCanvas, {
                     type: 'bar',
                     data: {
-                        labels: [...peakMonths].reverse().map(item => item.period),
+                        labels: [...peakMonths].reverse().map(item => item.period_label || item.period),
                         datasets: [{
-                            label: 'Total sales amount per period',
-                            data: [...peakMonths].reverse().map(item => item.revenue),
-                            backgroundColor: [...peakMonths].reverse().map(item => Number(item.revenue || 0) === maxRevenue ? '#F97316' : '#FBBF24')
+                            label: 'Average quantity sold per active sales day',
+                            data: [...peakMonths].reverse().map(item => item.average_quantity),
+                            backgroundColor: [...peakMonths].reverse().map(item => Number(item.average_quantity || 0) === maxAverageQuantity ? '#F97316' : '#FBBF24')
                         }]
                     },
                     options: {
@@ -2309,16 +2644,18 @@
                             tooltip: {
                                 callbacks: {
                                     label(context) {
-                                        return `Total sales: ${formatCurrency(context.parsed.x || 0)}`;
+                                        return `Average quantity: ${Number(context.parsed.x || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
                                     },
                                     afterLabel(context) {
-                                        return Number(context.parsed.x || 0) === maxRevenue ? 'Highest sales period' : 'Compared sales period';
+                                        const month = [...peakMonths].reverse()[context.dataIndex] || {};
+                                        const support = `Total: ${Number(month.quantity || 0).toLocaleString()} item(s) across ${Number(month.active_sales_days || 0).toLocaleString()} active sales day(s)`;
+                                        return Number(context.parsed.x || 0) === maxAverageQuantity ? ['Highest average period', support] : ['Compared sales period', support];
                                     }
                                 }
                             }
                         },
                         scales: {
-                            x: { beginAtZero: true, ticks: { callback: value => formatCurrency(value, { maximumFractionDigits: 0 }) } },
+                            x: { beginAtZero: true, ticks: { precision: 0 } },
                             y: { grid: { display: false } }
                         }
                     }
@@ -2327,11 +2664,16 @@
             const weekdayCanvas = document.getElementById('peakWeekdayChart');
             if (weekdayCanvas) {
                 const weekdays = descriptive.peak_periods?.weekdays || [];
+                const maxWeekdayAverage = Math.max(...weekdays.map(item => Number(item.average_quantity || 0)), 0);
                 currentCharts.push(createAnalyticsChart(weekdayCanvas, {
                     type: 'bar',
                     data: {
                         labels: [...weekdays].reverse().map(item => item.weekday),
-                        datasets: [{ label: 'Sales Order value', data: [...weekdays].reverse().map(item => item.revenue), backgroundColor: '#2563EB' }]
+                        datasets: [{
+                            label: 'Average quantity sold per active sales day',
+                            data: [...weekdays].reverse().map(item => item.average_quantity),
+                            backgroundColor: [...weekdays].reverse().map(item => Number(item.average_quantity || 0) === maxWeekdayAverage ? '#2563EB' : '#93C5FD')
+                        }]
                     },
                     options: {
                         indexAxis: 'y',
@@ -2339,10 +2681,18 @@
                         maintainAspectRatio: false,
                         plugins: {
                             legend: { display: false },
-                            tooltip: { callbacks: { label: context => `Total sales: ${formatCurrency(context.parsed.x || 0)}` } }
+                            tooltip: {
+                                callbacks: {
+                                    label: context => `Average quantity: ${Number(context.parsed.x || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
+                                    afterLabel(context) {
+                                        const weekday = [...weekdays].reverse()[context.dataIndex] || {};
+                                        return `Total: ${Number(weekday.quantity || 0).toLocaleString()} item(s) across ${Number(weekday.active_sales_days || 0).toLocaleString()} active sales day(s)`;
+                                    }
+                                }
+                            }
                         },
                         scales: {
-                            x: { beginAtZero: true, ticks: { callback: value => formatCurrency(value, { maximumFractionDigits: 0 }) } },
+                            x: { beginAtZero: true, ticks: { precision: 0 } },
                             y: { grid: { display: false } }
                         }
                     }
@@ -2360,6 +2710,14 @@
             if (severity === 'danger') return 'High priority';
             if (severity === 'success') return 'Maintain';
             return 'Needs attention';
+        }
+
+        function recommendationEvidenceValue(item) {
+            if (!item) return '-';
+            if (item.value == null || item.value === '') return '-';
+            if (item.type === 'currency') return formatCurrency(item.value || 0);
+            if (item.suffix) return `${item.value ?? '-'}${item.suffix}`;
+            return item.value ?? '-';
         }
 
         function updateRecommendationBadge(activeSection = '') {
@@ -2393,8 +2751,8 @@
                 <div class="analytics-section recommendations">
                     <div class="card recommendation-intro">
                         <h3>Per-Store Recommendations</h3>
-                        <p style="color:var(--text-muted); font-size:0.95rem;">Each store receives one consolidated “What can I do?” result. Item performance appears only as evidence inside its store, so the page does not produce a long global item-recommendation list.</p>
-                        <p style="color:var(--text-muted); font-size:0.82rem; margin-bottom:0;">Rules: high Sales Order value ≥ ${formatCurrency(thresholds.high_sales_value || 0)}; low activity ≤ ${Number(thresholds.low_activity_order_count || 0).toFixed(2)} orders; low margin &lt; ${thresholds.low_margin_percent || 15}%; high margin ≥ ${thresholds.high_margin_percent || 30}%.</p>
+                        <p style="color:var(--text-muted); font-size:0.95rem;">This rule-based recommendation system reviews each store's sales, margin, order activity, branch coverage, and item evidence for the selected period. It highlights where managers may need to follow up, protect a good account, review pricing, or complete missing data.</p>
+                        <p style="color:var(--text-muted); font-size:0.82rem; margin-bottom:0;">Each card explains why it appeared, what it means for the business, the recommended action, and the evidence behind it. Technical thresholds remain available inside each card's calculation details.</p>
                     </div>
                     ${systemWarnings.length ? `
                         <div class="surface-panel recommendation-system-notice">
@@ -2490,6 +2848,7 @@
                 const margin = metrics.cost_data_status === 'complete'
                     ? `${Number(metrics.profit_margin || 0).toFixed(2)}%`
                     : 'Unavailable';
+                const labels = rec.friendly_trigger_labels || [];
                 return `
                     <article class="recommendation-row" role="listitem"
                         style="border-left-color:${recommendationColor(rec)};">
@@ -2501,10 +2860,16 @@
                                     <span class="recommendation-severity-dot" aria-hidden="true"></span>
                                     ${recommendationSeverityLabel(rec.severity)}
                                 </span>
+                                <span class="recommendation-rule-labels">
+                                    ${labels.slice(0, 3).map(label => `<span class="recommendation-rule-label">${escapeHtml(label)}</span>`).join('')}
+                                </span>
                             </span>
                         </div>
-                        <div class="recommendation-primary-action">
-                            ${escapeHtml((rec.actions || [rec.suggested_action])[0] || 'Continue monitoring this store.')}
+                        <div class="recommendation-card-section">
+                            <strong>Why this appeared</strong>
+                            <span>${escapeHtml(rec.why_this_appeared || rec.reason || 'This store matched one or more recommendation rules.')}</span>
+                            <strong>Recommended action</strong>
+                            <span>${escapeHtml(rec.recommended_action || (rec.actions || [rec.suggested_action])[0] || 'Continue monitoring this store.')}</span>
                         </div>
                         <div class="recommendation-row-metrics" aria-label="Store recommendation metrics">
                             <span class="recommendation-row-metric">SO Value<strong>${formatCurrency(metrics.sales_order_value || 0)}</strong></span>
@@ -2539,15 +2904,8 @@
             closeRecommendationDetails();
             recommendationModalReturnFocus = document.activeElement;
             const metrics = rec.store_metrics || null;
-            const details = [
-                ['Recommendation Title', rec.title],
-                ['Trigger Condition', rec.trigger_condition || 'Rule trigger was not provided.'],
-                ['Data Used', (rec.data_used || []).map(item => `<div>${escapeHtml(item)}</div>`).join('') || escapeHtml(rec.reason)],
-                ['Calculation Process', rec.calculation_process || rec.reason],
-                ['Result', rec.result || rec.reason],
-                ['Business Interpretation', rec.business_interpretation || 'Review this result before making a business decision.'],
-                ['What Can I Do?', (rec.actions || [rec.suggested_action || 'Review the affected record and decide the next action.']).map(action => `<div style="margin-bottom:0.35rem;">• ${escapeHtml(action)}</div>`).join('')]
-            ];
+            const evidence = rec.evidence || [];
+            const actionText = rec.recommended_action || rec.suggested_action || 'Review the affected record and decide the next action.';
             const itemRows = metrics ? (metrics.item_metrics || []) : [];
             const monthlyRows = metrics ? (metrics.monthly_history || []) : [];
             const modal = document.createElement('div');
@@ -2561,13 +2919,42 @@
                     <div style="display: flex; justify-content: space-between; gap: 1rem; align-items: start;">
                         <h3 id="recommendationModalTitle" style="margin: 0; padding-right: 4rem;">${escapeHtml(rec.title)}</h3>
                     </div>
-                    <div style="display:grid; gap:0.85rem; margin-top:1rem;">
-                        ${details.map(([label, value]) => `
-                            <div style="border-bottom:1px solid var(--border-color); padding-bottom:0.75rem;">
-                                <strong>${escapeHtml(label)}</strong>
-                                <div style="margin-top:0.35rem; color:var(--text-muted); line-height:1.5;">${label === 'Data Used' || label === 'What Can I Do?' ? value : escapeHtml(value)}</div>
+                    <div class="recommendation-detail-grid">
+                        <div class="recommendation-detail-section">
+                            <strong>Why this appeared</strong>
+                            <p>${escapeHtml(rec.why_this_appeared || rec.reason || 'This recommendation appeared because the store matched one or more business rules.')}</p>
+                        </div>
+                        <div class="recommendation-detail-section">
+                            <strong>What it means</strong>
+                            <p>${escapeHtml(rec.what_it_means || rec.business_interpretation || 'Use this as decision support before choosing the next action.')}</p>
+                        </div>
+                        <div class="recommendation-detail-section">
+                            <strong>Recommended action</strong>
+                            <p>${escapeHtml(actionText)}</p>
+                            ${(rec.actions || []).length > 1 ? `<div style="margin-top:0.5rem;">${rec.actions.map(action => `<div style="margin-bottom:0.35rem; color:var(--text-muted);">- ${escapeHtml(action)}</div>`).join('')}</div>` : ''}
+                        </div>
+                        <div class="recommendation-detail-section">
+                            <strong>Evidence</strong>
+                            <div class="recommendation-evidence-grid">
+                                ${(evidence.length ? evidence : [
+                                    { label: 'Result', value: rec.result || rec.reason || 'No additional evidence was provided.' }
+                                ]).map(item => `
+                                    <span class="recommendation-row-metric">
+                                        ${escapeHtml(item.label || 'Evidence')}
+                                        <strong>${escapeHtml(String(recommendationEvidenceValue(item)))}</strong>
+                                    </span>
+                                `).join('')}
                             </div>
-                        `).join('')}
+                        </div>
+                        <details class="recommendation-detail-section">
+                            <summary class="recommendation-calculation-summary">How this was calculated</summary>
+                            <div class="recommendation-calculation-body">
+                                <p>${escapeHtml(rec.calculation_process || rec.reason || 'The recommendation was produced by rule-based business checks.')}</p>
+                                ${(rec.friendly_trigger_labels || []).length ? `<p><strong>Business labels:</strong> ${escapeHtml((rec.friendly_trigger_labels || []).join(', '))}</p>` : ''}
+                                <p><strong>Technical rule codes:</strong> ${escapeHtml((rec.rule_matches || [rec.trigger_condition || 'Not provided']).join(', '))}</p>
+                                ${(rec.data_used || []).length ? `<p><strong>Raw data references:</strong></p>${rec.data_used.map(item => `<div>${escapeHtml(item)}</div>`).join('')}` : ''}
+                            </div>
+                        </details>
                         ${itemRows.length ? `
                             <div>
                                 <strong>Store Item Evidence</strong>
@@ -2777,11 +3164,20 @@
         }
 
         // Tab navigation
+        function activateAnalyticsSection(section) {
+            const target = document.querySelector(`.analytics-tab[data-section="${section}"]`);
+            if (!target) {
+                loadSection('overview');
+                return;
+            }
+            document.querySelectorAll('.analytics-tab').forEach(tab => tab.classList.remove('active'));
+            target.classList.add('active');
+            loadSection(section);
+        }
+
         document.querySelectorAll('.analytics-tab').forEach(tab => {
             tab.addEventListener('click', function () {
-                document.querySelectorAll('.analytics-tab').forEach(t => t.classList.remove('active'));
-                this.classList.add('active');
-                loadSection(this.dataset.section);
+                activateAnalyticsSection(this.dataset.section);
             });
         });
 
@@ -2801,7 +3197,8 @@
             if (initialAnalyticsYears.length) document.getElementById('analyticsYear').value = initialAnalyticsYears[0];
             document.getElementById('analyticsQuarterField').hidden = true;
             document.getElementById('analyticsMonthField').hidden = true;
-            loadSection('overview');
+            const requestedSection = new URLSearchParams(window.location.search).get('section');
+            activateAnalyticsSection(requestedSection || 'overview');
             refreshRecommendationBadge();
             updateDateTime();
             setInterval(updateDateTime, 60000);

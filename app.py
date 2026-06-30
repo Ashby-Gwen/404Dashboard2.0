@@ -124,6 +124,7 @@ class User(db.Model):
     profile_photo = db.Column(db.String(255))
     profile_photo_data = db.Column(db.Text)
     profile_photo_mime = db.Column(db.String(80))
+    evaluation_enabled = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -430,6 +431,7 @@ ACCOUNTING_ROLES = ('admin', 'staff', 'accounting staff')
 OPERATIONS_ROLES = ('admin', 'staff', 'sales staff', 'accounting staff')
 MANAGEMENT_ROLES = ('admin', 'manager')
 ALL_BUSINESS_ROLES = ('admin', 'manager', 'staff', 'sales staff', 'accounting staff')
+EVALUATION_ROLE = 'it evaluator'
 PROFILE_PHOTO_MAX_BYTES = 1024 * 1024
 PROFILE_PHOTO_MIME_TYPES = {
     '.png': 'image/png',
@@ -505,6 +507,25 @@ def user_has_role(user, allowed_roles):
     allowed = {role.lower() for role in allowed_roles}
     return user_role_name(user) in allowed
 
+def can_access_evaluation(user):
+    if not is_user_approved(user):
+        return False
+    if user_has_role(user, ('admin',)):
+        return True
+    return bool(getattr(user, 'evaluation_enabled', False))
+
+def evaluation_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user = current_user_record()
+        if not can_access_evaluation(user):
+            if wants_json_response():
+                return jsonify({'success': False, 'error': 'Evaluation access is not enabled for this account.'}), 403
+            flash('Evaluation access is not enabled for this account.', 'error')
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 def utc_now():
     return datetime.now(UTC)
 
@@ -575,8 +596,8 @@ def expire_inactive_session_if_needed():
         close_current_session_record('TIMED_OUT', 'SESSION_TIMEOUT')
         session.clear()
         if wants_json_response():
-            return jsonify({'success': False, 'error': 'Your session timed out after 5 minutes of inactivity. Sign in again.'}), 401
-        flash('Your session timed out after 5 minutes of inactivity. Please sign in again.', 'warning')
+            return jsonify({'success': False, 'error': 'Your session timed out. Sign in again.'}), 401
+        flash('Your session timed out. Please sign in again.', 'warning')
         return redirect(url_for('login'))
     session['last_activity_at'] = now.isoformat()
     return None
@@ -875,6 +896,15 @@ def build_theme_css(settings):
     --radius-xl: {settings['card_radius_px']}px;
     --radius-lg: {settings['control_radius_px']}px;
     --radius-md: {max(0, settings['control_radius_px'] - 2)}px;
+    --ui-font-body: 0.95rem;
+    --ui-font-small: 0.86rem;
+    --ui-font-xs: 0.78rem;
+    --ui-font-label: 0.84rem;
+    --ui-font-table: 0.84rem;
+    --ui-font-page-title: clamp(1.4rem, 1.8vw, 1.8rem);
+    --ui-font-section-title: 1.05rem;
+    --ui-font-card-title: 0.95rem;
+    --ui-font-kpi: clamp(1.25rem, 1.8vw, 1.55rem);
     --shadow: {'0 16px 40px rgba(2, 6, 23, 0.28)' if is_contrast_mode else '0 4px 20px rgba(0, 0, 0, 0.40)' if is_solid_mode else '0 28px 90px rgba(0, 0, 0, 0.48)' if is_dark_theme else '0 24px 80px rgba(15, 23, 42, 0.14)'};
     --shadow-soft: {'0 10px 26px rgba(2, 6, 23, 0.22)' if is_contrast_mode else '0 4px 20px rgba(0, 0, 0, 0.40)' if is_solid_mode else '0 14px 44px rgba(0, 0, 0, 0.38)' if is_dark_theme else '0 12px 38px rgba(15, 23, 42, 0.10)'};
     --glass-shadow: {glass_shadow};
@@ -1062,6 +1092,55 @@ body > nav {{
     text-decoration: none !important;
     white-space: nowrap !important;
     box-shadow: none !important;
+}}
+
+.section-header h1,
+.analytics-header h1,
+.reports-header h1,
+.page-title h1,
+.home-title,
+.auth-title {{
+    font-size: var(--ui-font-page-title) !important;
+    letter-spacing: 0 !important;
+}}
+
+.card h2,
+.card h3,
+.form-section h3,
+.report-card h2,
+.report-card h3,
+.admin-card h2,
+.admin-card h3,
+.analytics-section .card h3 {{
+    font-size: var(--ui-font-card-title) !important;
+}}
+
+.stat-value,
+.summary-item p,
+.evaluation-kpi strong,
+.monitor-value {{
+    font-size: var(--ui-font-kpi) !important;
+    letter-spacing: 0 !important;
+}}
+
+.stat-label,
+.summary-item h3,
+label,
+.form-group label,
+.readonly-field label {{
+    font-size: var(--ui-font-label) !important;
+    letter-spacing: 0 !important;
+}}
+
+th,
+td,
+.invoice-table th,
+.invoice-table td,
+.data-table th,
+.data-table td,
+.history-table th,
+.history-table td {{
+    font-size: var(--ui-font-table) !important;
 }}
 
 .nav-link:hover {{
@@ -1998,6 +2077,105 @@ def previous_year_comparison_filter(filters):
 
 def date_range_filter(query, column, filters):
     return query.filter(column >= filters['start_date'], column < filters['end_date'])
+
+def build_manager_revenue_summary(all_dates=False, selected_year=None, year_start=None, next_year_start=None):
+    revenue_rows = revenue_report_rows(None if all_dates else {
+        'start_date': year_start,
+        'end_date': next_year_start,
+    })
+
+    collected_revenue = round(sum(float(row.get('amount_paid') or 0) for row in revenue_rows), 2)
+    paid_invoice_numbers = {
+        row.get('invoice_number')
+        for row in revenue_rows
+        if row.get('invoice_number') and float(row.get('amount_paid') or 0) > MONEY_TOLERANCE
+    }
+    paid_invoice_count = len(paid_invoice_numbers)
+    average_paid_invoice = round(collected_revenue / paid_invoice_count, 2) if paid_invoice_count else 0.0
+
+    receivable_query = db.session.query(
+        func.coalesce(func.sum(Invoice.balance), 0).label('receivable_total')
+    ).filter(Invoice.balance > MONEY_TOLERANCE)
+    if not all_dates:
+        receivable_query = receivable_query.filter(Invoice.invoice_date >= year_start, Invoice.invoice_date < next_year_start)
+    receivable_revenue = round(float(receivable_query.scalar() or 0), 2)
+
+    if all_dates:
+        trend_map = defaultdict(float)
+        for row in revenue_rows:
+            date_value = parse_date_value(row.get('invoice_date'), default_today=False)
+            if date_value:
+                trend_map[str(date_value.year)] += float(row.get('amount_paid') or 0)
+        trend_rows = [
+            {'label': label, 'value': round(value, 2)}
+            for label, value in sorted(trend_map.items())
+        ]
+    else:
+        trend_map = {month: 0.0 for month in range(1, 13)}
+        for row in revenue_rows:
+            date_value = parse_date_value(row.get('invoice_date'), default_today=False)
+            if date_value and date_value.year == selected_year:
+                trend_map[date_value.month] += float(row.get('amount_paid') or 0)
+        trend_rows = [
+            {
+                'label': date(selected_year, month, 1).strftime('%b'),
+                'value': round(trend_map[month], 2)
+            }
+            for month in range(1, 13)
+        ]
+
+    max_trend_value = max((row['value'] for row in trend_rows), default=0.0)
+    for row in trend_rows:
+        row['percent'] = round((row['value'] / max_trend_value) * 100, 2) if max_trend_value else 0.0
+
+    clients = {}
+    for row in revenue_rows:
+        amount_paid = float(row.get('amount_paid') or 0)
+        if amount_paid <= MONEY_TOLERANCE:
+            continue
+        client_name = row.get('client_name') or 'Unassigned Client'
+        invoice_number = row.get('invoice_number') or ''
+        invoice_date = row.get('invoice_date') or ''
+        entry = clients.setdefault(client_name, {
+            'client_name': client_name,
+            'paid_amount': 0.0,
+            'invoice_numbers': set(),
+            'latest_date': ''
+        })
+        entry['paid_amount'] += amount_paid
+        if invoice_number:
+            entry['invoice_numbers'].add(invoice_number)
+        if invoice_date > entry['latest_date']:
+            entry['latest_date'] = invoice_date
+
+    top_clients = sorted(
+        (
+            {
+                'client_name': item['client_name'],
+                'paid_amount': round(item['paid_amount'], 2),
+                'invoice_count': len(item['invoice_numbers']),
+                'latest_date': item['latest_date'],
+            }
+            for item in clients.values()
+        ),
+        key=lambda item: item['paid_amount'],
+        reverse=True
+    )[:5]
+
+    return {
+        'collected_revenue': collected_revenue,
+        'receivable_revenue': receivable_revenue,
+        'paid_invoice_count': paid_invoice_count,
+        'average_paid_invoice': average_paid_invoice,
+        'trend_rows': trend_rows,
+        'top_clients': top_clients,
+        'has_revenue_data': bool(revenue_rows),
+        'links': {
+            'revenue_report': url_for('reports') + '?report=revenue',
+            'revenue_analytics': url_for('analytics') + '?section=sales',
+            'client_analytics': url_for('analytics') + '?section=clients',
+        }
+    }
 
 def revenue_report_rows(filters=None):
     query = (
@@ -3693,9 +3871,13 @@ def init_db():
             roles = [
                 Role(role_name='admin', description='Full access to all features including user management and database administration.'),
                 Role(role_name='manager', description='Access to analytics, reports, and all business data. Can view but not modify records.'),
-                Role(role_name='staff', description='Can create sales orders and manage invoices/payments. Limited to operational tasks.')
+                Role(role_name='staff', description='Can create sales orders and manage invoices/payments. Limited to operational tasks.'),
+                Role(role_name='IT Evaluator', description='Testing-phase access to the evaluation workspace only.')
             ]
             db.session.bulk_save_objects(roles)
+            db.session.commit()
+        elif not Role.query.filter(func.lower(Role.role_name) == EVALUATION_ROLE).first():
+            db.session.add(Role(role_name='IT Evaluator', description='Testing-phase access to the evaluation workspace only.'))
             db.session.commit()
         
         # Create default admin user if they don't exist
@@ -3989,11 +4171,19 @@ def logout():
     session.clear()
     return render_template('logout.html', login_url=url_for('login'))
 
+@app.route('/api/session/activity', methods=['POST'])
+@login_required
+def session_activity():
+    return jsonify({
+        'success': True,
+        'last_activity_at': session.get('last_activity_at'),
+    })
+
 @app.route('/session-timeout')
 def session_timeout():
     close_current_session_record('TIMED_OUT', 'SESSION_TIMEOUT')
     session.clear()
-    flash('Your session timed out after 5 minutes of inactivity. Please sign in again.', 'warning')
+    flash('Your session timed out. Please sign in again.', 'warning')
     return redirect(url_for('login'))
 
 @app.route('/dashboard')
@@ -4064,8 +4254,8 @@ def dashboard():
             {'label': 'Enter Expense', 'endpoint': 'expenses', 'description': 'Record business expenses.'},
         ],
         'manager': [
-            {'label': 'Generate Report', 'endpoint': 'reports', 'description': 'Open printable sales, revenue, expense, and historical reports.'},
-            {'label': 'View Analytics', 'endpoint': 'analytics', 'description': 'Review analytics, forecasts, and recommendations.'},
+            {'label': 'Open Revenue Report', 'endpoint': 'reports', 'href': url_for('reports') + '?report=revenue', 'description': 'Review printable collected revenue details.'},
+            {'label': 'Open Revenue Analytics', 'endpoint': 'analytics', 'href': url_for('analytics') + '?section=sales', 'description': 'Review revenue trends, forecasts, and recommendations.'},
         ],
     }
     secondary_actions_by_role = {
@@ -4108,12 +4298,30 @@ def dashboard():
     pending_password_resets = pending_reset_query.count()
     recent_activity_count = activity_query.count()
     recent_activities = activity_query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(5).all()
+    recent_activity_groups_map = defaultdict(list)
+    for item in recent_activities:
+        group_date = item.created_at.date().isoformat() if item.created_at else 'No date'
+        recent_activity_groups_map[group_date].append({
+            'username': item.username,
+            'action': item.action,
+            'table_name': item.table_name,
+            'created_at': item.created_at.isoformat() if item.created_at else None
+        })
+    recent_activity_groups = [
+        {
+            'date': group_date,
+            'label': datetime.strptime(group_date, '%Y-%m-%d').strftime('%B %d, %Y') if group_date != 'No date' else 'No date',
+            'activities': activities,
+        }
+        for group_date, activities in recent_activity_groups_map.items()
+    ]
 
     dashboard_data = {
         'role': role,
         'primary_actions': primary_actions_by_role.get(role, []),
         'secondary_actions': secondary_actions_by_role.get(role, []),
         'staff_summary': staff_summary,
+        'manager_revenue_summary': build_manager_revenue_summary(all_dates, selected_year, year_start, next_year_start) if role == 'manager' else None,
         'admin_summary': {
             'pending_users': pending_users,
             'pending_password_resets': pending_password_resets,
@@ -4126,7 +4334,8 @@ def dashboard():
                     'created_at': item.created_at.isoformat() if item.created_at else None
                 }
                 for item in recent_activities
-            ]
+            ],
+            'recent_activity_groups': recent_activity_groups
         },
         'selected_year': selected_year,
         'available_years': available_years,
@@ -5388,10 +5597,27 @@ def get_sales_order_details(so_id):
         
         if not sales_order:
             return jsonify({'success': False, 'error': 'Sales order not found'})
+        items = (
+            SalesOrderItem.query
+            .filter_by(sales_order_id=so_id)
+            .order_by(SalesOrderItem.id.asc())
+            .all()
+        )
+        payload = sales_order_row_payload(sales_order)
+        payload['items'] = [
+            {
+                'id': item.id,
+                'particular': item.particular,
+                'quantity': item.quantity,
+                'selling_price': item.selling_price,
+                'total': item.total,
+            }
+            for item in items
+        ]
         
         return jsonify({
             'success': True,
-            'sales_order': sales_order_row_payload(sales_order)
+            'sales_order': payload
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -5908,7 +6134,7 @@ def get_users():
     try:
         users_list = db.session.query(
             User.id, User.username, User.email, User.role_id, User.created_at,
-            User.status, User.disabled_reason, User.profile_photo, Role.role_name
+            User.status, User.disabled_reason, User.evaluation_enabled, User.profile_photo, Role.role_name
         ).join(Role).order_by(User.created_at.desc()).all()
         
         return jsonify({
@@ -5921,6 +6147,7 @@ def get_users():
                     'role_name': user.role_name,
                     'status': user.status,
                     'disabled_reason': user.disabled_reason,
+                    'evaluation_enabled': bool(user.evaluation_enabled),
                     'profile_photo': user.profile_photo,
                     'created_at': user.created_at.isoformat() if user.created_at else None,
                     'role_id': user.role_id
@@ -6207,6 +6434,7 @@ def admin_user_action(user_id):
         allowed_actions = {
             'approve', 'reject', 'promote_manager',
             'demote_staff', 'disable', 'enable',
+            'enable_evaluation', 'disable_evaluation',
         }
         if action not in allowed_actions:
             return jsonify({'success': False, 'error': 'Choose a valid user action.'}), 400
@@ -6234,6 +6462,7 @@ def admin_user_action(user_id):
             'role': role_name,
             'status': status,
             'disabled_reason': user.disabled_reason,
+            'evaluation_enabled': bool(user.evaluation_enabled),
         }
         audit_action = ''
         message = ''
@@ -6284,7 +6513,7 @@ def admin_user_action(user_id):
             user.disabled_reason = reason
             audit_action = 'DISABLE_USER'
             message = 'User disabled successfully.'
-        else:
+        elif action == 'enable':
             if status not in {USER_STATUS_DISABLED, USER_STATUS_REJECTED}:
                 return jsonify({'success': False, 'error': 'Only disabled or rejected accounts can be re-enabled.'}), 409
             if role_name == 'admin' and user.id != admin_user.id:
@@ -6295,6 +6524,18 @@ def admin_user_action(user_id):
             user.disabled_reason = None
             audit_action = 'ENABLE_USER'
             message = 'User re-enabled successfully.'
+        elif action == 'enable_evaluation':
+            if status != USER_STATUS_APPROVED:
+                return jsonify({'success': False, 'error': 'Only approved accounts can receive evaluation access.'}), 409
+            user.evaluation_enabled = True
+            audit_action = 'ENABLE_EVALUATION_ACCESS'
+            message = 'Evaluation access enabled successfully.'
+        else:
+            if role_name == 'admin':
+                return jsonify({'success': False, 'error': 'Administrator evaluation access is always available.'}), 409
+            user.evaluation_enabled = False
+            audit_action = 'DISABLE_EVALUATION_ACCESS'
+            message = 'Evaluation access disabled successfully.'
 
         force_logout_user(user.id)
         db.session.flush()
@@ -6303,6 +6544,7 @@ def admin_user_action(user_id):
             'role': user_role_name(user),
             'status': normalize_user_status(user.status),
             'disabled_reason': user.disabled_reason,
+            'evaluation_enabled': bool(user.evaluation_enabled),
         }
         log_audit(audit_action, 'users', user.id, old_value, new_value)
         db.session.commit()
@@ -6922,11 +7164,21 @@ def get_overview():
         monthly_query = db.session.query(
             month_number,
             func.min(AnalyticsData.transaction_date).label('first_day_of_month'),
-            func.sum(AnalyticsData.amount).label('monthly_revenue')
+            func.sum(
+                case(
+                    (AnalyticsData.flow_direction == 'INFLOW', AnalyticsData.amount),
+                    else_=0
+                )
+            ).label('monthly_revenue'),
+            func.sum(
+                case(
+                    (AnalyticsData.flow_direction == 'OUTFLOW', AnalyticsData.amount),
+                    else_=0
+                )
+            ).label('monthly_expense')
         ).filter(
             AnalyticsData.transaction_date >= filters['start_date'],
             AnalyticsData.transaction_date < filters['end_date'],
-            AnalyticsData.flow_direction == 'INFLOW',
             AnalyticsData.flow_status == 'ACTUAL'
         ).group_by(
             month_number
@@ -6953,7 +7205,8 @@ def get_overview():
 
         # 3. Format labels consistently as DD/MM/YYYY.
         labels = []
-        values = []
+        revenue_values = []
+        expense_values = []
         comparison_values = []
         
         DATE_OUTPUT_FORMAT = '%d/%m/%Y' 
@@ -6967,7 +7220,8 @@ def get_overview():
                     formatted_date = row.first_day_of_month.strftime(DATE_OUTPUT_FORMAT)
                     
                 labels.append(formatted_date)
-                values.append(float(row.monthly_revenue or 0.0))
+                revenue_values.append(float(row.monthly_revenue or 0.0))
+                expense_values.append(float(row.monthly_expense or 0.0))
                 comparison_values.append(comparison_by_month.get(int(row.month_num), 0.0))
 
         return jsonify({
@@ -7000,7 +7254,9 @@ def get_overview():
             },
             "trend_data": {
                 "labels": labels,
-                "values": values,
+                "values": revenue_values,
+                "revenue_values": revenue_values,
+                "expense_values": expense_values,
                 "comparison_values": comparison_values,
                 "comparison_label": comparison_filters['label'],
             }
@@ -7857,16 +8113,28 @@ def likert_interpretation(mean_score):
 
 @app.route('/evaluation')
 @login_required
-@role_required(*ALL_BUSINESS_ROLES)
+@evaluation_required
 def evaluation():
     return render_template(
         'evaluation.html',
         can_view_results=session.get('role') == 'admin',
+        evaluator_role=session.get('role', ''),
     )
+
+@app.route('/api/evaluation/access')
+@login_required
+def evaluation_access():
+    user = current_user_record()
+    return jsonify({
+        'success': True,
+        'can_access': can_access_evaluation(user),
+        'is_admin': user_has_role(user, ('admin',)),
+        'evaluation_enabled': bool(getattr(user, 'evaluation_enabled', False)),
+    })
 
 @app.route('/api/evaluation/questions')
 @login_required
-@role_required(*ALL_BUSINESS_ROLES)
+@evaluation_required
 def evaluation_questions():
     seed_evaluation_questions()
     questions = EvaluationQuestion.query.filter_by(is_active=True).order_by(EvaluationQuestion.display_order.asc()).all()
@@ -7887,7 +8155,7 @@ def evaluation_questions():
 
 @app.route('/api/evaluation/responses', methods=['POST'])
 @login_required
-@role_required(*ALL_BUSINESS_ROLES)
+@evaluation_required
 def evaluation_responses():
     payload = request.get_json() or {}
     responses = payload.get('responses') or []

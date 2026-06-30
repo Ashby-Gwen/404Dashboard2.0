@@ -98,6 +98,14 @@ def main():
             recommendations = {item['store_name']: item for item in payload['store_recommendations']}
             assert 'high_sales_low_margin' in recommendations['LOW MARGIN STORE']['rule_matches']
             assert 'declining_store_trend' in recommendations['LOW MARGIN STORE']['rule_matches']
+            assert 'Strong sales but weak margin' in recommendations['LOW MARGIN STORE']['friendly_trigger_labels']
+            assert 'Recent sales decline' in recommendations['LOW MARGIN STORE']['friendly_trigger_labels']
+            assert recommendations['LOW MARGIN STORE']['why_this_appeared']
+            assert recommendations['LOW MARGIN STORE']['what_it_means']
+            assert recommendations['LOW MARGIN STORE']['recommended_action']
+            assert {item['label'] for item in recommendations['LOW MARGIN STORE']['evidence']} >= {
+                'Sales Order Value', 'Profit Margin', 'Order Count', 'Branch Count', 'Top Item'
+            }
             assert 'high_profit_store' in recommendations['HIGH MARGIN STORE']['rule_matches']
             assert 'insufficient_cost_data' in recommendations['MISSING COST STORE']['rule_matches']
             assert all(item['type'] == 'store_performance' for item in payload['store_recommendations'])

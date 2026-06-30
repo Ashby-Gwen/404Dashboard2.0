@@ -38,7 +38,7 @@ def main():
         init_db()
 
         roles = {role.role_name: role for role in Role.query.all()}
-        for role_name in ('sales staff', 'accounting staff'):
+        for role_name in ('sales staff', 'accounting staff', 'IT Evaluator'):
             if role_name not in roles:
                 role = Role(role_name=role_name, description=role_name.title())
                 db.session.add(role)
@@ -49,6 +49,7 @@ def main():
         sales = add_user('action_sales', roles['sales staff'])
         accounting = add_user('action_accounting', roles['accounting staff'])
         manager = add_user('action_manager', roles['manager'])
+        evaluator = add_user('action_it_evaluator', roles['IT Evaluator'])
         pending = add_user('action_pending', roles['staff'], status='pending')
         pending_reject = add_user('action_pending_reject', roles['staff'], status='pending')
         rejected = add_user('action_rejected', roles['staff'], status='rejected')
@@ -98,6 +99,27 @@ def main():
             assert staff.disabled_reason is None
             enable_audit = AuditLog.query.filter_by(action='ENABLE_USER', record_id=str(staff.id)).first()
             assert 'Repeated unauthorized access.' in enable_audit.old_value
+
+            assert evaluator.evaluation_enabled is False
+            enabled_evaluation = post_action(client, evaluator, 'enable_evaluation')
+            assert enabled_evaluation.status_code == 200, enabled_evaluation.get_json()
+            db.session.refresh(evaluator)
+            assert evaluator.evaluation_enabled is True
+            evaluation_enable_audit = AuditLog.query.filter_by(
+                action='ENABLE_EVALUATION_ACCESS',
+                record_id=str(evaluator.id),
+            ).first()
+            assert evaluation_enable_audit is not None
+
+            disabled_evaluation = post_action(client, evaluator, 'disable_evaluation')
+            assert disabled_evaluation.status_code == 200, disabled_evaluation.get_json()
+            db.session.refresh(evaluator)
+            assert evaluator.evaluation_enabled is False
+            evaluation_disable_audit = AuditLog.query.filter_by(
+                action='DISABLE_EVALUATION_ACCESS',
+                record_id=str(evaluator.id),
+            ).first()
+            assert evaluation_disable_audit is not None
 
             for specialized in (sales, accounting):
                 promoted = post_action(client, specialized, 'promote_manager')
@@ -168,7 +190,9 @@ def main():
             grid = client.get('/admin/data-grid?table=users').get_json()['grid']
             assert 'role_name' in grid['columns']
             assert 'disabled_reason' in grid['columns']
+            assert 'evaluation_enabled' in grid['columns']
             assert all('role_name' in row for row in grid['rows'])
+            assert all('evaluation_enabled' in row for row in grid['rows'])
 
     admin_html = open(os.path.join(ROOT, 'templates', 'admin.html'), encoding='utf-8').read()
     assert 'id="gridTable"' in admin_html
@@ -178,6 +202,8 @@ def main():
     assert 'editUserAdminPassword' in admin_html
     assert 'editUserReason' in admin_html
     assert "action: selectedUserAction" in admin_html
+    assert 'Enable evaluation access' in admin_html
+    assert 'disable_evaluation' in admin_html
     assert 'deactivateUser(' not in admin_html
 
     print('Admin user management check passed.')

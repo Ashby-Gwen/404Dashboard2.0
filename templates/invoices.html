@@ -255,6 +255,65 @@
             font-weight: 500;
         }
 
+        .so-particulars-panel {
+            margin-top: 1rem;
+            border-top: 1px solid color-mix(in srgb, var(--brand-orange) 24%, var(--border-color));
+            padding-top: 1rem;
+        }
+
+        .so-particulars-title {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 0.55rem;
+        }
+
+        .so-particulars-list {
+            display: grid;
+            gap: 0.55rem;
+        }
+
+        .so-particular-row {
+            display: grid;
+            grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(90px, auto));
+            gap: 0.75rem;
+            align-items: center;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            background: rgba(255, 255, 255, 0.72);
+            padding: 0.75rem;
+        }
+
+        .so-particular-name {
+            color: var(--text-primary);
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .so-particular-meta {
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .so-particular-meta strong {
+            display: block;
+            color: var(--text-primary);
+            font-size: 0.94rem;
+        }
+
+        @media (max-width: 760px) {
+            .so-particular-row {
+                grid-template-columns: 1fr;
+            }
+
+            .so-particular-meta {
+                text-align: left;
+                white-space: normal;
+            }
+        }
+
         .checkbox-group {
             display: flex;
             align-items: center;
@@ -873,7 +932,7 @@
 
                     <!-- Invoices Table -->
                     <div class="table-wrap">
-                        <table class="invoice-table">
+                        <table class="invoice-table history-fit-table invoice-history-table">
                             <thead>
                                 <tr>
                                     <th>Invoice #</th>
@@ -973,6 +1032,10 @@
                                 <div class="so-detail-value"><span id="soStatus" class="badge badge-pending">-</span>
                                 </div>
                             </div>
+                        </div>
+                        <div id="soParticularsPanel" class="so-particulars-panel" style="display:none;">
+                            <div class="so-particulars-title">Particulars</div>
+                            <div id="soParticularsList" class="so-particulars-list"></div>
                         </div>
                     </div>
                 </div>
@@ -1541,6 +1604,27 @@
             const statusBadge = document.getElementById('soStatus');
             statusBadge.textContent = selectedSalesOrder.status;
             statusBadge.className = 'badge badge-' + (selectedSalesOrder.status === 'PENDING' ? 'pending' : 'unpaid');
+            displaySalesOrderParticulars(selectedSalesOrder.items || []);
+        }
+
+        function displaySalesOrderParticulars(items) {
+            const panel = document.getElementById('soParticularsPanel');
+            const list = document.getElementById('soParticularsList');
+            if (!panel || !list) return;
+            if (!items.length) {
+                panel.style.display = 'none';
+                list.innerHTML = '';
+                return;
+            }
+            panel.style.display = 'block';
+            list.innerHTML = items.map(item => `
+                <div class="so-particular-row">
+                    <div class="so-particular-name">${escapeHtml(item.particular || '-')}</div>
+                    <div class="so-particular-meta">Qty<strong>${Number(item.quantity || 0).toLocaleString()}</strong></div>
+                    <div class="so-particular-meta">Selling Price<strong>PHP ${formatCurrency(item.selling_price || 0)}</strong></div>
+                    <div class="so-particular-meta">Line Total<strong>PHP ${formatCurrency(item.total || 0)}</strong></div>
+                </div>
+            `).join('');
         }
 
         function displayNoSalesOrder() {
@@ -1558,6 +1642,7 @@
             const statusBadge = document.getElementById('soStatus');
             statusBadge.textContent = '-';
             statusBadge.className = 'badge badge-pending';
+            displaySalesOrderParticulars([]);
             document.getElementById('displayCurrentBalance').textContent = '₱0.00';
             document.getElementById('displaySOTotal').textContent = '₱0.00';
             document.getElementById('displayPaymentAmount').textContent = '₱0.00';

@@ -15,19 +15,76 @@
             margin-bottom: 1rem;
         }
 
+        .expense-entry-card {
+            width: min(100%, 1180px);
+            margin-inline: auto;
+        }
+
+        .expense-entry-form {
+            display: grid;
+            gap: 1.25rem;
+        }
+
+        .expense-form-section {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .expense-form-section-title {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: var(--ui-font-xs);
+            font-weight: 800;
+            letter-spacing: 0;
+            text-transform: uppercase;
+        }
+
+        .expense-grid-docs {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin-bottom: 0;
+        }
+
+        .expense-grid-details {
+            grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.8fr) minmax(180px, 0.7fr) minmax(170px, 0.6fr);
+            align-items: stretch;
+            margin-bottom: 0;
+        }
+
+        .expense-field-wide {
+            grid-row: span 2;
+        }
+
+        .expense-field-wide textarea {
+            min-height: 100%;
+            resize: vertical;
+        }
+
+        .expense-entry-balance-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
+            gap: 1rem;
+            align-items: start;
+        }
+
+        .expense-form-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 0.25rem;
+        }
+
         .debit-section {
             background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%);
             border: 1px solid var(--border-color);
             border-radius: var(--radius-xl);
             padding: 1.5rem;
-            margin-top: 2rem;
+            margin-top: 0;
         }
 
         .debit-item {
             display: grid;
-            grid-template-columns: 2fr 1fr auto;
-            gap: 0.5rem;
-            align-items: center;
+            grid-template-columns: minmax(0, 1fr) minmax(130px, 180px) auto;
+            gap: 0.75rem;
+            align-items: end;
             margin-bottom: 0.75rem;
             padding: 1rem;
             background: white;
@@ -64,7 +121,7 @@
             border: 2px solid var(--brand-orange);
             border-radius: var(--radius-xl);
             padding: 1.5rem;
-            margin-top: 2rem;
+            margin-top: 0;
         }
 
         .calc-row {
@@ -144,8 +201,39 @@
             margin-bottom: 1rem;
         }
 
+        #editExpenseForm .debit-section,
+        #editExpenseForm .calculation-section {
+            margin-top: 1rem;
+        }
+
         .action-cell {
             white-space: nowrap;
+        }
+
+        @media (max-width: 1100px) {
+            .expense-grid-docs,
+            .expense-grid-details,
+            .expense-entry-balance-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .expense-field-wide {
+                grid-column: 1 / -1;
+                grid-row: auto;
+            }
+        }
+
+        @media (max-width: 680px) {
+            .expense-grid-docs,
+            .expense-grid-details,
+            .expense-entry-balance-grid,
+            .debit-item {
+                grid-template-columns: 1fr;
+            }
+
+            .expense-form-actions .btn {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -232,11 +320,13 @@
         </div>
         {% endif %}
 
-        <div class="card">
+        <div class="card expense-entry-card">
             <h2>Create Expense</h2>
             
-            <form id="purchaseOrderForm">
-                <div class="form-grid">
+            <form id="purchaseOrderForm" class="expense-entry-form">
+                <section class="expense-form-section" aria-labelledby="expenseDocumentDetailsTitle">
+                    <h3 id="expenseDocumentDetailsTitle" class="expense-form-section-title">Document Details</h3>
+                    <div class="form-grid expense-grid-docs">
                     <div class="form-group required-field">
                         <label for="checkVoucherNumber">Check/Cash Voucher Number *</label>
                         <input type="text" id="checkVoucherNumber" required>
@@ -276,10 +366,13 @@
                         <label for="lfNo">LF No.</label>
                         <input type="text" id="lfNo">
                     </div>
-                </div>
+                    </div>
+                </section>
 
-                <div class="form-grid">
-                    <div class="form-group required-field">
+                <section class="expense-form-section" aria-labelledby="expensePayeeDetailsTitle">
+                    <h3 id="expensePayeeDetailsTitle" class="expense-form-section-title">Payee and Amount</h3>
+                    <div class="form-grid expense-grid-details">
+                    <div class="form-group required-field expense-field-wide">
                         <label for="particulars">Particulars *</label>
                         <textarea id="particulars" rows="3" required></textarea>
                     </div>
@@ -298,8 +391,10 @@
                         <label for="cashAmount">Cash Amount *</label>
                         <input type="number" id="cashAmount" min="0" step="0.01" required>
                     </div>
-                </div>
+                    </div>
+                </section>
 
+                <div class="expense-entry-balance-grid">
                 <div class="debit-section">
                     <h3>Debit Accounts (at least one required)</h3>
                     <div id="debitsList">
@@ -344,8 +439,9 @@
                         <span id="netBalance">₱0.00</span>
                     </div>
                 </div>
+                </div>
 
-                <div style="text-align: center; margin-top: 2rem;">
+                <div class="expense-form-actions">
                     <button type="submit" class="btn btn-primary">Create Expense</button>
                 </div>
             </form>
@@ -353,9 +449,20 @@
 
         <!-- Expense History -->
         <div class="card" style="margin-top: 2rem;">
-            <h2>Expense History</h2>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1rem;">
+                <h2 style="margin:0;">Expense History</h2>
+                <label for="expenseStatusFilter" style="display:flex; align-items:center; gap:0.5rem; font-weight:700; color:var(--text-muted); font-size:0.9rem;">
+                    Status
+                    <select id="expenseStatusFilter" onchange="displayPurchaseOrders()" style="padding:0.5rem 0.75rem; border:1px solid var(--border-color); border-radius:var(--radius-md); background:var(--surface-card); color:var(--text-main);">
+                        <option value="">All Statuses</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="PAID">Paid</option>
+                        <option value="COMPLETED">Completed</option>
+                    </select>
+                </label>
+            </div>
             <div class="table-wrap">
-                <table id="purchase-orders-table" aria-label="Expense history">
+                <table id="purchase-orders-table" class="history-fit-table expense-history-table" aria-label="Expense history">
                     <thead>
                         <tr>
                             <th>Voucher #</th>
@@ -527,13 +634,15 @@
 
         function displayPurchaseOrders() {
             const tbody = document.getElementById('purchase-orders-tbody');
+            const statusFilter = (document.getElementById('expenseStatusFilter')?.value || '').toUpperCase();
+            const filteredOrders = purchaseOrders.filter(po => !statusFilter || String(po.status || 'PENDING').toUpperCase() === statusFilter);
             
-            if (purchaseOrders.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="no-data">No expenses found</td></tr>';
+            if (filteredOrders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="no-data">No expenses match the selected status</td></tr>';
                 return;
             }
 
-            tbody.innerHTML = purchaseOrders.map(po => {
+            tbody.innerHTML = filteredOrders.map(po => {
                 return '<tr>' +
                     '<td data-label="Voucher #">' + po.check_voucher_number + '</td>' +
                     '<td data-label="Check #">' + po.check_number + '</td>' +

@@ -6,7 +6,8 @@ BEGIN;
 ALTER TABLE public.users
     ADD COLUMN IF NOT EXISTS profile_photo_data text,
     ADD COLUMN IF NOT EXISTS profile_photo_mime varchar(80),
-    ADD COLUMN IF NOT EXISTS disabled_reason text;
+    ADD COLUMN IF NOT EXISTS disabled_reason text,
+    ADD COLUMN IF NOT EXISTS evaluation_enabled boolean NOT NULL DEFAULT false;
 
 UPDATE public.users
 SET status = CASE

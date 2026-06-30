@@ -18,6 +18,7 @@ REQUIRED_COLUMNS = {
         "profile_photo_data": "TEXT",
         "profile_photo_mime": "VARCHAR(80)",
         "disabled_reason": "TEXT",
+        "evaluation_enabled": "BOOLEAN NOT NULL DEFAULT 0",
     },
     "evaluation_sessions": {
         "user_id": "INTEGER REFERENCES users(id)",

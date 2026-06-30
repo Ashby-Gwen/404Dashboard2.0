@@ -152,6 +152,15 @@ def main():
             assert detail_payload['success'] is True
             assert detail_payload['sales_order']['total_amount'] == 1500
             assert detail_payload['sales_order']['last_invoice_date'] == '2026-06-03'
+            assert len(detail_payload['sales_order']['items']) == 2
+            assert detail_payload['sales_order']['items'][0]['particular'] == 'POS TERMINAL'
+            assert detail_payload['sales_order']['items'][0]['quantity'] == 1
+            assert detail_payload['sales_order']['items'][0]['selling_price'] == 1000
+            assert detail_payload['sales_order']['items'][0]['total'] == 1000
+            assert detail_payload['sales_order']['items'][1]['particular'] == 'CASH DRAWER'
+            assert detail_payload['sales_order']['items'][1]['quantity'] == 2
+            assert detail_payload['sales_order']['items'][1]['selling_price'] == 250
+            assert detail_payload['sales_order']['items'][1]['total'] == 500
 
             search_cases = [
                 'SO-001',

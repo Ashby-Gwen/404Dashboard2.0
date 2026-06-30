@@ -37,7 +37,7 @@ def main():
         db.create_all()
         init_db()
         users = {}
-        for role_name in ('admin', 'manager', 'staff', 'sales staff', 'accounting staff'):
+        for role_name in ('admin', 'manager', 'staff', 'sales staff', 'accounting staff', 'IT Evaluator'):
             role = Role.query.filter_by(role_name=role_name).first()
             if not role:
                 role = Role(role_name=role_name, description=f'{role_name} role')
@@ -67,13 +67,36 @@ def main():
             anonymous = client.get('/evaluation')
             assert anonymous.status_code in {302, 401}
 
+            login(client, users['staff'])
+            blocked_page = client.get('/evaluation')
+            assert blocked_page.status_code == 302
+            blocked_questions = client.get('/api/evaluation/questions', headers={'Accept': 'application/json'})
+            assert blocked_questions.status_code == 403
+            blocked_response = client.post('/api/evaluation/responses', json={'responses': []})
+            assert blocked_response.status_code == 403
+            access_payload = client.get('/api/evaluation/access').get_json()
+            assert access_payload['can_access'] is False
+            assert access_payload['evaluation_enabled'] is False
+
+            for role_name, user in users.items():
+                if role_name != 'admin':
+                    user.evaluation_enabled = True
+            db.session.commit()
+
             for role_name, user in users.items():
                 login(client, user)
                 page = client.get('/evaluation')
                 assert page.status_code == 200
                 html = page.get_data(as_text=True)
+                assert 'Evaluation Workspace' in html
                 assert 'Web App Evaluation Questionnaire' in html
+                assert 'Syluxent / 404 QA Test Cases' in html
+                assert 'role="tablist"' in html
+                assert 'role="tabpanel"' in html
+                assert 'qaTestData' in html
                 assert ('Evaluation Results' in html) == (role_name == 'admin')
+                access_payload = client.get('/api/evaluation/access').get_json()
+                assert access_payload['can_access'] is True
 
             login(client, users['staff'])
             questions_payload = client.get('/api/evaluation/questions').get_json()
@@ -150,6 +173,7 @@ def main():
             login(client, users['manager'])
             assert client.get('/api/evaluation/results').status_code == 403
             login(client, users['admin'])
+            assert users['admin'].evaluation_enabled is False
             results = client.get('/api/evaluation/results')
             assert results.status_code == 200
             assert results.get_json()['overall_mean'] == 5

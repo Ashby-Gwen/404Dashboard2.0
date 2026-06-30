@@ -1110,7 +1110,7 @@
         const currentAdminUserId = {{ session.get('user_id') | tojson }};
         const adminUserRows = new Map();
         const businessColumns = {
-            users: ['id', 'username', 'email', 'role_name', 'status', 'disabled_reason', 'created_at'],
+            users: ['id', 'username', 'email', 'role_name', 'status', 'evaluation_enabled', 'disabled_reason', 'created_at'],
             roles: ['id', 'role_name', 'description'],
             clients: ['id', 'client_name', 'contact_info', 'status', 'total_revenue', 'total_balance'],
             sales_orders: ['id', 'so_number', 'company_name', 'store_name', 'order_date', 'sales_staff', 'total_amount', 'status'],
@@ -2055,6 +2055,12 @@
             }
             if (status !== 'approved') return [];
             const actions = [];
+            if (role !== 'admin') {
+                const evaluationEnabled = ['true', '1', 'yes'].includes(String(user.evaluation_enabled || '').toLowerCase()) || user.evaluation_enabled === true;
+                actions.push(evaluationEnabled
+                    ? { action: 'disable_evaluation', label: 'Disable evaluation access', className: 'btn-outline-warning' }
+                    : { action: 'enable_evaluation', label: 'Enable evaluation access', className: 'btn-outline-success' });
+            }
             if (['staff', 'sales staff', 'accounting staff'].includes(role)) {
                 actions.push({ action: 'promote_manager', label: 'Change role to Manager', className: 'btn-outline-primary' });
             } else if (role === 'manager') {
@@ -2121,6 +2127,8 @@
                 reject: ['Reject account', 'Reject this pending account request.'],
                 promote_manager: ['Change to Manager', 'Give this user manager access. Active sessions will be signed out.'],
                 demote_staff: ['Change to Staff', 'Change this manager to generic staff access. Active sessions will be signed out.'],
+                enable_evaluation: ['Enable evaluation access', 'Allow this user to open the testing-phase evaluation workspace. Active sessions will be signed out.'],
+                disable_evaluation: ['Disable evaluation access', 'Hide the evaluation workspace and floating launcher for this user. Active sessions will be signed out.'],
                 disable: ['Disable account', 'Disable this account and sign out all active sessions.'],
                 enable: ['Re-enable account', 'Restore this account using its existing role.']
             };

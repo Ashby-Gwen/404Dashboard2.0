@@ -9,6 +9,9 @@
     let idleLogoutTimer = null;
     let idleLogoutInitialized = false;
     const idleLogoutMs = 5 * 60 * 1000;
+    const idleActivityPingMs = 60 * 1000;
+    let lastServerActivityPingAt = Date.now();
+    let serverActivityPingInFlight = false;
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
 
     document.documentElement.classList.add('syluxent-js', 'syluxent-page-pending');
@@ -615,8 +618,34 @@
         if (!hasAuthenticatedLogout) return;
         idleLogoutInitialized = true;
 
+        const pingServerActivity = () => {
+            const now = Date.now();
+            if (serverActivityPingInFlight || now - lastServerActivityPingAt < idleActivityPingMs) return;
+            lastServerActivityPingAt = now;
+            serverActivityPingInFlight = true;
+            fetch('/api/session/activity', {
+                method: 'POST',
+                credentials: 'same-origin',
+                keepalive: true,
+                headers: { Accept: 'application/json' }
+            })
+                .then(response => {
+                    if (response.status === 401) {
+                        dataCache.clear();
+                        window.location.assign('/session-timeout');
+                    }
+                })
+                .catch(() => {
+                    // Network blips should not interrupt local activity tracking.
+                })
+                .finally(() => {
+                    serverActivityPingInFlight = false;
+                });
+        };
+
         const resetIdleTimer = () => {
             window.clearTimeout(idleLogoutTimer);
+            pingServerActivity();
             idleLogoutTimer = window.setTimeout(() => {
                 dataCache.clear();
                 window.location.assign('/session-timeout');
@@ -968,9 +997,22 @@
         });
     }
 
-    function initializeEvaluationModal() {
+    async function initializeEvaluationModal() {
         if (!document.body || document.getElementById('evaluationModalRoot')) return;
         if (!document.querySelector('a[href$="/logout"]')) return;
+        if (document.documentElement.dataset.evaluationLauncherChecked === 'true') return;
+        document.documentElement.dataset.evaluationLauncherChecked = 'true';
+        let canAccess = false;
+        try {
+            const response = await fetch('/api/evaluation/access', {
+                headers: { Accept: 'application/json' }
+            });
+            const payload = await response.json();
+            canAccess = Boolean(response.ok && payload.success && payload.can_access);
+        } catch {
+            canAccess = false;
+        }
+        if (!canAccess) return;
 
         const root = document.createElement('div');
         root.id = 'evaluationModalRoot';

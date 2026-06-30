@@ -227,6 +227,10 @@ def main():
         assert 'invoice-summary-cell' in invoices_html
         assert 'colspan="11"' in invoices_html
         assert "inv.summary || inv.admin_upload_note || '-'" in invoices_html
+        assert 'soParticularsPanel' in invoices_html
+        assert 'soParticularsList' in invoices_html
+        assert 'displaySalesOrderParticulars(selectedSalesOrder.items || [])' in invoices_html
+        assert 'class="so-particular-row"' in invoices_html
 
     print('Invoice, quantity, and Analytics print check passed.')
 
