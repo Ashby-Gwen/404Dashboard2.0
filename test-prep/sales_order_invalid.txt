@@ -1,0 +1,17 @@
+Sales Order Number: SO-001
+Date: January 6, 2025
+Company: Artemisplus Express
+Store Name: Kitchen City
+Store Branch: Venice
+
+Particulars - QTY - Unit Cost - Selling Price:
+1. TSCERES SQL - 1 - 3675.00 - 10500.00
+2. ONE YEAR WARRANTY - 1 - 12000.00 - 12000.00
+3. Implementation - 1 - 12000.00 - 12000.00 	
+
+Sales Order Total Amount: 34500.00
+
+Sales Staff: Marites Balanquit
+
+
+	

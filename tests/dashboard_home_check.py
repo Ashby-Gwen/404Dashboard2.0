@@ -1,6 +1,8 @@
+import json
 import os
+import re
 import sys
-from datetime import date
+from datetime import date, datetime, timedelta
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -132,7 +134,18 @@ def main():
                 status='PAID',
             ),
             PasswordReset(user_id=pending_user.id, username=pending_user.username, status='PENDING'),
-            AuditLog(username='home_admin', action='LOGIN', table_name='session_records'),
+            AuditLog(
+                username='home_admin',
+                action='LOGIN',
+                table_name='session_records',
+                created_at=datetime.combine(date.today(), datetime.min.time()) + timedelta(hours=9),
+            ),
+            AuditLog(
+                username='old_home_admin',
+                action='LOGOUT',
+                table_name='session_records',
+                created_at=datetime.combine(date.today() - timedelta(days=1), datetime.min.time()) + timedelta(hours=9),
+            ),
         ])
         db.session.commit()
 
@@ -198,7 +211,16 @@ def main():
             assert '/database-interface?tab=audit' in admin_html
             assert 'Latest Activity' in admin_html
             assert 'activity-day-group' in admin_html
+            assert 'Audit log entries recorded today.' in admin_html
             assert 'home_admin - LOGIN' in admin_html
+            assert 'old_home_admin - LOGOUT' not in admin_html
+            dashboard_payload = re.search(
+                r'<script id="dashboardData" type="application/json">(.*?)</script>',
+                admin_html,
+            )
+            assert dashboard_payload
+            admin_data = json.loads(dashboard_payload.group(1))
+            assert admin_data['admin_summary']['recent_activity_count'] == 1
             assert 'Admin Shortcuts' in admin_html
             assert 'Admin Center' in admin_html
 

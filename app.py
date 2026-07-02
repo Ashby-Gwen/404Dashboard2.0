@@ -4289,11 +4289,15 @@ def dashboard():
 
     pending_user_query = User.query.filter(func.lower(User.status) == USER_STATUS_PENDING)
     pending_reset_query = PasswordReset.query.filter_by(status='PENDING')
-    activity_query = AuditLog.query
+    today_start = datetime.combine(today, datetime.min.time())
+    tomorrow_start = today_start + timedelta(days=1)
+    activity_query = AuditLog.query.filter(
+        AuditLog.created_at >= today_start,
+        AuditLog.created_at < tomorrow_start
+    )
     if not all_dates:
         pending_user_query = pending_user_query.filter(User.created_at >= year_start, User.created_at < next_year_start)
         pending_reset_query = pending_reset_query.filter(PasswordReset.requested_at >= year_start, PasswordReset.requested_at < next_year_start)
-        activity_query = activity_query.filter(AuditLog.created_at >= year_start, AuditLog.created_at < next_year_start)
     pending_users = pending_user_query.count()
     pending_password_resets = pending_reset_query.count()
     recent_activity_count = activity_query.count()
