@@ -115,24 +115,27 @@ def main():
 
             breakdown = ordering['score_breakdown']
             assert 'payment_reliability' not in breakdown
-            assert breakdown == {
+            assert {
+                key: breakdown[key]
+                for key in ['total_sales_order_amount', 'order_frequency', 'branch_count']
+            } == {
                 'total_sales_order_amount': 50,
                 'order_frequency': 30,
                 'branch_count': 20,
             }
-            assert sum(breakdown.values()) == ordering['client_performance_score']
+            assert (
+                breakdown['total_sales_order_amount']
+                + breakdown['order_frequency']
+                + breakdown['branch_count']
+            ) == ordering['client_performance_score']
+            assert {'revenue_rank', 'frequency_rank', 'branch_rank', 'score_priority_rank'} <= set(breakdown)
             assert broad['total_revenue'] == narrow['total_revenue'] == 1000
             assert broad['order_count'] == narrow['order_count'] == 2
             assert broad['branches_count'] == 2
             assert narrow['branches_count'] == 1
             assert broad['store_branches'] == ['EAST', 'WEST']
             assert broad['client_performance_score'] > narrow['client_performance_score']
-            assert ordering['cohort'] in {
-                'Core Ordering Clients',
-                'Growth Ordering Clients',
-                'Developing Ordering Clients',
-                'Low Order Activity',
-            }
+            assert ordering['cohort'] in {'A-Class Clients', 'B-Class Clients', 'C-Class Clients'}
 
     print('Client value Sales Order-only check passed.')
 

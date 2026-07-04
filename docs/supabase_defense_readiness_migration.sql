@@ -74,6 +74,16 @@ CREATE TABLE IF NOT EXISTS public.collection_receipts (
         UNIQUE (invoice_id, normalized_cr_number)
 );
 
+CREATE TABLE IF NOT EXISTS public.analytics_item_categories (
+    id serial PRIMARY KEY,
+    normalized_item_key varchar(500) NOT NULL UNIQUE,
+    display_item_name varchar(500) NOT NULL,
+    category varchar(80) NOT NULL
+        CHECK (category IN ('System', 'Hardware', 'Services', 'Office Materials')),
+    updated_by_user_id integer REFERENCES public.users(id),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- CREATE TABLE IF NOT EXISTS does not add defaults when SQLAlchemy already
 -- created the table, so repair the server-side defaults before backfilling.
 ALTER TABLE public.collection_receipts

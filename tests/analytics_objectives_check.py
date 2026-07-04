@@ -12,6 +12,7 @@ os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 
 from app import (  # noqa: E402
     AnalyticsData,
+    AnalyticsItemCategory,
     Client,
     EvaluationSession,
     Invoice,
@@ -80,6 +81,30 @@ def main():
                 selling_price=800,
                 total=(month + 1) * 800,
             ))
+            db.session.add(SalesOrderItem(
+                sales_order_id=order.id,
+                particular='Roll out implementation',
+                quantity=1,
+                unit_cost=100,
+                selling_price=200,
+                total=200,
+            ))
+            db.session.add(SalesOrderItem(
+                sales_order_id=order.id,
+                particular='rollout implementation',
+                quantity=2,
+                unit_cost=100,
+                selling_price=200,
+                total=400,
+            ))
+            db.session.add(SalesOrderItem(
+                sales_order_id=order.id,
+                particular='TMU220D JOURNAL PAPER SINGLE PLY',
+                quantity=100,
+                unit_cost=1,
+                selling_price=2,
+                total=200,
+            ))
             db.session.add(Invoice(
                 invoice_number=f'INV-T-{month:02d}',
                 sales_order_id=order.id,
@@ -97,7 +122,7 @@ def main():
                 check_date=pd.Timestamp(2026, 2, 1).date(),
                 date=pd.Timestamp(2026, 2, 1).date(),
                 particulars='Office Rent',
-                supplier_payee='Building Owner',
+                supplier_payee='Mailyn',
                 cash_amount=300,
                 category='FIXED',
             ),
@@ -193,9 +218,11 @@ def main():
             clients_payload = client.get('/api/analytics/clients').get_json()
             assert clients_payload['success'] is True
             assert 'client_performance_score' in clients_payload['clients'][0]
-            assert clients_payload['clients'][0]['cohort'] in {'Core Ordering Clients', 'Growth Ordering Clients', 'Developing Ordering Clients', 'Low Order Activity'}
+            assert clients_payload['clients'][0]['cohort'] in {'A-Class Clients', 'B-Class Clients', 'C-Class Clients'}
+            assert {'master_priority_rank', 'abc_category', 'cumulative_revenue_percent'} <= set(clients_payload['clients'][0])
             assert {'order_count', 'sales_order_value', 'branches_count', 'cohort'} <= set(clients_payload['clients'][0])
             assert {'label', 'order_count', 'sales_order_value', 'branches_count', 'cohort'} <= set(clients_payload['chart_data'][0])
+            assert {'master_priority_rank', 'abc_category', 'cumulative_revenue_percent'} <= set(clients_payload['chart_data'][0])
 
             expenses_payload = client.get('/api/analytics/expenses?year=2026').get_json()
             assert expenses_payload['success'] is True
@@ -204,6 +231,10 @@ def main():
             assert expenses_payload['variable_share_percent'] == 70
             assert expenses_payload['ranked_particulars'][0]['label'] == 'Delivery Fuel'
             assert expenses_payload['ranked_suppliers'][0]['label'] == 'Fuel Supplier'
+            expense_supplier_labels = [item['label'] for item in expenses_payload['ranked_suppliers']]
+            assert 'Manager' in expense_supplier_labels
+            assert 'Mailyn' not in expense_supplier_labels
+            assert expenses_payload['fixed_items'][0]['supplier_payee'] == 'Manager'
 
             sales_payload = client.get('/api/analytics/sales?mape_threshold=25').get_json()
             assert sales_payload['success'] is True
@@ -218,6 +249,35 @@ def main():
             assert 'active_sales_days' in sales_payload['descriptive']['peak_periods']['weekdays'][0]
             assert sales_payload['descriptive']['peak_periods']['months'][0]['average_quantity'] >= sales_payload['descriptive']['peak_periods']['months'][-1]['average_quantity']
             assert sales_payload['descriptive']['peak_periods']['weekdays'][0]['average_quantity'] >= sales_payload['descriptive']['peak_periods']['weekdays'][-1]['average_quantity']
+            product_distribution = sales_payload['descriptive']['product_distribution']
+            rollout_rows = [item for item in product_distribution if item['item'] == 'ROLL OUT IMPLEMENTATION']
+            assert len(rollout_rows) == 1
+            assert rollout_rows[0]['quantity'] == 24
+            assert rollout_rows[0]['revenue'] == 4800
+            assert rollout_rows[0]['category'] == 'Uncategorized'
+            assert not any(item['item'] == 'Roll out implementation' for item in product_distribution)
+            assert not any(item['item'] == 'roll out implementation' for item in product_distribution)
+            assert not any(item['item'] == 'rollout implementation' for item in product_distribution)
+            assert not any(item['item'] == 'TMU220D JOURNAL PAPER SINGLE PLY' for item in sales_payload['forecast'])
+            category_payload = client.get('/api/analytics/item-categories').get_json()
+            assert category_payload['success'] is True
+            assert category_payload['allowed_categories'] == ['System', 'Hardware', 'Services', 'Office Materials']
+            rollout_category_rows = [item for item in category_payload['items'] if item['display_item_name'] == 'ROLL OUT IMPLEMENTATION']
+            assert len(rollout_category_rows) == 1
+            assert rollout_category_rows[0]['category'] == 'Uncategorized'
+            save_category_payload = client.post('/api/analytics/item-categories', json={
+                'assignments': [{
+                    'normalized_item_key': rollout_category_rows[0]['normalized_item_key'],
+                    'display_item_name': 'ROLL OUT IMPLEMENTATION',
+                    'category': 'System',
+                }]
+            }).get_json()
+            assert save_category_payload['success'] is True
+            assert AnalyticsItemCategory.query.filter_by(display_item_name='ROLL OUT IMPLEMENTATION', category='System').first() is not None
+            sales_payload = client.get('/api/analytics/sales?mape_threshold=25').get_json()
+            product_distribution = sales_payload['descriptive']['product_distribution']
+            rollout_rows = [item for item in product_distribution if item['item'] == 'ROLL OUT IMPLEMENTATION']
+            assert rollout_rows[0]['category'] == 'System'
             monthly_forecast = sales_payload['predictive']['monthly_revenue_forecast']
             assert monthly_forecast['status'] == 'ready'
             assert monthly_forecast['latest_historical_month'] == '2026-08'

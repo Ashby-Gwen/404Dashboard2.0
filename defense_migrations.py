@@ -58,6 +58,8 @@ SQLITE_INDEXES = (
     "ON collection_receipts (invoice_id, normalized_cr_number)",
     "CREATE INDEX IF NOT EXISTS idx_session_records_user_status_device "
     "ON session_records (user_id, status, device_id)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_analytics_item_categories_key "
+    "ON analytics_item_categories (normalized_item_key)",
 )
 
 SQLITE_COLLECTION_RECEIPTS_TABLE = """
@@ -77,6 +79,17 @@ CREATE TABLE IF NOT EXISTS collection_receipts (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_collection_receipts_invoice_cr
         UNIQUE (invoice_id, normalized_cr_number)
+)
+"""
+
+SQLITE_ANALYTICS_ITEM_CATEGORIES_TABLE = """
+CREATE TABLE IF NOT EXISTS analytics_item_categories (
+    id INTEGER PRIMARY KEY,
+    normalized_item_key VARCHAR(500) NOT NULL UNIQUE,
+    display_item_name VARCHAR(500) NOT NULL,
+    category VARCHAR(80) NOT NULL,
+    updated_by_user_id INTEGER REFERENCES users(id),
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 )
 """
 
@@ -143,6 +156,7 @@ def ensure_defense_schema(db: Any) -> dict[str, Any]:
     if dialect == "sqlite":
         with db.engine.begin() as connection:
             connection.execute(text(SQLITE_COLLECTION_RECEIPTS_TABLE))
+            connection.execute(text(SQLITE_ANALYTICS_ITEM_CATEGORIES_TABLE))
             _apply_sqlite_indexes(db, connection)
             current_tables = set(inspect(connection).get_table_names())
             invoice_columns = (

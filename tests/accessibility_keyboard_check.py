@@ -124,11 +124,47 @@ def main():
             assert 'vendor/chartjs/chart.umd.min.js' not in analytics_html
             assert 'createAnalyticsChart' in analytics_html
             assert 'data-section="expenses"' in analytics_html
+            assert 'analytics-story-header' in analytics_html
+            assert 'analytics-story-map' in analytics_html
+            assert 'Business goal > Metric > Level of detail > Type of visualization' in analytics_html
+            assert 'Purpose:' in analytics_html
+            assert 'Manager action:' in analytics_html
+            assert 'Overview revenue dashboard' in analytics_html
+            assert 'Core Revenue Trends' in analytics_html
+            assert 'Performance breakdown' in analytics_html
+            assert 'Product Category Manager' in analytics_html
+            assert 'Save Product Categories' in analytics_html
+            assert 'Month-on-Month Revenue % Change' in analytics_html
+            assert 'Year-on-Year Revenue % Change' in analytics_html
+            assert 'This is the Revenue split by <span class="overview-highlight">Client Value Category</span> this' in analytics_html
+            assert 'Total revenue by date current versus previous year chart' in analytics_html
+            assert 'Total revenue by client value category chart' in analytics_html
+            assert 'Month-over-month revenue change by client value category chart' in analytics_html
+            assert 'ABC Pareto revenue bar and cumulative line chart' in analytics_html
+            assert 'Forecasted Sales Order value needs stock planning review' in analytics_html
+            assert 'Rule-based recommendations convert analytics signals into manager actions' in analytics_html
+            assert 'aria-label="Graph insights"' in analytics_html
+            assert 'Graph Insights' in analytics_html
+            assert 'graph-insight-status-pill' in analytics_html
+            assert 'graph-insight-chip' in analytics_html
+            assert 'graph-insight-metrics' in analytics_html
+            assert 'graph-insight-explanation' in analytics_html
+            assert 'graph-insight-action' in analytics_html
+            assert 'aria-label="Forecast quality label"' in analytics_html
+            assert 'aria-label="Item forecast summary"' in analytics_html
+            assert 'Forecast Status:' in analytics_html
+            assert 'Prepare stock for expected demand but verify unpaid orders first.' in analytics_html
+            assert 'predictive analytics using Holt-Winters forecasting' in analytics_html
+            assert 'class="analytics-graph-section"' in analytics_html
+            assert 'class="analytics-table-section"' in analytics_html
+            assert 'data-analytics-graph="item-forecasts"' in analytics_html
             assert 'aria-label="Revenue forecast chart"' in analytics_html
-            assert 'aria-label="Client opportunity relationship chart"' in analytics_html
+            assert 'aria-label="ABC Pareto revenue bar and cumulative line chart"' in analytics_html
             assert 'aria-label="Fixed and variable expense composition chart"' in analytics_html
 
             login(client, accounting, 'accounting staff')
+            blocked_category_access = client.get('/api/analytics/item-categories').get_json()
+            assert blocked_category_access['success'] is False
             blocked_evaluation_access = client.get('/api/evaluation/access').get_json()
             assert blocked_evaluation_access['can_access'] is False
             accounting.evaluation_enabled = True

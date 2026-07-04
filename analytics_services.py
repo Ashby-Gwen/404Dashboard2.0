@@ -748,6 +748,60 @@ def _display_text(value: Any) -> str:
     return " ".join(str(value or "").strip().split())
 
 
+def _analytics_label_key(value: Any) -> str:
+    """Normalize labels for analytics-only cleanup rules without editing source rows."""
+    text = _display_text(value).upper().replace("&", " AND ")
+    return " ".join(re_sub_non_company(text).split())
+
+
+def analytics_expense_display_label(value: Any) -> str:
+    """Return manager-facing expense labels for analytics displays only."""
+    label = _display_text(value) or "Unspecified"
+    if "MAILYN" in _analytics_label_key(label):
+        return "Manager"
+    return label
+
+
+def analytics_revenue_item_display_name(value: Any) -> str:
+    """Return canonical revenue item names for analytics grouping only."""
+    label = _display_text(value) or "Unspecified Item"
+    if _analytics_label_key(label) in {"ROLLOUT IMPLEMENTATION", "ROLL OUT IMPLEMENTATION"}:
+        return "ROLL OUT IMPLEMENTATION"
+    return label
+
+
+ANALYTICS_ITEM_CATEGORIES = ("System", "Hardware", "Services", "Office Materials")
+ANALYTICS_UNCATEGORIZED = "Uncategorized"
+
+
+def analytics_item_category_key(value: Any) -> str:
+    """Return the stable key used for manager-maintained item categories."""
+    return _analytics_label_key(analytics_revenue_item_display_name(value))
+
+
+def analytics_valid_item_category(value: Any) -> str:
+    label = _display_text(value)
+    for category in ANALYTICS_ITEM_CATEGORIES:
+        if label.upper() == category.upper():
+            return category
+    return ANALYTICS_UNCATEGORIZED
+
+
+def analytics_item_category_map(db: Any, models: dict[str, Any]) -> dict[str, str]:
+    model = models.get("AnalyticsItemCategory")
+    if model is None:
+        return {}
+    return {
+        row.normalized_item_key: analytics_valid_item_category(row.category)
+        for row in db.session.query(model).all()
+    }
+
+
+def exclude_from_item_forecast(value: Any) -> bool:
+    """Exclude known non-managerial item noise from Item Forecasts only."""
+    return _analytics_label_key(value) == "TMU220D JOURNAL PAPER SINGLE PLY"
+
+
 def _store_group_key(value: Any) -> str:
     text = _display_text(value).upper()
     return " ".join(re_sub_non_company(text).split())
@@ -930,14 +984,20 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
     def ratio(value: float, maximum: float) -> float:
         return clamp(float(value or 0) / float(maximum or 1), 1.0) if maximum else 0.0
 
-    def cohort_for(score: float) -> str:
-        if score >= 80:
-            return "Core Ordering Clients"
-        if score >= 60:
-            return "Growth Ordering Clients"
-        if score >= 40:
-            return "Developing Ordering Clients"
-        return "Low Order Activity"
+    def ranking_for(metric_name: str) -> dict[str, int]:
+        ranked = sorted(
+            store_groups.items(),
+            key=lambda entry: (
+                -float(entry[1].get(metric_name, 0) or 0),
+                str(entry[1].get("store_name") or entry[0]),
+            ),
+        )
+        return {store_key: rank for rank, (store_key, _) in enumerate(ranked, start=1)}
+
+    revenue_rankings = ranking_for("total_order_amount")
+    frequency_rankings = ranking_for("order_count")
+    branch_rankings = ranking_for("store_count")
+    client_count = max(len(store_groups), 1)
 
     clients_data = []
     
@@ -959,6 +1019,9 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
         if last_purchase:
             days_since_purchase = max((today - last_purchase).days, 0)
             recency_ratio = max(0.0, 1 - min(days_since_purchase, 365) / 365)
+        revenue_rank = revenue_rankings.get(store_key, client_count)
+        frequency_rank = frequency_rankings.get(store_key, client_count)
+        branch_rank = branch_rankings.get(store_key, client_count)
         amount_score = round(ratio(revenue, max_revenue) * 50, 2)
         order_frequency_score = round(ratio(order_count, max_order_count) * 30, 2)
         branch_count_score = round(ratio(branches, max_branch_count) * 20, 2)
@@ -1004,19 +1067,6 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
                 trend_status = "declining" if trend_change_percent <= -10 else "stable_or_growing"
             else:
                 trend_status = "not_comparable"
-        cohort = cohort_for(client_performance_score)
-        recommendations = []
-        if cohort == "Low Order Activity":
-            recommendations.append("Build ordering activity with targeted follow-up or a starter offer.")
-        if cohort == "Developing Ordering Clients":
-            recommendations.append("Encourage a repeat order cycle and grow average order value.")
-        if recency_ratio < 0.35 and revenue > 0:
-            recommendations.append("Re-engage client; purchasing activity is becoming stale.")
-        if client_performance_score >= 80:
-            recommendations.append("Protect relationship and consider priority fulfillment.")
-        if not recommendations:
-            recommendations.append("Continue monitoring Sales Order revenue, order frequency, and branch coverage.")
-
         client_data = {
             "store_name": stats["store_name"],
             "store_key": store_key,
@@ -1035,10 +1085,13 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             "total_paid": round(total_paid, 2),
             "balance": round(balance, 2),
             "balance_status": "Settled" if balance <= 0 else "Unsettled Balance",
-            "value_status": cohort,
-            "cohort": cohort,
+            "value_status": "Unclassified",
+            "cohort": "Unclassified",
             "score": round(client_performance_score / 100, 4),
             "client_performance_score": client_performance_score,
+            "master_priority_rank": 0,
+            "abc_category": "Unclassified",
+            "cumulative_revenue_percent": 0,
             "order_count": order_count,
             "repeat_order_frequency": stats["repeat_frequency"],
             "average_order_value": round(float(stats["average_order"] or 0), 2),
@@ -1047,17 +1100,50 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             "monthly_history": monthly_history,
             "trend_status": trend_status,
             "trend_change_percent": trend_change_percent,
+            "recency_ratio": round(recency_ratio, 4),
             "score_breakdown": {
                 "total_sales_order_amount": amount_score,
                 "order_frequency": order_frequency_score,
                 "branch_count": branch_count_score,
+                "revenue_rank": revenue_rank,
+                "frequency_rank": frequency_rank,
+                "branch_rank": branch_rank,
+                "score_priority_rank": 0,
             },
-            "recommendations": recommendations,
+            "recommendations": [],
             "last_purchase": last_purchase.isoformat() if last_purchase else None
         }
         clients_data.append(client_data)
-        
-    clients_data.sort(key=lambda x: x["client_performance_score"], reverse=True)
+
+    total_client_revenue = sum(float(client["sales_order_value"] or 0) for client in clients_data)
+    cumulative_revenue = 0.0
+    clients_data.sort(key=lambda x: (-x["client_performance_score"], -x["sales_order_value"], x["store_name"]))
+    for priority_rank, client in enumerate(clients_data, start=1):
+        client["master_priority_rank"] = priority_rank
+        client["score_breakdown"]["score_priority_rank"] = priority_rank
+        previous_cumulative_percent = (cumulative_revenue / total_client_revenue * 100) if total_client_revenue else 0
+        cumulative_revenue += float(client["sales_order_value"] or 0)
+        cumulative_percent = (cumulative_revenue / total_client_revenue * 100) if total_client_revenue else 0
+        if previous_cumulative_percent < 80:
+            cohort = "A-Class Clients"
+        elif previous_cumulative_percent < 95:
+            cohort = "B-Class Clients"
+        else:
+            cohort = "C-Class Clients"
+        client["abc_category"] = cohort
+        client["cohort"] = cohort
+        client["value_status"] = cohort
+        client["cumulative_revenue_percent"] = round(cumulative_percent, 2)
+        recommendations = []
+        if cohort == "A-Class Clients":
+            recommendations.append("Protect this high-impact account with direct relationship management.")
+        elif cohort == "B-Class Clients":
+            recommendations.append("Nurture and upsell this client to grow them toward A-Class contribution.")
+        else:
+            recommendations.append("Use efficient automated follow-up and monitor for growth signals.")
+        if float(client.get("recency_ratio") or 0) < 0.35 and float(client["sales_order_value"] or 0) > 0:
+            recommendations.append("Re-engage client; purchasing activity is becoming stale.")
+        client["recommendations"] = recommendations
     
     top_3_clients = [
         {
@@ -1068,6 +1154,8 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
             "total_revenue": client["total_revenue"],
             "score": client["score"],
             "client_performance_score": client["client_performance_score"],
+            "master_priority_rank": client["master_priority_rank"],
+            "cumulative_revenue_percent": client["cumulative_revenue_percent"],
             "cohort": client["cohort"],
             "balance_status": client["balance_status"]
         }
@@ -1089,6 +1177,14 @@ def get_clients_analysis(db: Any, models: dict[str, Any], start_date: Any = None
                 "sales_order_value": client["sales_order_value"],
                 "branches_count": client["branches_count"],
                 "cohort": client["cohort"],
+                "abc_category": client["abc_category"],
+                "master_priority_rank": client["master_priority_rank"],
+                "cumulative_revenue_percent": client["cumulative_revenue_percent"],
+                "client_performance_score": client["client_performance_score"],
+                "revenue_rank": client["score_breakdown"]["revenue_rank"],
+                "frequency_rank": client["score_breakdown"]["frequency_rank"],
+                "branch_rank": client["score_breakdown"]["branch_rank"],
+                "score_breakdown": client["score_breakdown"],
             }
             for client in clients_data
         ],
@@ -1146,8 +1242,8 @@ def get_expenses_breakdown(
 
     def item_payload(row: Any) -> dict[str, Any]:
         return {
-            "supplier_payee": row.supplier_payee,
-            "debit_account": row.particulars,
+            "supplier_payee": analytics_expense_display_label(row.supplier_payee),
+            "debit_account": analytics_expense_display_label(row.particulars),
             "amount": round(float(row.total_amount or 0), 2),
             "category": str(row.category or "VARIABLE").upper(),
         }
@@ -1187,15 +1283,19 @@ def get_expenses_breakdown(
     )
 
     def ranked(rows: list[Any]) -> list[dict[str, Any]]:
+        totals: dict[str, float] = defaultdict(float)
+        for row in rows:
+            label = analytics_expense_display_label(row.label)
+            totals[label] += float(row.total_amount or 0)
         return [
             {
-                "label": row.label or "Unspecified",
-                "amount": round(float(row.total_amount or 0), 2),
+                "label": label,
+                "amount": round(amount, 2),
                 "share_percent": round(
-                    float(row.total_amount or 0) / total_expenses * 100, 2
+                    amount / total_expenses * 100, 2
                 ) if total_expenses else 0,
             }
-            for row in rows
+            for label, amount in sorted(totals.items(), key=lambda item: item[1], reverse=True)
         ]
 
     return {
@@ -1260,8 +1360,9 @@ def get_sales_analysis(db: Any, models: dict[str, Any], mape_threshold: float = 
     SalesOrderItem = models["SalesOrderItem"]
     Invoice = models["Invoice"]
     PurchaseOrder = models.get("PurchaseOrder")
+    category_map = analytics_item_category_map(db, models)
     forecast = get_sales_forecast(db, SalesOrderItem, SalesOrder, mape_threshold, start_date, end_date)
-    descriptive = get_sales_descriptive(db, SalesOrderItem, SalesOrder, start_date, end_date)
+    descriptive = get_sales_descriptive(db, SalesOrderItem, SalesOrder, start_date, end_date, category_map)
     clients = get_clients_analysis(db, models, start_date, end_date)
     pondo = 0.0
     if PurchaseOrder is not None:
@@ -1291,7 +1392,7 @@ def get_sales_analysis(db: Any, models: dict[str, Any], mape_threshold: float = 
     }
 
 
-def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_date: Any = None, end_date: Any = None) -> dict[str, Any]:
+def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_date: Any = None, end_date: Any = None, category_map: dict[str, str] | None = None) -> dict[str, Any]:
     """Build descriptive analytics for products, periods, and trend direction."""
     month_key = db_month_key(db, SalesOrder.order_date).label('month')
     monthly_query = (
@@ -1337,9 +1438,24 @@ def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_d
         .order_by(func.sum(SalesOrderItem.total).desc())
         .all()
     )
+    category_map = category_map or {}
+    product_totals: dict[str, dict[str, Any]] = {}
+    for row in item_rows:
+        item_name = analytics_revenue_item_display_name(row.particular)
+        item_key = analytics_item_category_key(item_name)
+        item_category = category_map.get(item_key, ANALYTICS_UNCATEGORIZED)
+        bucket = product_totals.setdefault(item_name, {"quantity": 0.0, "revenue": 0.0, "category": item_category})
+        bucket["quantity"] += float(row.quantity or 0)
+        bucket["revenue"] += float(row.revenue or 0)
+        bucket["category"] = item_category
     product_distribution = [
-        {"item": row.particular, "quantity": int(row.quantity or 0), "revenue": numeric(row.revenue, 2)}
-        for row in item_rows
+        {
+            "item": item,
+            "category": values.get("category") or ANALYTICS_UNCATEGORIZED,
+            "quantity": int(values["quantity"] or 0),
+            "revenue": numeric(values["revenue"], 2),
+        }
+        for item, values in sorted(product_totals.items(), key=lambda entry: entry[1]["revenue"], reverse=True)
     ]
     weekday_number = db_weekday(db, SalesOrder.order_date).label('weekday')
     weekday_query = (
@@ -1599,9 +1715,19 @@ def get_sales_forecast(
     if SalesOrder is not None:
         top_items_query = top_items_query.join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
         top_items_query = _apply_date_bounds(top_items_query, SalesOrder.order_date, start_date, end_date)
-    top_items = top_items_query.group_by(SalesOrderItem.particular).order_by(func.sum(SalesOrderItem.quantity).desc()).limit(10).all()
-    for item in top_items:
-        item_rows_query = db.session.query(SalesOrderItem).filter(SalesOrderItem.particular == item.particular)
+    raw_top_items = top_items_query.group_by(SalesOrderItem.particular).order_by(func.sum(SalesOrderItem.quantity).desc()).all()
+    forecast_item_groups: dict[str, dict[str, Any]] = {}
+    for item in raw_top_items:
+        if exclude_from_item_forecast(item.particular):
+            continue
+        item_name = analytics_revenue_item_display_name(item.particular)
+        group = forecast_item_groups.setdefault(item_name, {"quantity": 0.0, "raw_items": []})
+        group["quantity"] += float(item.quantity or 0)
+        group["raw_items"].append(item.particular)
+    top_items = sorted(forecast_item_groups.items(), key=lambda entry: entry[1]["quantity"], reverse=True)[:10]
+    for item_name, item_group in top_items:
+        raw_item_names = item_group["raw_items"]
+        item_rows_query = db.session.query(SalesOrderItem).filter(SalesOrderItem.particular.in_(raw_item_names))
         if SalesOrder is not None:
             item_rows_query = item_rows_query.join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
             item_rows_query = _apply_date_bounds(item_rows_query, SalesOrder.order_date, start_date, end_date)
@@ -1617,7 +1743,7 @@ def get_sales_forecast(
                     func.sum(SalesOrderItem.quantity).label('quantity'),
                 )
                 .join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
-                .filter(SalesOrderItem.particular == item.particular)
+                .filter(SalesOrderItem.particular.in_(raw_item_names))
             )
             monthly_rows = _apply_date_bounds(monthly_query, SalesOrder.order_date, start_date, end_date).group_by(month_key).order_by(month_key).all()
             monthly_quantities = [float(row.quantity or 0) for row in monthly_rows]
@@ -1626,13 +1752,13 @@ def get_sales_forecast(
             predicted_qty = holt_winters_forecast(monthly_quantities)
             method = "holt_winters"
         else:
-            predicted_qty = sum(monthly_quantities[-3:]) / min(len(monthly_quantities), 3) if monthly_quantities else float(item.quantity or 0)
+            predicted_qty = sum(monthly_quantities[-3:]) / min(len(monthly_quantities), 3) if monthly_quantities else float(item_group["quantity"] or 0)
             method = "fallback_average"
         accepted = backtest["mape"] is not None and backtest["mape"] <= float(mape_threshold)
         confidence = "High" if accepted else "Needs Review" if backtest["mape"] is not None else "Insufficient Data"
         forecast_quantity = max(int(round(float(predicted_qty or 0))), 0)
         forecast_data.append({
-            "item": item.particular,
+            "item": item_name,
             "predicted_qty": forecast_quantity,
             "predicted_revenue": round(forecast_quantity * avg_price, 2),
             "predicted_profit": round(forecast_quantity * (avg_price - avg_cost), 2),

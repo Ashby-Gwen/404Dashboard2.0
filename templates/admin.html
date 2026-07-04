@@ -28,7 +28,7 @@
             border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 1rem;
-            box-shadow: var(--shadow);
+            box-shadow: none;
         }
 
         .skip-link {
@@ -89,13 +89,13 @@
             background-size: 18px 18px;
             background-repeat: no-repeat;
             font-weight: 750;
-            box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-orange) 8%, transparent);
+            box-shadow: none;
         }
 
         #gridTable:hover,
         #gridTable:focus-visible {
             border-color: var(--brand-orange);
-            box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-orange) 18%, transparent);
+            box-shadow: none;
         }
 
         .user-action-list {
@@ -172,7 +172,7 @@
         .admin-client-button.active,
         .admin-client-button:hover {
             border-color: var(--brand-orange);
-            box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-orange) 16%, transparent);
+            box-shadow: none;
         }
 
         .client-mini-meta,
@@ -266,7 +266,7 @@
                 linear-gradient(135deg, color-mix(in srgb, var(--preset-bg-2) 78%, transparent), transparent 62%),
                 var(--preset-bg);
             color: var(--preset-text) !important;
-            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+            box-shadow: none;
             overflow: hidden;
             position: relative;
         }
@@ -275,7 +275,7 @@
         .theme-preset-btn:focus-visible,
         .theme-preset-btn.is-selected {
             border-color: var(--preset-accent);
-            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.18);
+            box-shadow: none;
             transform: translateY(-1px);
         }
 
@@ -312,10 +312,7 @@
             height: 42px;
             border: 2px solid rgba(255, 255, 255, 0.9);
             border-radius: var(--radius-md);
-            box-shadow:
-                inset 1px 1px 0 rgba(255, 255, 255, 0.55),
-                0 0 0 1px rgba(15, 23, 42, 0.22),
-                0 4px 10px rgba(15, 23, 42, 0.16);
+            box-shadow: none;
         }
 
         .theme-preset-dark {
@@ -507,7 +504,7 @@
                 z-index: 2;
                 background: var(--card-bg);
                 white-space: nowrap;
-                box-shadow: inset 0 -1px var(--border-color);
+                box-shadow: none;
             }
 
             .admin-card .table-responsive td {
@@ -2428,10 +2425,10 @@
             root.style.setProperty('--border-color', 'var(--glass-border)');
             root.style.setProperty('--border-width', '1px');
             root.style.setProperty('--glass-blur', isSolidMode ? 'none' : `blur(${settings.blur_px}px) saturate(${settings.saturate_percent}%)`);
-            root.style.setProperty('--glass-shadow', glassShadowFor(settings));
-            root.style.setProperty('--shadow', isContrastMode ? '0 16px 40px rgba(2, 6, 23, 0.28)' : isSolidMode ? '0 4px 20px rgba(0, 0, 0, 0.40)' : 'var(--glass-shadow)');
-            root.style.setProperty('--shadow-soft', isContrastMode ? '0 10px 26px rgba(2, 6, 23, 0.22)' : isSolidMode ? '0 4px 20px rgba(0, 0, 0, 0.40)' : '0 12px 38px rgba(15, 23, 42, 0.10)');
-            root.style.setProperty('--card-shadow', 'var(--shadow-soft)');
+            root.style.setProperty('--glass-shadow', 'none');
+            root.style.setProperty('--shadow', 'none');
+            root.style.setProperty('--shadow-soft', 'none');
+            root.style.setProperty('--card-shadow', 'none');
             root.style.setProperty('--radius-xl', `${settings.card_radius_px}px`);
             root.style.setProperty('--radius-lg', `${settings.control_radius_px}px`);
             root.style.setProperty('--radius-md', `${Math.max(0, Number(settings.control_radius_px || 0) - 2)}px`);

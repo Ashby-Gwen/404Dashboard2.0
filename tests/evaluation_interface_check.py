@@ -57,13 +57,26 @@ def main():
         assert len({category for category, _ in DEFAULT_EVALUATION_QUESTIONS}) == 9
         assert EvaluationQuestion.query.filter_by(is_active=True).count() == 37
         assert likert_interpretation(5) == 'Strongly Agree'
-        assert likert_interpretation(4.21) == 'Strongly Agree'
-        assert likert_interpretation(3.41) == 'Agree'
-        assert likert_interpretation(2.61) == 'Moderately Agree'
-        assert likert_interpretation(1.81) == 'Disagree'
+        assert likert_interpretation(4.50) == 'Strongly Agree'
+        assert likert_interpretation(4.49) == 'Agree'
+        assert likert_interpretation(3.50) == 'Agree'
+        assert likert_interpretation(3.49) == 'Moderately Agree'
+        assert likert_interpretation(2.50) == 'Moderately Agree'
+        assert likert_interpretation(2.49) == 'Disagree'
+        assert likert_interpretation(1.50) == 'Disagree'
+        assert likert_interpretation(1.49) == 'Strongly Disagree'
         assert likert_interpretation(1) == 'Strongly Disagree'
 
         with app.test_client() as client:
+            uppercase_login = client.post('/login', data={
+                'username': users['staff'].username.upper(),
+                'password': 'test123',
+            })
+            assert uppercase_login.status_code == 302
+            with client.session_transaction() as session:
+                assert session['username'] == users['staff'].username
+            client.get('/logout')
+
             anonymous = client.get('/evaluation')
             assert anonymous.status_code in {302, 401}
 
@@ -176,7 +189,16 @@ def main():
             assert users['admin'].evaluation_enabled is False
             results = client.get('/api/evaluation/results')
             assert results.status_code == 200
-            assert results.get_json()['overall_mean'] == 5
+            results_payload = results.get_json()
+            assert results_payload['overall_mean'] == 5
+            assert results_payload['response_count'] == 1
+            assert len(results_payload['category_tables']) == 9
+            assert results_payload['category_tables'][0]['questions']
+            assert results_payload['category_tables'][0]['total_weighted_mean'] == 5
+            assert results_payload['respondent_mix'] == [
+                {'label': 'IT Professional', 'count': 0, 'percentage': 0},
+                {'label': 'End User', 'count': 1, 'percentage': 100.0},
+            ]
 
     print('Evaluation interface checks passed.')
 

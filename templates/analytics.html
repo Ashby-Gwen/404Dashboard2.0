@@ -8,7 +8,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
-    <script src="{{ url_for('static', filename='vendor/visuals/graphing-4.4.0.umd.js', v='4.4.0-analytics-2') }}"></script>
+    <script
+        src="{{ url_for('static', filename='vendor/visuals/graphing-4.4.0.umd.js', v='4.4.0-analytics-2') }}"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <style>
         .analytics-container {
@@ -63,6 +64,460 @@
             line-height: 1.45;
         }
 
+        .analytics-story-header {
+            display: grid;
+            gap: 0.45rem;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--surface-card, #fff);
+        }
+
+        .analytics-purpose-line {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            line-height: 1.45;
+        }
+
+        .analytics-purpose-line strong,
+        .analytics-manager-action strong,
+        .analytics-takeaway strong {
+            color: var(--text-main);
+        }
+
+        .analytics-key-answer {
+            margin: 0;
+            color: var(--text-main);
+            font-size: clamp(1.05rem, 1.3vw, 1.35rem);
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .analytics-story-map {
+            margin: 0 0 1.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--surface-muted, rgba(249, 250, 251, 0.75));
+        }
+
+        .analytics-story-map summary {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            color: var(--text-main);
+            font-weight: 800;
+        }
+
+        .analytics-story-map-grid {
+            display: grid;
+            gap: 0.5rem;
+            padding: 0 1rem 1rem;
+        }
+
+        .analytics-story-map-row {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.75rem;
+            align-items: start;
+            padding: 0.65rem 0;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-size: 0.84rem;
+            line-height: 1.35;
+        }
+
+        .analytics-story-map-row strong {
+            color: var(--text-main);
+            font-weight: 700;
+        }
+
+        .analytics-takeaway,
+        .analytics-manager-action {
+            margin: 0.75rem 0 0;
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            line-height: 1.45;
+        }
+
+        .analytics-summary-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 0 0 1rem;
+        }
+
+        .analytics-summary-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.4rem 0.65rem;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            background: var(--surface-card, #fff);
+            color: var(--text-muted);
+            font-size: 0.82rem;
+        }
+
+        .analytics-summary-chip b {
+            color: var(--text-main);
+        }
+
+        .overview-asymmetric-layout {
+            display: grid;
+            grid-template-columns: minmax(280px, 0.95fr) minmax(0, 1.9fr);
+            gap: 1.5rem;
+            align-items: start;
+            margin-bottom: 1.5rem;
+        }
+
+        .overview-left-column {
+            border-right: 2px solid #c4c4c4;
+            border-right-color: var(--border-color, #c4c4c4);
+            padding-right: 1.5rem;
+
+            /* 🌟 Add shadow offset right and down */
+            box-shadow: none;
+        }
+
+        .overview-left-column,
+        .overview-main-panel {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .overview-tier-panel {
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--surface-card, #fff);
+        }
+
+        .overview-main-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem;
+        }
+
+        .overview-revenue-kpi-block {
+            display: grid;
+            gap: 0.8rem;
+        }
+
+        .overview-revenue-kpi-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(160px, 0.9fr);
+            gap: 0.85rem;
+            align-items: stretch;
+        }
+
+        .overview-highlight {
+            color: var(--brand-orange, var(--accent-main, #F97316));
+        }
+
+        .overview-revenue-number {
+            display: block;
+            color: var(--brand-orange, var(--accent-main, #F97316));
+            font-size: clamp(1rem, 2vw, 2rem);
+            font-weight: 800;
+            line-height: 1.15;
+            overflow-wrap: anywhere;
+        }
+
+        .overview-kpi-label,
+        .overview-change-context {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            line-height: 1.35;
+        }
+
+        .overview-change-stack {
+            display: grid;
+            gap: 0.5rem;
+        }
+
+        .overview-change-badge {
+            display: flex;
+            flex-direction: column;
+            /* Stacks the <b> and <span> vertically */
+            align-items: center;
+            /* Centers the text horizontally inside the badge */
+            justify-content: center;
+            /* Centers content vertically */
+            text-align: center;
+            /* Ensures multi-line text is centered */
+            gap: 0.35rem;
+            /* Slightly reduced gap looks better for stacked text */
+            padding: 0.65rem 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            background: var(--surface-muted, rgba(249, 250, 251, 0.75));
+            color: var(--text-muted);
+            font-size: 0.6rem;
+            font-weight: 700;
+        }
+
+        .overview-change-badge b {
+            color: var(--text-main);
+            font-size: 0.95rem;
+        }
+
+        .overview-unified-panel {
+            display: grid;
+            gap: 1rem;
+            min-height: 235px;
+        }
+
+        .overview-paired-charts {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem;
+        }
+
+        .overview-chart-caption {
+            margin: 0.45rem 0 0;
+            color: var(--text-muted);
+            font-size: 0.5rem;
+            font-weight: 800;
+            text-align: center;
+        }
+
+        .overview-driver-title {
+            margin: 0 0 0.75rem;
+        }
+
+        .overview-tier-panel .client-table-scroll {
+            max-height: none;
+            margin: 0;
+            padding: 0;
+            border-radius: 0;
+            border: 0;
+        }
+
+        .overview-tier-panel .client-table {
+            min-width: 0;
+            width: 100%;
+            margin: 0;
+            border-spacing: 0;
+            table-layout: fixed;
+            font-size: 0.6rem;
+            line-height: 1.05;
+        }
+
+        .overview-tier-panel .client-table thead th,
+        .overview-tier-panel .client-table tbody td {
+            padding: 0;
+            margin: 0;
+            font-size: 0.6rem;
+            font-weight: 400;
+            line-height: 1.05;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            border: 0;
+        }
+
+        .overview-tier-panel .client-table thead th {
+            font-weight: 500;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .overview-driver-table.client-table tbody tr {
+            background: transparent;
+        }
+
+        .overview-driver-table.client-table th:nth-child(4),
+        .overview-driver-table.client-table td:nth-child(4) {
+            font-weight: 500;
+        }
+
+        .overview-driver-table-increase.client-table th:nth-child(4) {
+            background: #bbf7d0;
+            color: #14532d !important;
+        }
+
+        .overview-driver-table-increase.client-table tbody tr {
+            background: #f0fdf4;
+        }
+
+        .overview-driver-table-increase.client-table td:nth-child(4) {
+            background: #dcfce7;
+            color: #166534 !important;
+        }
+
+        .overview-driver-table-decrease.client-table th:nth-child(4) {
+            background: #fecaca;
+            color: #7f1d1d !important;
+        }
+
+        .overview-driver-table-decrease.client-table tbody tr {
+            background: #fef2f2;
+        }
+
+        .overview-driver-table-decrease.client-table td:nth-child(4) {
+            background: #fee2e2;
+            color: #991b1b !important;
+        }
+
+        .overview-delta-increase {
+            color: #047857 !important;
+        }
+
+        .overview-delta-decrease {
+            color: #B91C1C !important;
+        }
+
+        .overview-decline-row,
+        .overview-increase-row {
+            background: inherit;
+        }
+
+        .analytics-category-manager {
+            display: grid;
+            gap: 0.75rem;
+        }
+
+        .analytics-category-manager-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
+            gap: 0.75rem;
+            align-items: center;
+            padding: 0.65rem 0;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .analytics-category-manager-row:first-child {
+            border-top: 0;
+        }
+
+        .analytics-category-manager-item {
+            display: grid;
+            gap: 0.2rem;
+            min-width: 0;
+        }
+
+        .analytics-category-manager-item strong {
+            color: var(--text-main);
+            overflow-wrap: anywhere;
+        }
+
+        .analytics-category-manager-meta {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        .text-success {
+            color: #047857 !important;
+        }
+
+        .text-danger {
+            color: #B91C1C !important;
+        }
+
+        .text-neutral {
+            color: var(--text-muted) !important;
+        }
+
+        .graph-insights {
+            margin-top: 1rem;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--brand-orange, #F97316);
+            border-radius: var(--radius-md);
+            background: var(--surface-muted, rgba(249, 250, 251, 0.75));
+        }
+
+        .graph-insights strong {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.65rem;
+            color: var(--text-main);
+            font-size: 0.9rem;
+        }
+
+        .graph-insight-status-pill,
+        .forecast-quality-status {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 0.25rem 0.55rem;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            background: var(--surface-card, #fff);
+            color: var(--text-main);
+            font-size: 0.76rem;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+
+        .graph-insight-metrics,
+        .forecast-quality-metrics,
+        .item-forecast-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 0 0 0.75rem;
+        }
+
+        .graph-insight-chip,
+        .forecast-quality-chip,
+        .item-forecast-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.35rem 0.6rem;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            background: var(--surface-card, #fff);
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            line-height: 1.3;
+        }
+
+        .graph-insight-chip b,
+        .forecast-quality-chip b,
+        .item-forecast-chip b {
+            color: var(--text-main);
+        }
+
+        .graph-insight-explanation,
+        .graph-insight-action,
+        .forecast-quality-action {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            line-height: 1.45;
+        }
+
+        .graph-insight-action,
+        .forecast-quality-action {
+            margin-top: 0.4rem;
+            color: var(--text-main);
+        }
+
+        .forecast-quality-label {
+            display: grid;
+            gap: 0.65rem;
+            margin: 0.85rem 0;
+            padding: 0.9rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--surface-muted, rgba(249, 250, 251, 0.75));
+        }
+
+        .forecast-quality-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            color: var(--text-main);
+            font-size: 0.9rem;
+            font-weight: 800;
+        }
+
         .kpi-comparison {
             margin-top: 0.55rem;
             color: var(--text-muted);
@@ -78,6 +533,37 @@
         @media (max-width: 820px) {
             .chart-grid-two {
                 grid-template-columns: 1fr;
+            }
+
+            .analytics-story-map-row {
+                grid-template-columns: 1fr;
+                gap: 0.25rem;
+            }
+
+            .overview-asymmetric-layout,
+            .overview-main-row,
+            .overview-paired-charts,
+            .overview-revenue-kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .overview-left-column {
+                border-right: 0;
+                border-bottom: 2px solid var(--border-color);
+                padding-right: 0;
+                padding-bottom: 1rem;
+            }
+
+            .analytics-category-manager-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .overview-change-badge {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 0.25rem;
             }
         }
 
@@ -383,14 +869,228 @@
             border-left: 4px solid var(--accent, #F97316);
             border-radius: var(--radius-md);
             background: color-mix(in srgb, var(--accent, #F97316) 7%, var(--bg-card, #ffffff));
-            box-shadow: none !important;
+            box-shadow: none;
             color: var(--text-muted);
             font-size: 0.88rem;
             line-height: 1.45;
             padding: 0.72rem 0.85rem;
         }
 
+        .revenue-dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 1rem;
+            align-items: stretch;
+        }
+
+        .revenue-zone {
+            min-width: 0;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            background: var(--surface-card, #fff);
+            padding: 1rem;
+        }
+
+        .revenue-zone-hero {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: minmax(230px, 0.75fr) minmax(0, 1.65fr);
+            gap: 1rem;
+        }
+
+        .revenue-zone-timing {
+            grid-column: span 5;
+        }
+
+        .revenue-zone-products {
+            grid-column: span 7;
+        }
+
+        .revenue-zone-table {
+            grid-column: 1 / -1;
+        }
+
+        .revenue-zone-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.85rem;
+        }
+
+        .revenue-zone-header h3 {
+            margin: 0;
+        }
+
+        .revenue-zone-header .chart-subtitle {
+            margin: 0.25rem 0 0;
+        }
+
+        .revenue-card-footer {
+            margin: 0.8rem 0 0;
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            line-height: 1.45;
+        }
+
+        .revenue-hero-kpis {
+            display: grid;
+            align-content: start;
+            gap: 0.75rem;
+        }
+
+        .revenue-kpi-card {
+            display: grid;
+            gap: 0.35rem;
+            min-width: 0;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--surface-muted, rgba(249, 250, 251, 0.75));
+            padding: 0.85rem;
+        }
+
+        .revenue-kpi-label {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .revenue-kpi-value {
+            color: var(--text-main);
+            font-size: clamp(1.05rem, 1.6vw, 1.8rem);
+            font-weight: 800;
+            line-height: 1.15;
+            overflow-wrap: anywhere;
+        }
+
+        .revenue-kpi-note {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            line-height: 1.35;
+        }
+
+        .revenue-trend-indicator,
+        .revenue-quality-chip,
+        .revenue-peak-badge,
+        .revenue-status-chip {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            gap: 0.35rem;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        .revenue-trend-indicator,
+        .revenue-quality-chip,
+        .revenue-peak-badge {
+            padding: 0.35rem 0.6rem;
+        }
+
+        .revenue-quality-chip.high,
+        .revenue-status-chip.high,
+        .revenue-dot.high {
+            background: #DCFCE7;
+            color: #166534;
+        }
+
+        .revenue-quality-chip.moderate,
+        .revenue-status-chip.review,
+        .revenue-dot.review {
+            background: #FEF3C7;
+            color: #92400E;
+        }
+
+        .revenue-quality-chip.low,
+        .revenue-status-chip.insufficient,
+        .revenue-dot.insufficient {
+            background: #FEE2E2;
+            color: #991B1B;
+        }
+
+        .revenue-trend-indicator.up {
+            background: #DCFCE7;
+            color: #166534;
+        }
+
+        .revenue-trend-indicator.down {
+            background: #FEE2E2;
+            color: #991B1B;
+        }
+
+        .revenue-trend-indicator.flat {
+            background: #E0F2FE;
+            color: #075985;
+        }
+
+        .revenue-peak-badge {
+            background: #E0F2FE;
+            color: #075985;
+        }
+
+        .revenue-forecast-toolbar {
+            display: flex;
+            align-items: end;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+            margin: 0.85rem 0 0.75rem;
+        }
+
+        .revenue-forecast-toolbar label {
+            display: grid;
+            gap: 0.25rem;
+            color: var(--text-main);
+            font-weight: 700;
+        }
+
+        .revenue-peak-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.85rem;
+        }
+
+        .revenue-peak-panel {
+            min-width: 0;
+        }
+
+        .revenue-product-header-action {
+            flex: 0 0 auto;
+        }
+
+        .revenue-table-section .client-table-scroll {
+            max-height: 360px;
+        }
+
+        .revenue-status-chip {
+            padding: 0.25rem 0.5rem;
+        }
+
+        .revenue-dot {
+            display: inline-block;
+            width: 0.58rem;
+            height: 0.58rem;
+            flex: 0 0 auto;
+            border-radius: 999px;
+        }
+
+        .revenue-forecast-revenue {
+            font-weight: 800;
+        }
+
         @media (max-width: 1100px) {
+            .revenue-zone-hero,
+            .revenue-peak-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .revenue-zone-timing,
+            .revenue-zone-products {
+                grid-column: 1 / -1;
+            }
+
             .recommendation-row {
                 grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.5fr) auto;
             }
@@ -531,7 +1231,7 @@
         }
 
         .client-table-scroll {
-            max-height: 420px;
+            max-height: 200px;
             overflow: auto;
             border: 1px solid var(--border-color);
             border-radius: var(--radius-md);
@@ -761,7 +1461,7 @@
             background: #fff;
             color: #111827;
             font: 10.5pt Arial, Helvetica, sans-serif;
-            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+            box-shadow: none;
         }
 
         .analytics-print-heading {
@@ -804,7 +1504,7 @@
         .analytics-paper .card,
         .analytics-paper .surface-card,
         .analytics-paper .surface-panel {
-            box-shadow: none !important;
+            box-shadow: none;
         }
 
         .analytics-paper img.analytics-print-chart {
@@ -1218,7 +1918,7 @@
         function createAnalyticsChart(target, config) {
             if (!ensureChartLibraryAvailable(target)) {
                 document.documentElement.dataset.analyticsChartStatus = 'unavailable';
-                return { canvas: target?.canvas || target, destroy() {} };
+                return { canvas: target?.canvas || target, destroy() { } };
             }
             const chart = new window.Chart(target, config);
             analyticsChartRenderCount += 1;
@@ -1237,6 +1937,18 @@
             delete document.documentElement.dataset.analyticsChartCount;
         }
 
+        function replaceChartForCanvas(canvas, config, plugins = []) {
+            if (!canvas) return null;
+            const existing = currentCharts.find(chart => chart.canvas === canvas);
+            if (existing) {
+                existing.destroy();
+                currentCharts = currentCharts.filter(chart => chart !== existing);
+            }
+            const chart = createAnalyticsChart(canvas, config, plugins);
+            currentCharts.push(chart);
+            return chart;
+        }
+
         // Load section via AJAX
         async function loadSection(section) {
             activeAnalyticsSection = section;
@@ -1245,7 +1957,7 @@
             const hasContent = contentDiv.children.length > 0 && !contentDiv.querySelector('.loading');
             const clearBusy = hasContent && window.SyluxentUI
                 ? SyluxentUI.setContainerBusy(contentDiv, true)
-                : () => {};
+                : () => { };
             if (!hasContent) {
                 contentDiv.innerHTML = window.SyluxentUI
                     ? SyluxentUI.skeleton({ rows: section === 'overview' ? 3 : 5, columns: section === 'clients' ? 5 : 3 })
@@ -1330,13 +2042,98 @@
             </section>`;
         }
 
+        function renderProductCategoryManagerPanel() {
+            return `
+            <section class="analytics-tool-section" aria-labelledby="productCategoryManagerTitle">
+                <h3 id="productCategoryManagerTitle">Product Category Manager</h3>
+                <p>Assign detected Sales Order products to System, Hardware, Services, or Office Materials for the Overview category graphs.</p>
+                <div id="productCategoryManager" class="analytics-category-manager" aria-live="polite">
+                    <div class="analytics-tool-status">Loading product categories...</div>
+                </div>
+                <button id="saveProductCategoriesButton" type="button" class="btn btn-primary" onclick="saveProductCategories()" disabled>
+                    Save Product Categories
+                </button>
+                <div id="productCategoryStatus" class="analytics-tool-status" role="status" aria-live="polite"></div>
+            </section>`;
+        }
+
         function renderAnalyticsToolsDrawer() {
             const body = document.getElementById('analyticsToolsDrawerBody');
             if (!body) return;
             body.innerHTML = `
                 ${renderGenerateAnalyticsPanel(analyticsHasLiveData)}
+                ${renderProductCategoryManagerPanel()}
                 ${renderCSVUploadPanel()}
             `;
+            loadProductCategoryManager();
+        }
+
+        async function loadProductCategoryManager() {
+            const container = document.getElementById('productCategoryManager');
+            const saveButton = document.getElementById('saveProductCategoriesButton');
+            if (!container) return;
+            try {
+                const data = await cachedAnalyticsJson(baseURL + '/item-categories');
+                if (!data.success) throw new Error(data.error || 'Unable to load categories.');
+                const options = ['Uncategorized', ...(data.allowed_categories || [])];
+                const items = data.items || [];
+                if (!items.length) {
+                    container.innerHTML = '<div class="analytics-tool-status">No Sales Order products are available yet.</div>';
+                    if (saveButton) saveButton.disabled = true;
+                    return;
+                }
+                container.innerHTML = items.map(item => `
+                    <div class="analytics-category-manager-row">
+                        <div class="analytics-category-manager-item">
+                            <strong>${escapeHtml(item.display_item_name)}</strong>
+                            <span class="analytics-category-manager-meta">${formatCurrency(item.revenue || 0, { maximumFractionDigits: 0 })} · ${Number(item.quantity || 0)} sold</span>
+                        </div>
+                        <select data-item-key="${escapeHtml(item.normalized_item_key)}" data-item-name="${escapeHtml(item.display_item_name)}" aria-label="Category for ${escapeHtml(item.display_item_name)}">
+                            ${options.map(option => `<option value="${escapeHtml(option)}" ${option === item.category ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('')}
+                        </select>
+                    </div>
+                `).join('');
+                if (saveButton) saveButton.disabled = false;
+            } catch (error) {
+                container.innerHTML = `<div class="analytics-tool-status" style="color:#B91C1C;">${escapeHtml(error.message)}</div>`;
+                if (saveButton) saveButton.disabled = true;
+            }
+        }
+
+        async function saveProductCategories() {
+            const status = document.getElementById('productCategoryStatus');
+            const button = document.getElementById('saveProductCategoriesButton');
+            const selects = Array.from(document.querySelectorAll('#productCategoryManager select[data-item-key]'));
+            const assignments = selects.map(select => ({
+                normalized_item_key: select.dataset.itemKey,
+                display_item_name: select.dataset.itemName,
+                category: select.value
+            }));
+            if (button) button.disabled = true;
+            if (status) status.textContent = 'Saving product categories...';
+            try {
+                const response = await fetch(baseURL + '/item-categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ assignments })
+                });
+                const payload = await response.json();
+                if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to save categories.');
+                clearAnalyticsDataCache();
+                if (status) {
+                    status.style.color = '#047857';
+                    status.textContent = payload.message || 'Product categories saved.';
+                }
+                if (activeAnalyticsSection === 'overview') loadSection('overview');
+                await loadProductCategoryManager();
+            } catch (error) {
+                if (status) {
+                    status.style.color = '#B91C1C';
+                    status.textContent = error.message;
+                }
+            } finally {
+                if (button) button.disabled = false;
+            }
         }
 
         function getFocusableElements(container) {
@@ -1414,6 +2211,272 @@
             loadSection('overview');
         }
 
+        function analyticsStoryHeader(purpose, keyAnswer) {
+            return `
+                <div class="analytics-story-header">
+                    <p class="analytics-purpose-line"><strong>Purpose:</strong> ${escapeHtml(purpose)}</p>
+                    <h2 class="analytics-key-answer">${escapeHtml(keyAnswer)}</h2>
+                </div>
+            `;
+        }
+
+        function analyticsBusinessGoalMap(rows) {
+            const body = (rows || []).map(row => `
+                <div class="analytics-story-map-row">
+                    <span><strong>Business goal</strong><br>${escapeHtml(row.goal)}</span>
+                    <span><strong>Metric</strong><br>${escapeHtml(row.metric)}</span>
+                    <span><strong>Level of detail</strong><br>${escapeHtml(row.detail)}</span>
+                    <span><strong>Type of visualization</strong><br>${escapeHtml(row.visualization)}</span>
+                </div>
+            `).join('');
+            return `
+                <details class="analytics-story-map">
+                    <summary>Business goal > Metric > Level of detail > Type of visualization</summary>
+                    <div class="analytics-story-map-grid">${body}</div>
+                </details>
+            `;
+        }
+
+        function analyticsTakeaway(text) {
+            return `<p class="analytics-takeaway"><strong>Key takeaway:</strong> ${escapeHtml(text)}</p>`;
+        }
+
+        function analyticsManagerAction(text) {
+            return `<p class="analytics-manager-action"><strong>Manager action:</strong> ${escapeHtml(text)}</p>`;
+        }
+
+        function analyticsSummaryStrip(items, label = 'Analytics summary') {
+            const chips = (items || []).filter(item => item && item.label).map(item => `
+                <span class="analytics-summary-chip">
+                    <b>${escapeHtml(item.label)}</b>
+                    ${escapeHtml(item.value || 'Not available')}
+                </span>
+            `).join('');
+            return `<hr><br><div class="analytics-summary-strip" aria-label="${escapeHtml(label)}">${chips}</div>`;
+        }
+
+        function percentChange(current, previous) {
+            const currentValue = Number(current || 0);
+            const previousValue = Number(previous || 0);
+            if (!previousValue) return null;
+            return (currentValue - previousValue) / previousValue * 100;
+        }
+
+        function overviewMomentumChange(current, previous, baselinePreviousRevenue = null) {
+            const currentValue = Number(current || 0);
+            const previousValue = Number(previous || 0);
+            const baselineValue = Number(baselinePreviousRevenue || 0);
+            if (!previousValue && !currentValue) return { value: 0, status: 'no_activity' };
+            if (!baselineValue && currentValue > 0) return { value: null, status: 'new_revenue' };
+            const denominator = baselineValue || previousValue;
+            return {
+                value: denominator ? (currentValue - previousValue) / denominator * 100 : null,
+                rawPercent: percentChange(currentValue, previousValue),
+                status: previousValue ? 'comparable' : 'new_category_revenue'
+            };
+        }
+
+        function overviewMomentumAxisBounds(values) {
+            const finiteValues = values.filter(value => Number.isFinite(Number(value))).map(Number);
+            if (!finiteValues.length) return { min: -10, max: 10 };
+            const highest = Math.max(...finiteValues, 0);
+            const lowest = Math.min(...finiteValues, 0);
+            const padding = Math.max(10, Math.ceil((highest - lowest) * 0.15));
+            return {
+                min: Math.min(-10, Math.floor((lowest - padding) / 10) * 10),
+                max: Math.max(10, Math.ceil((highest + padding) / 10) * 10)
+            };
+        }
+
+        function formatPercentChange(value) {
+            if (value == null || !Number.isFinite(Number(value))) return 'N/A';
+            const number = Number(value);
+            return `${number >= 0 ? '+' : ''}${number.toFixed(1)}%`;
+        }
+
+        function trendClass(value) {
+            if (value == null || !Number.isFinite(Number(value)) || Number(value) === 0) return 'text-neutral';
+            return Number(value) > 0 ? 'text-success' : 'text-danger';
+        }
+
+        function parseOverviewMonthLabel(label) {
+            const [day, month, year] = String(label || '').split('/').map(Number);
+            if (!month || !year) return null;
+            return new Date(year, month - 1, day || 1);
+        }
+
+        function shortOverviewMonthLabel(label) {
+            const parsed = parseOverviewMonthLabel(label);
+            if (!parsed) return String(label || '');
+            return parsed.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
+        }
+
+        function overviewMonthParamsFromLabel(label) {
+            const parsed = parseOverviewMonthLabel(label);
+            if (!parsed) return null;
+            return {
+                year: parsed.getFullYear(),
+                period: 'month',
+                month: parsed.getMonth() + 1
+            };
+        }
+
+        function previousOverviewMonthParams(label) {
+            const parsed = parseOverviewMonthLabel(label);
+            if (!parsed) return null;
+            const previous = new Date(parsed.getFullYear(), parsed.getMonth() - 1, 1);
+            return {
+                year: previous.getFullYear(),
+                period: 'month',
+                month: previous.getMonth() + 1
+            };
+        }
+
+        const overviewCategoryOrder = ['A-Class Clients', 'B-Class Clients', 'C-Class Clients'];
+
+        function clientValueCategory(client) {
+            const category = typeof client === 'object' && client !== null ? (client.cohort || client.value_status) : '';
+            return overviewCategoryOrder.includes(category) ? category : 'C-Class Clients';
+        }
+
+        function overviewMonthAxisLabel(label) {
+            const parsed = parseOverviewMonthLabel(label);
+            if (!parsed) return String(label || '').toUpperCase();
+            return parsed.toLocaleDateString('en-PH', { month: 'short' }).toUpperCase();
+        }
+
+        //Do not remove
+        // function nextOverviewMonthLabels(label, count = 3) {
+        //     const parsed = parseOverviewMonthLabel(label);
+        //     if (!parsed || parsed.getMonth() !== 11) return [];
+        //     return Array.from({ length: count }, (_, index) => {
+        //         const next = new Date(parsed.getFullYear(), parsed.getMonth() + index + 1, 1);
+        //         return next.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' }).toUpperCase();
+        //     });
+        // }
+
+        function nextOverviewMonthLabels(label, count = 1) {
+            const parsed = parseOverviewMonthLabel(label);
+            if (!parsed || parsed.getMonth() !== 11) return [];
+            return Array.from({ length: count }, (_, index) => {
+                const next = new Date(parsed.getFullYear(), parsed.getMonth() + index + 1, 1);
+                return next.toLocaleDateString('en-PH', { year: 'numeric' }).toUpperCase();
+            });
+        }
+
+
+        function overviewLatestIndex(values) {
+            for (let index = (values || []).length - 1; index >= 0; index -= 1) {
+                if (Number(values[index] || 0) !== 0) return index;
+            }
+            return Math.max((values || []).length - 1, 0);
+        }
+
+        function buildOverviewTierData(overviewData, currentClientsData = {}, previousClientsData = {}) {
+            const trendData = overviewData?.trend_data || {};
+            const labels = trendData.labels || [];
+            const revenueValues = trendData.revenue_values || trendData.values || [];
+            const previousYearValues = trendData.comparison_values || [];
+            const latestIndex = overviewLatestIndex(revenueValues);
+            const latestRevenue = Number(revenueValues[latestIndex] || 0);
+            const previousRevenue = Number(revenueValues[latestIndex - 1] || 0);
+            const priorYearRevenue = Number(previousYearValues[latestIndex] || 0);
+            const momChange = percentChange(latestRevenue, previousRevenue);
+            const yoyChange = percentChange(latestRevenue, priorYearRevenue);
+            const latestLabel = labels[latestIndex] || overviewData?.filter?.label || 'Latest available month';
+            const extensionLabels = nextOverviewMonthLabels(latestLabel);
+            const currentClients = currentClientsData?.clients || currentClientsData?.clients_table || [];
+            const previousClients = previousClientsData?.clients || previousClientsData?.clients_table || [];
+            const previousByClient = previousClients.reduce((map, client) => {
+                const key = String(client.store_key || client.store_name || client.label || '').trim().toUpperCase();
+                if (key) map[key] = (map[key] || 0) + Number(client.sales_order_value || client.total_revenue || 0);
+                return map;
+            }, {});
+            const clientRows = currentClients.map(client => {
+                const clientName = client.store_name || client.label || client.company_name || 'Uncategorized client';
+                const clientKey = String(client.store_key || clientName).trim().toUpperCase();
+                const revenue = Number(client.sales_order_value || client.total_revenue || 0);
+                const previousClientRevenue = Number(previousByClient[clientKey] || 0);
+                return {
+                    category: clientValueCategory(client),
+                    client: clientName,
+                    product: clientName,
+                    revenue,
+                    previousRevenue: previousClientRevenue,
+                    delta: revenue - previousClientRevenue
+                };
+            });
+            const categoryGroups = overviewCategoryOrder.reduce((groups, category) => {
+                groups[category] = { category, revenue: 0, previousRevenue: 0 };
+                return groups;
+            }, {});
+            clientRows.forEach(client => {
+                if (!categoryGroups[client.category]) categoryGroups[client.category] = { category: 'C-Class Clients', revenue: 0, previousRevenue: 0 };
+                categoryGroups[client.category].revenue += Number(client.revenue || 0);
+                categoryGroups[client.category].previousRevenue += Number(client.previousRevenue || 0);
+            });
+            const categoryRows = overviewCategoryOrder.map(category => categoryGroups[category]);
+            const increasingClients = [...clientRows]
+                .filter(client => Number(client.delta || 0) > 0)
+                .sort((left, right) => Number(right.delta || 0) - Number(left.delta || 0));
+            const decliningClients = [...clientRows]
+                .filter(client => Number(client.delta || 0) < 0)
+                .sort((left, right) => Number(left.delta || 0) - Number(right.delta || 0));
+            const latestDate = parseOverviewMonthLabel(latestLabel);
+            const latestYear = latestDate?.getFullYear() || overviewData?.selected_year || '';
+            const previousYear = latestYear ? Number(latestYear) - 1 : '';
+            return {
+                labels,
+                chartLabels: [...labels.map(overviewMonthAxisLabel), ...extensionLabels],
+                currentRevenueSeries: [...revenueValues.map(value => Number(value || 0)), ...extensionLabels.map(() => null)],
+                previousRevenueSeries: [...previousYearValues.map(value => Number(value || 0)), ...extensionLabels.map(() => null)],
+                yAxisMax: Math.ceil((Math.max(...revenueValues, ...previousYearValues, 0) + 500000) / 1000000) * 1000000,
+                latestIndex,
+                latestLabel,
+                latestRevenue,
+                previousRevenue,
+                priorYearRevenue,
+                momChange,
+                yoyChange,
+                latestYear,
+                previousYear,
+                categories: categoryRows,
+                topClientsByGain: increasingClients.slice(0, 5),
+                bottomClientsByGain: decliningClients.slice(0, 5)
+            };
+        }
+
+        function overviewVelocityRows(rows, direction = 'up') {
+            const isDown = direction === 'down';
+            const rowBackground = isDown ? '#fef2f2' : '#f0fdf4';
+            const deltaBackground = isDown ? '#fee2e2' : '#dcfce7';
+            const deltaColor = isDown ? '#991b1b' : '#166534';
+
+            // 🌟 ENFORCED: Upgraded to 10px, line-height 1.1, and micro-padding to 2px/3px
+            const baseCellStyle = 'padding:2px 3px !important; margin:0 !important; border:0 !important; font-size:10px !important; font-weight:400; line-height:1.1 !important; white-space:normal; overflow-wrap:anywhere; background:inherit; color:var(--text-main); -webkit-text-size-adjust:none; text-size-adjust:none;';
+            const numericCellStyle = `${baseCellStyle}text-align:right;`;
+
+            if (!rows.length) {
+                const message = direction === 'down'
+                    ? 'No client revenue decreases are available for the latest month comparison.'
+                    : 'No client revenue increases are available for the latest month comparison.';
+                return `<tr style="background:${rowBackground}; height:14px !important;"><td colspan="4" style="${baseCellStyle}text-align:center;color:var(--text-muted);">${message}</td></tr>`;
+            }
+
+            return rows.map(row => {
+                const delta = Number(row.delta || 0);
+                const prefix = delta > 0 ? '+' : delta < 0 ? '-' : '';
+                return `
+                    <tr style="background:${rowBackground}; height:14px !important;">
+                        <td style="${baseCellStyle}">${escapeHtml(row.category)}</td>
+                        <td style="${baseCellStyle}">${escapeHtml(row.client || row.product)}</td>
+                        <td style="${numericCellStyle}">${formatCurrency(row.revenue, { maximumFractionDigits: 0 })}</td>
+                        <td style="${numericCellStyle}background:${deltaBackground};color:${deltaColor};font-weight:500;">${prefix}${formatCurrency(Math.abs(delta), { maximumFractionDigits: 0 })}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
         async function loadOverview() {
             try {
                 // --- GET OVERVIEW DATA ---
@@ -1439,62 +2502,138 @@
                 }
 
                 // --- BASE ACTIVE DASHBOARD STATE ---
-                const kpis = data.kpis;
                 latestOverviewAnalytics = data;
+                const preliminaryOverviewData = buildOverviewTierData(data);
+                const latestMonthParams = overviewMonthParamsFromLabel(preliminaryOverviewData.latestLabel);
+                const previousMonthParams = previousOverviewMonthParams(preliminaryOverviewData.latestLabel);
+                const [currentClientsResult, previousClientsResult] = await Promise.allSettled([
+                    cachedAnalyticsJson(baseURL + '/clients', currentAnalyticsFilterParams({
+                        ...(latestMonthParams || {})
+                    })),
+                    cachedAnalyticsJson(baseURL + '/clients', currentAnalyticsFilterParams({
+                        ...(previousMonthParams || latestMonthParams || {})
+                    }))
+                ]);
+                const currentClientsData = currentClientsResult.status === 'fulfilled' && currentClientsResult.value?.success ? currentClientsResult.value : {};
+                const previousClientsData = previousClientsResult.status === 'fulfilled' && previousClientsResult.value?.success ? previousClientsResult.value : {};
+                latestOverviewAnalytics.overviewTierData = buildOverviewTierData(data, currentClientsData, previousClientsData);
+                const overviewTierData = latestOverviewAnalytics.overviewTierData;
+                const overviewStoryMap = analyticsBusinessGoalMap([
+                    { goal: 'Summarize latest performance', metric: 'Total Monthly Revenue', detail: 'Latest available month from API timeline', visualization: 'Large KPI block' },
+                    { goal: 'Detect short-term movement', metric: 'MoM Revenue % Change', detail: 'Latest month versus previous month', visualization: 'KPI badge' },
+                    { goal: 'Compare annual performance', metric: 'YoY Revenue % Change', detail: 'Latest month versus previous-year same month', visualization: 'KPI badge' },
+                    { goal: 'Explain revenue trend', metric: 'Total Revenue by Date', detail: 'Month level, current year vs previous year', visualization: 'Line chart' },
+                    { goal: 'Compare client value momentum', metric: 'Revenue and MoM % by client value category', detail: 'Client value category level', visualization: 'Paired horizontal bar charts' },
+                    { goal: 'Rank client movement', metric: 'Revenue delta', detail: 'Client level', visualization: 'Top and bottom 5 tables' }
+                ]);
 
                 return `
     <div class="analytics-section overview">
+        ${analyticsStoryHeader(
+                    'Managers use this view to understand the latest available month, compare it with prior periods, and identify client value movement that needs attention.',
+                    'Latest-month revenue is the anchor; the rest of the dashboard explains trend, client value momentum, and client-level movement.'
+                )}
+        ${overviewStoryMap}
         <div class="toolbar-surface" style="margin-bottom: 2rem; padding: 0.75rem 1rem; color: var(--text-muted); font-weight: 600;">
-            Reporting Period: ${data.filter?.label || activeAnalyticsFilterLabel || data.selected_year}
+            Reporting Period: ${data.filter?.label || activeAnalyticsFilterLabel || data.selected_year} · Latest Available Month: ${escapeHtml(shortOverviewMonthLabel(overviewTierData.latestLabel))}
         </div>
 
-        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
-            <div class="stat-card">
-                <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Gross Revenue</div>
-                <div class="${kpiClassFor('revenue', kpis.gross_revenue)}" style="font-size: var(--ui-font-kpi); font-weight: bold;">${formatCurrency(kpis.gross_revenue)}</div>
-                <div class="kpi-comparison">${formatChange(kpis.revenue_change_percent, kpis.comparison_label)}</div>
-            </div>
-            <div class="stat-card">
-                <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Total Cost of Goods</div>
-                <div style="font-size: var(--ui-font-kpi); font-weight: bold; color: var(--text-main);">${formatCurrency(kpis.total_cost_of_goods)}</div>
-                <div class="kpi-comparison">${formatChange(kpis.cost_change_percent, kpis.comparison_label)}</div>
-            </div>
-            <div class="stat-card">
-                <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Profit/Loss</div>
-                <div class="${kpiClassFor('revenue', kpis.profit)}" style="font-size: var(--ui-font-kpi); font-weight: bold;">${formatCurrency(kpis.profit)}</div>
-                <div class="kpi-comparison">${formatChange(kpis.profit_change_percent, kpis.comparison_label)}</div>
-            </div>
-        </div>
-
-        <div class="card surface-card" style="margin-bottom: 2rem; padding: 1.5rem;">
-            <h3 style="color: var(--text-main);">Revenue vs Expense IN vs OUT</h3>
-            <p class="chart-subtitle">Actual inflow and outflow from analytics data in Philippine pesos for ${escapeHtml(data.filter?.label || data.selected_year)}.</p>
-            <div style="position: relative; height: 300px; width: 100%;">
-                <canvas id="trendChart" aria-label="Monthly revenue versus expense chart"></canvas>
-            </div>
-        </div>
-
-        <div class="card surface-card" style="margin-bottom: 2rem; padding: 1.5rem;">
-            <div style="display:flex; align-items:end; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
-                <div>
-                    <h3 style="color: var(--text-main);">Year-over-Year Revenue</h3>
-                    <p class="chart-subtitle">Collected invoice payments by calendar month, comparing two years in Philippine pesos.</p>
+        <section class="overview-asymmetric-layout" aria-label="Overview revenue dashboard">
+            <aside class="overview-left-column" aria-label="Core Revenue Trends" style="border-right: 2px solid #c4c4c4 !important; padding-right: 1.5rem !important;">
+            <div class="overview-tier-panel overview-revenue-kpi-block">
+                <h3>This is the <span class="overview-highlight">Revenue</span> generated...</h3>
+                <div class="overview-revenue-kpi-grid">
+                    <div style="display: flex !important; flex-direction: column !important; justify-content: center !important;">
+                        <span class="overview-kpi-label">Total Monthly Revenue</span>
+                        <span class="overview-revenue-number">${formatCurrency(overviewTierData.latestRevenue, { maximumFractionDigits: 0 })}</span>
+                        <span class="overview-kpi-label">Revenue for ${escapeHtml(shortOverviewMonthLabel(overviewTierData.latestLabel))}</span>
+                    </div>
+                    <div class="overview-change-stack">
+                        <div class="overview-change-badge">
+                            <b class="${trendClass(overviewTierData.momChange)}">${formatPercentChange(overviewTierData.momChange)}</b>
+                            <span>Month-on-Month Revenue % Change</span>
+                        </div>
+                        <div class="overview-change-badge">
+                            <b class="${trendClass(overviewTierData.yoyChange)}">${formatPercentChange(overviewTierData.yoyChange)}</b>
+                            <span>Year-on-Year Revenue % Change</span>
+                        </div>
+                    </div>
                 </div>
-                <label style="font-weight:600;">Compare with
-                    <select id="overviewComparisonYear" onchange="loadOverviewComparison(${Number(data.selected_year)})" style="margin-left:0.4rem;">
-                        ${[...new Set([...(data.available_years || []), Number(data.selected_year) - 1])]
-                        .filter(year => Number(year) !== Number(data.selected_year))
-                        .sort((a, b) => b - a)
-                        .map(year => `<option value="${year}" ${Number(year) === Number(data.selected_year) - 1 ? 'selected' : ''}>${year}</option>`)
-                        .join('')}
-                    </select>
-                </label>
             </div>
-            <div id="overviewComparisonSummary" class="kpi-comparison" aria-live="polite"></div>
-            <div style="position: relative; height: 320px; width: 100%; margin-top:1rem;">
-                <canvas id="overviewComparativeChart" aria-label="Year-over-year monthly revenue comparison chart"></canvas>
+            <div class="overview-tier-panel">
+                <h3>... and the trend of <span class="overview-highlight">${escapeHtml(String(overviewTierData.latestYear || data.selected_year))}</span> vs <span style="color: color-mix(in srgb, var(--brand-orange, #F97316) 42%, var(--text-muted));">${escapeHtml(String(overviewTierData.previousYear || Number(data.selected_year || overviewSelectedYear) - 1))}</span></h3>
+                <div style="position: relative; height: 200px; width: 100%;">
+                    <canvas id="trendChart" aria-label="Total revenue by date current versus previous year chart"></canvas>
+                </div>
             </div>
-        </div>
+            </aside>
+
+            <section class="overview-main-panel" aria-label="Performance breakdown">
+                <div class="overview-tier-panel overview-unified-panel">
+                    <h3>This is the Revenue split by <span class="overview-highlight">Client Value Category</span> this ${escapeHtml(shortOverviewMonthLabel(overviewTierData.latestLabel))}...</h3>
+                    <div class="overview-paired-charts">
+                        <div>
+                            <div style="position: relative; height: 165px; width: 100%;">
+                                <canvas id="overviewCategoryRevenueChart" aria-label="Total revenue by client value category chart"></canvas>
+                            </div>
+                            <p class="overview-chart-caption">Monthly Revenue</p>
+                        </div>
+                        <div>
+                            <div style="position: relative; height: 165px; width: 100%;">
+                                <canvas id="overviewCategoryMomentumChart" aria-label="Month-over-month revenue change by client value category chart"></canvas>
+                            </div>
+                            <p class="overview-chart-caption">M-o-M revenue % Change</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overview-tier-panel">
+                    <h3 class="overview-driver-title" style="margin-bottom: 4px !important;">
+                        ...where these 5 clients drive the <span class="overview-delta-increase">increase</span> and <span class="overview-delta-decrease">decrease</span> in revenue.
+                    </h3>
+
+                    <div class="overview-main-row" style="display: flex; gap: 8px; width: 100%;">
+
+                        <div class="overview-tier-panel" style="flex: 1; min-width: 0;">
+                            <div class="client-table-scroll" style="max-height: 140px !important; margin: 0; padding: 0; border: 0; border-radius: 0; overflow-y: auto;">
+                                <table class="client-table overview-driver-table overview-driver-table-increase" style="width: 100% !important; min-width: 0 !important; margin: 0 !important; border: 0 !important; border-spacing: 0 !important; border-collapse: collapse !important; table-layout: fixed; font-size: 10px !important; line-height: 1.1 !important; -webkit-text-size-adjust: none; text-size-adjust: none;">
+                                    <thead>
+                                        <tr style="height: 14px !important;">
+                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Category</th>
+                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Client</th>
+                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: right; background: transparent; color: var(--text-main);">Revenue</th>
+                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 600; line-height: 1.1 !important; text-align: right; background: #d1fae5; color: #065f46;">&Delta; Revenue</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody style="font-size: 10px !important; line-height: 1.1 !important;">
+                                        ${overviewVelocityRows(overviewTierData.topClientsByGain, 'up')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="overview-tier-panel" style="flex: 1; min-width: 0;">
+                            <div class="client-table-scroll" style="max-height: 140px !important; margin: 0; padding: 0; border: 0; border-radius: 0; overflow-y: auto;">
+                                <table class="client-table overview-driver-table overview-driver-table-decrease" style="width: 100% !important; min-width: 0 !important; margin: 0 !important; border: 0 !important; border-spacing: 0 !important; border-collapse: collapse !important; table-layout: fixed; font-size: 10px !important; line-height: 1.1 !important; -webkit-text-size-adjust: none; text-size-adjust: none;">
+                                    <thead>
+                                        <tr style="height: 14px !important;">
+                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Category</th>
+                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Client</th>
+                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: right; background: transparent; color: var(--text-main);">Revenue</th>
+                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 600; line-height: 1.1 !important; text-align: right; background: #fecaca; color: #7f1d1d;">&Delta; Revenue</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody style="font-size: 10px !important; line-height: 1.1 !important;">
+                                        ${overviewVelocityRows(overviewTierData.bottomClientsByGain, 'down')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+        </section>
     </div>
 
     <style>
@@ -1723,14 +2862,16 @@
             const rows = clients.map(client => {
                 const valColor = valColorFn(client.cohort || client.value_status);
                 const breakdown = client.score_breakdown || {};
+                const action = (client.recommendations || [])[0] || 'Continue monitoring this client.';
                 return `
                 <tr>
+                    <td style="text-align: center;"><span style="display: inline-block; padding: 0.25rem 0.75rem; background-color: ${valColor.bg}; color: ${valColor.text}; border-radius: var(--radius-lg); font-size: 0.85rem; font-weight: 600;">${client.cohort || client.value_status}</span></td>
                     <td style="font-weight: 600;">${client.store_name || 'Unspecified Store'}</td>
                     <td class="${kpiClassFor('revenue', client.total_revenue)}" style="text-align: right;">${formatCurrency(client.total_revenue)}</td>
-                    <td style="text-align: right;">${Number(client.branches_count || 0)}</td>
-                    <td style="text-align: right; font-weight: 600;">${Number(client.client_performance_score || 0).toFixed(2)}</td>
-                    <td style="font-size: 0.78rem; color: var(--text-muted);">Revenue ${Number(breakdown.total_sales_order_amount || 0).toFixed(1)} / Frequency ${Number(breakdown.order_frequency || 0).toFixed(1)} / Branches ${Number(breakdown.branch_count || 0).toFixed(1)}</td>
-                    <td style="text-align: center;"><span style="display: inline-block; padding: 0.25rem 0.75rem; background-color: ${valColor.bg}; color: ${valColor.text}; border-radius: var(--radius-lg); font-size: 0.85rem; font-weight: 500;">${client.cohort || client.value_status}</span></td>
+                    <td style="text-align: right; font-weight: 600;">${Number(client.cumulative_revenue_percent || 0).toFixed(1)}%</td>
+                    <td style="text-align: right; font-weight: 600;">#${Number(client.master_priority_rank || breakdown.score_priority_rank || 0)}</td>
+                    <td style="font-size: 0.78rem; color: var(--text-muted);">Score ${Number(client.client_performance_score || 0).toFixed(1)} = Revenue ${Number(breakdown.total_sales_order_amount || 0).toFixed(1)} + Frequency ${Number(breakdown.order_frequency || 0).toFixed(1)} + Branches ${Number(breakdown.branch_count || 0).toFixed(1)}</td>
+                    <td style="font-size: 0.82rem; color: var(--text-muted);">${action}</td>
                 </tr>`;
             }).join('');
 
@@ -1739,12 +2880,13 @@
                 <table class="client-table">
                     <thead>
                         <tr>
+                            <th style="text-align: center;">ABC Class</th>
                             <th style="text-align: left;">Store Name</th>
                             <th style="text-align: right;">Revenue</th>
-                            <th style="text-align: right;">Store Branches</th>
-                            <th style="text-align: right;">SO Value</th>
-                            <th style="text-align: left;">Breakdown</th>
-                            <th style="text-align: center;">Cohort</th>
+                            <th style="text-align: right;">Cumulative %</th>
+                            <th style="text-align: right;">Rank</th>
+                            <th style="text-align: left;">Score Basis</th>
+                            <th style="text-align: left;">Manager Action</th>
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
@@ -1756,6 +2898,7 @@
             const cards = clients.map(client => {
                 const valColor = valColorFn(client.cohort || client.value_status);
                 const breakdown = client.score_breakdown || {};
+                const action = (client.recommendations || [])[0] || 'Continue monitoring this client.';
                 return `
                 <div style="border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; background: var(--bg-surface);">
                     <h4 style="color: var(--text-main); margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem;">${client.store_name || 'Unspecified Store'}</h4>
@@ -1764,16 +2907,17 @@
                         <strong class="${kpiClassFor('revenue', client.total_revenue)}">${formatCurrency(client.total_revenue)}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.65rem; font-size: 0.9rem;">
-                        <span style="color: var(--text-muted);">Store Branches:</span>
-                        <strong style="color: var(--text-main);">${Number(client.branches_count || 0)}</strong>
+                        <span style="color: var(--text-muted);">Cumulative %:</span>
+                        <strong style="color: var(--text-main);">${Number(client.cumulative_revenue_percent || 0).toFixed(1)}%</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.65rem; font-size: 0.9rem;">
-                        <span style="color: var(--text-muted);">SO Value:</span>
-                        <strong style="color: var(--text-main);">${Number(client.client_performance_score || 0).toFixed(2)}</strong>
+                        <span style="color: var(--text-muted);">Priority Rank:</span>
+                        <strong style="color: var(--text-main);">#${Number(client.master_priority_rank || breakdown.score_priority_rank || 0)}</strong>
                     </div>
                     <div style="margin-bottom: 1rem; color: var(--text-muted); font-size: 0.78rem; line-height: 1.5;">
-                        Revenue ${Number(breakdown.total_sales_order_amount || 0).toFixed(1)} / Frequency ${Number(breakdown.order_frequency || 0).toFixed(1)} / Branches ${Number(breakdown.branch_count || 0).toFixed(1)}
+                        Score ${Number(client.client_performance_score || 0).toFixed(1)} = Revenue ${Number(breakdown.total_sales_order_amount || 0).toFixed(1)} + Frequency ${Number(breakdown.order_frequency || 0).toFixed(1)} + Branches ${Number(breakdown.branch_count || 0).toFixed(1)}
                     </div>
+                    <div style="margin-bottom: 1rem; color: var(--text-muted); font-size: 0.82rem; line-height: 1.5;">${action}</div>
                     <span style="display: inline-block; padding: 0.25rem 0.5rem; background-color: ${valColor.bg}; color: ${valColor.text}; border-radius: var(--radius-lg); font-size: 0.75rem; font-weight: 600;">${client.cohort || client.value_status}</span>
                 </div>`;
             }).join('');
@@ -1789,17 +2933,41 @@
             const clients = data.clients;
             const clientChartData = data.chart_data || clients;
             const top3 = data.top_3;
+            const topClient = top3[0] || clients[0] || {};
+            const cohortCounts = clients.reduce((counts, client) => {
+                const cohort = client.cohort || client.value_status || 'Unclassified';
+                counts[cohort] = (counts[cohort] || 0) + 1;
+                return counts;
+            }, {});
+            const leadingCohort = Object.entries(cohortCounts).sort((a, b) => b[1] - a[1])[0] || ['Not available', 0];
+            const attentionCount = clients.filter(client => ['B-Class Clients', 'C-Class Clients', 'Low Order Activity', 'Developing Ordering Clients', 'At-Risk Clients', 'Casual Clients'].includes(client.cohort || client.value_status)).length;
+            const clientsStoryMap = analyticsBusinessGoalMap([
+                { goal: 'Identify valuable clients', metric: 'Sales Order value', detail: 'Client or store level', visualization: 'Sortable table and cards' },
+                { goal: 'Find follow-up opportunities', metric: 'Revenue, frequency, and branch score', detail: 'Client or store level', visualization: 'ABC/Pareto bar and line chart' },
+                { goal: 'Segment client value', metric: 'ABC class and cumulative revenue %', detail: 'Client or store level', visualization: 'Status badge and Pareto line' },
+                { goal: 'Compare branch reach', metric: 'Branch score contribution', detail: 'Client or store level', visualization: 'Score basis text' }
+            ]);
 
             // Helper functions for badge colors based on new backend structure
             latestClientAnalytics = { clients, chartData: clientChartData };
 
             let clientsHTML = `
         <div class="analytics-section clients">
+            ${analyticsStoryHeader(
+                'Managers use this view to identify which stores or clients deserve retention, growth, or follow-up.',
+                'Client value is explained by Sales Order value, ordering frequency, and branch reach.'
+            )}
+            ${clientsStoryMap}
+            ${analyticsSummaryStrip([
+                { label: 'Top Client', value: topClient.client || topClient.store_name || 'Not available' },
+                { label: 'Largest Cohort', value: `${leadingCohort[0]} (${leadingCohort[1]})` },
+                { label: 'Need Attention', value: String(attentionCount) }
+            ], 'Client analysis summary')}
             <div class="filter-controls" style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
                 <div>
                     <label style="color: var(--text-main); font-weight: 600; margin-right: 1rem;">Sort By:</label>
                     <button class="btn-secondary sort-btn active" data-sort="revenue">Revenue</button>
-                    <button class="btn-secondary sort-btn" data-sort="score">SO Value</button>
+                    <button class="btn-secondary sort-btn" data-sort="score">Client Score</button>
                 </div>
                 <div class="view-toggle-buttons">
                     <button id="btn-view-table" class="btn-secondary ${clientViewMode === 'table' ? 'active' : ''}" style="margin-right: 0.5rem; padding: 0.5rem 1rem;">📋 Table View</button>
@@ -1810,7 +2978,8 @@
             <div class="analytics-row-stack">
                 <div class="analytics-flow-row">
                     <div class="card" style="max-height: 500px; display: flex; flex-direction: column; width: 100%; box-sizing: border-box;">
-                    <h3 style="color: var(--text-main); margin-bottom: 1.5rem;">Store Overview</h3>
+                    <h3 style="color: var(--text-main); margin-bottom: 0.5rem;">Client ABC classification follows score ranking and Pareto grouping</h3>
+                    ${analyticsTakeaway('The score combines revenue, order frequency, and branch reach; the ABC class is assigned from the cumulative revenue line.')}
                     
                     <div id="clients-dynamic-view" style="overflow-y: auto; flex-grow: 1; scrollbar-width: thin; -webkit-overflow-scrolling: touch;">
     `;
@@ -1829,7 +2998,7 @@
 
                 <div class="analytics-flow-row">
                     <div class="card" style="margin-bottom: 1rem;">
-                        <h3 style="color: var(--text-main); margin-bottom: 1rem; font-size: 1rem;">Top Performers</h3>
+                        <h3 style="color: var(--text-main); margin-bottom: 1rem; font-size: 1rem;">Top 3 clients by combined score need the strongest retention focus</h3>
     `;
 
             top3.forEach((client, idx) => {
@@ -1837,23 +3006,25 @@
             <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color);">
                 <div style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">${idx + 1}. ${client.client}</div>
                 <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem;">Revenue: ${formatCurrency(client.total_revenue)} | Store Branches: ${Number(client.branches_count || 0)}</div>
-                <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">SO Value: <strong>${Number(client.client_performance_score || 0).toFixed(2)}</strong> | ${client.cohort || ''}</div>
+                <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">Client Score: <strong>${Number(client.client_performance_score || 0).toFixed(2)}</strong> | Rank #${Number(client.master_priority_rank || idx + 1)} | ${client.cohort || ''}</div>
             </div>
         `;
             });
 
-            // 3. ADD BUBBLE SCATTER PLOT TARGET HTML AT THE BOTTOM
+            // 3. ADD ABC/PARETO COMBO CHART TARGET HTML AT THE BOTTOM
             clientsHTML += `
                     </div>
                 </div>
 
-                <div class="analytics-flow-row">
+                <div class="analytics-flow-row"> <br> <hr>
                     <div class="card">
-                        <h3 style="color: var(--text-main);">Client Opportunity Map</h3>
-                        <p class="chart-subtitle">Order count versus Sales Order value for ${escapeHtml(data.filter?.label || '')}. Bubble size represents branch count; color represents ordering cohort.</p>
+                        <h3 style="color: var(--text-main);">Client value categories show who drives cumulative revenue</h3>
+                        <p class="chart-subtitle">Clients are sorted by combined score for ${escapeHtml(data.filter?.label || '')}. Bars show Sales Order value; the line shows cumulative revenue contribution. Reference lines mark the 80% A-Class and 95% B-Class boundaries.</p>
+                        ${analyticsTakeaway('This Pareto chart explains ABC classification: score ranking sets the order, then cumulative revenue separates A, B, and C clients.')}
                         <div style="position: relative; height: 400px; width: 100%;">
-                            <canvas id="clientBubbleChart" aria-label="Client opportunity relationship chart"></canvas>
+                            <canvas id="clientParetoChart" aria-label="ABC Pareto revenue bar and cumulative line chart"></canvas>
                         </div>
+                        ${analyticsManagerAction('Use the bars to see client value, the line to defend the ABC cutoff, and the score basis to explain why each client is ranked there.')}
                     </div>
                 </div>
             </div>
@@ -1864,6 +3035,9 @@
         }
 
         function getClientValueStatusColor(status) {
+            if (status === 'A-Class Clients') return { bg: '#d1fae5', text: '#065f46' };
+            if (status === 'B-Class Clients') return { bg: '#dbeafe', text: '#1e40af' };
+            if (status === 'C-Class Clients') return { bg: '#f3f4f6', text: '#374151' };
             if (status === 'Core Ordering Clients') return { bg: '#d1fae5', text: '#065f46' };
             if (status === 'Growth Ordering Clients') return { bg: '#dbeafe', text: '#1e40af' };
             if (status === 'Developing Ordering Clients') return { bg: '#fef3c7', text: '#92400e' };
@@ -1894,64 +3068,152 @@
         }
 
         // 5. CHART ENGINE CONFIGURATION (CHART.JS IMPLEMENTATION)
-        function initClientBubbleChart(clients) {
-            const ctx = document.getElementById('clientBubbleChart')?.getContext('2d');
+        function initClientParetoChart(clients) {
+            const ctx = document.getElementById('clientParetoChart')?.getContext('2d');
             if (!ctx) return;
 
-            // Segmenting datasets to map colors explicitly via Value Rating status categories
             const categories = {
-                'Core Ordering Clients': { label: 'Core Ordering Clients', color: 'rgba(16, 185, 129, 0.75)', border: '#10b981' },
-                'Growth Ordering Clients': { label: 'Growth Ordering Clients', color: 'rgba(59, 130, 246, 0.75)', border: '#3b82f6' },
-                'Developing Ordering Clients': { label: 'Developing Ordering Clients', color: 'rgba(245, 158, 11, 0.75)', border: '#f59e0b' },
-                'Low Order Activity': { label: 'Low Order Activity', color: 'rgba(107, 114, 128, 0.75)', border: '#6b7280' }
+                'A-Class Clients': { label: 'A-Class Clients', color: 'rgba(16, 185, 129, 0.75)', border: '#10b981' },
+                'B-Class Clients': { label: 'B-Class Clients', color: 'rgba(59, 130, 246, 0.75)', border: '#3b82f6' },
+                'C-Class Clients': { label: 'C-Class Clients', color: 'rgba(107, 114, 128, 0.75)', border: '#6b7280' }
             };
 
-            const datasets = Object.keys(categories).map(catKey => {
-                return {
-                    label: categories[catKey].label,
-                    backgroundColor: categories[catKey].color,
-                    borderColor: categories[catKey].border,
-                    borderWidth: 1.5,
-                    data: clients
-                        .filter(c => (c.cohort || c.value_status) === catKey)
-                        .map(c => ({
-                            x: Number(c.order_count || 0),
-                            y: Number(c.sales_order_value || c.total_revenue || 0),
-                            r: Math.max(6, Math.min(6 + Number(c.branches_count || 0) * 3, 28)),
-                            name: c.label || c.store_name || 'Unspecified Store',
-                            branches: Number(c.branches_count || 0),
-                            cohort: c.cohort || c.value_status
-                        }))
-                };
-            });
+            const abcReferenceLinePlugin = {
+                id: 'abcReferenceLinePlugin',
+                afterDraw(chart) {
+                    const { ctx, chartArea, scales } = chart;
+                    if (!chartArea || !scales?.yPercent) return;
+
+                    [
+                        { value: 80, label: '80% A-Class boundary', color: '#10b981' },
+                        { value: 95, label: '95% B-Class boundary', color: '#3b82f6' }
+                    ].forEach(line => {
+                        const y = scales.yPercent.getPixelForValue(line.value);
+                        if (y < chartArea.top || y > chartArea.bottom) return;
+
+                        ctx.save();
+                        ctx.setLineDash([6, 5]);
+                        ctx.strokeStyle = line.color;
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        ctx.moveTo(chartArea.left, y);
+                        ctx.lineTo(chartArea.right, y);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                        ctx.fillStyle = line.color;
+                        ctx.font = '600 11px Inter, system-ui, sans-serif';
+                        ctx.textBaseline = 'bottom';
+                        ctx.fillText(line.label, chartArea.left + 8, y - 4);
+                        ctx.restore();
+                    });
+                }
+            };
+
+            const paretoRows = [...clients]
+                .map((client, idx) => {
+                    const cohort = client.abc_category || client.cohort || client.value_status || 'C-Class Clients';
+                    return {
+                        name: client.label || client.store_name || 'Unspecified Store',
+                        revenue: Number(client.sales_order_value || client.total_revenue || 0),
+                        cumulativePercent: Number(client.cumulative_revenue_percent || 0),
+                        masterPriorityRank: Number(client.master_priority_rank || idx + 1),
+                        orderCount: Number(client.order_count || 0),
+                        branches: Number(client.branches_count || 0),
+                        cohort,
+                        revenueRank: client.revenue_rank,
+                        frequencyRank: client.frequency_rank,
+                        branchRank: client.branch_rank,
+                        color: categories[cohort]?.color || 'rgba(107, 114, 128, 0.75)',
+                        border: categories[cohort]?.border || '#6b7280'
+                    };
+                })
+                .sort((a, b) => a.masterPriorityRank - b.masterPriorityRank || b.revenue - a.revenue);
 
             createAnalyticsChart(ctx, {
-                type: 'bubble',
-                data: { datasets: datasets },
+                type: 'bar',
+                data: {
+                    labels: paretoRows.map(row => row.name),
+                    datasets: [
+                        {
+                            type: 'bar',
+                            label: 'Client Sales Order value',
+                            data: paretoRows.map(row => row.revenue),
+                            backgroundColor: paretoRows.map(row => row.color),
+                            borderColor: paretoRows.map(row => row.border),
+                            borderWidth: 1,
+                            yAxisID: 'yRevenue',
+                            order: 2
+                        },
+                        {
+                            type: 'line',
+                            label: 'Cumulative revenue %',
+                            data: paretoRows.map(row => row.cumulativePercent),
+                            borderColor: 'gray',
+                            backgroundColor: 'gray',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            tension: 0.25,
+                            yAxisID: 'yPercent',
+                            order: 1
+                        }
+                    ]
+                },
+                plugins: [abcReferenceLinePlugin],
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
                         x: {
-                            beginAtZero: true,
-                            title: { display: true, text: 'Sales Order Count', color: '#374151', font: { weight: 'bold' } },
-                            grid: { color: 'rgba(229, 231, 235, 0.5)' }
+                            title: { display: true, text: 'Clients sorted by Master Priority Rank', color: '#374151', font: { weight: 'bold' } },
+                            grid: { color: 'rgba(229, 231, 235, 0.45)' },
+                            ticks: {
+                                autoSkip: true,
+                                maxRotation: 45,
+                                minRotation: 0,
+                                callback: function (value) {
+                                    const label = this.getLabelForValue(value);
+                                    return label.length > 18 ? `${label.slice(0, 18)}...` : label;
+                                }
+                            }
                         },
-                        y: {
+                        yRevenue: {
                             beginAtZero: true,
-                            title: { display: true, text: 'Sales Order Value (PHP)', color: '#374151', font: { weight: 'bold' } },
-                            grid: { color: 'rgba(229, 231, 235, 0.5)' },
+                            position: 'left',
+                            title: { display: true, text: 'Client Sales Order value', color: '#374151', font: { weight: 'bold' } },
+                            grid: { color: 'rgba(229, 231, 235, 0.45)' },
                             ticks: { callback: (value) => formatCurrency(value, { maximumFractionDigits: 0 }) }
+                        },
+                        yPercent: {
+                            beginAtZero: true,
+                            max: 100,
+                            position: 'right',
+                            title: { display: true, text: 'Cumulative Revenue Contribution', color: '#374151', font: { weight: 'bold' } },
+                            grid: { drawOnChartArea: false },
+                            ticks: { callback: (value) => `${value}%` }
                         }
                     },
                     plugins: {
                         tooltip: {
                             callbacks: {
                                 label: function (context) {
-                                    const p = context.raw;
-                                    return `${p.name} | ${p.x} order(s) | SO Value: ${formatCurrency(p.y, { maximumFractionDigits: 0 })} | ${p.branches} branch(es)`;
+                                    const row = paretoRows[context.dataIndex] || {};
+                                    if (context.dataset.type === 'line') {
+                                        return `Cumulative revenue: ${Number(row.cumulativePercent || 0).toFixed(1)}%`;
+                                    }
+                                    return [
+                                        `${row.name} | ${row.cohort}`,
+                                        `Sales Order value: ${formatCurrency(row.revenue || 0, { maximumFractionDigits: 0 })}`,
+                                        `Master Priority Rank: ${row.masterPriorityRank}`,
+                                        `Cumulative Revenue: ${Number(row.cumulativePercent || 0).toFixed(1)}%`,
+                                        `Ranks: Revenue ${row.revenueRank || '-'}, Frequency ${row.frequencyRank || '-'}, Branches ${row.branchRank || '-'}`,
+                                        `${row.orderCount || 0} order(s) | ${row.branches || 0} branch(es)`
+                                    ];
                                 }
                             }
+                        },
+                        legend: {
+                            position: 'bottom'
                         }
                     }
                 }
@@ -1961,6 +3223,9 @@
         // Helper function to get status color
         function getStatusColor(status) {
             const colors = {
+                'A-Class Clients': { bg: '#DCFCE7', text: '#166534' },
+                'B-Class Clients': { bg: '#DBEAFE', text: '#1E40AF' },
+                'C-Class Clients': { bg: '#F1F5F9', text: '#64748B' },
                 'Core Ordering Clients': { bg: '#DCFCE7', text: '#166534' },
                 'Growth Ordering Clients': { bg: '#DBEAFE', text: '#1E40AF' },
                 'Developing Ordering Clients': { bg: '#FEF3C7', text: '#92400E' },
@@ -1979,6 +3244,40 @@
             return colors[status] || { bg: '#E2E8F0', text: '#64748B' };
         }
 
+        function analyticsCssVar(name, fallback) {
+            const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+            return value || fallback;
+        }
+
+        function overviewAccentColor() {
+            return analyticsCssVar('--brand-orange', analyticsCssVar('--accent-main', '#F97316'));
+        }
+
+        function parseCssColorToRgb(color) {
+            const value = String(color || '').trim();
+            if (/^#[0-9a-f]{6}$/i.test(value)) {
+                return [
+                    parseInt(value.slice(1, 3), 16),
+                    parseInt(value.slice(3, 5), 16),
+                    parseInt(value.slice(5, 7), 16)
+                ];
+            }
+            const rgbMatch = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+            if (rgbMatch) return [Number(rgbMatch[1]), Number(rgbMatch[2]), Number(rgbMatch[3])];
+            return [249, 115, 22];
+        }
+
+        function mixRgbColors(primary, secondary, primaryWeight = 0.42) {
+            const primaryRgb = parseCssColorToRgb(primary);
+            const secondaryRgb = parseCssColorToRgb(secondary);
+            const mixed = primaryRgb.map((channel, index) => Math.round(channel * primaryWeight + secondaryRgb[index] * (1 - primaryWeight)));
+            return `rgb(${mixed[0]}, ${mixed[1]}, ${mixed[2]})`;
+        }
+
+        function overviewMutedAccentColor() {
+            return mixRgbColors(overviewAccentColor(), analyticsCssVar('--text-muted', '#64748B'), 0.42);
+        }
+
         function initOverviewCharts(
             trendData = latestOverviewAnalytics?.trend_data,
             periodLabel = latestOverviewAnalytics?.filter?.label || latestOverviewAnalytics?.selected_year
@@ -1986,21 +3285,13 @@
             const canvas = document.getElementById('trendChart');
             if (!canvas) return;
 
-            // --- DIRECTLY EXTRACT ARRAYS FROM OBJECT ---
-            const rawLabels = trendData && trendData.labels ? trendData.labels : [];
-            const labels = rawLabels.map(label => {
-                const [day, month, year] = String(label).split('/').map(Number);
-                if (!month || !year) return label;
-                return new Date(year, month - 1, day || 1).toLocaleDateString('en-PH', {
-                    month: 'short',
-                    year: 'numeric'
-                });
-            });
-            const revenueValues = trendData && trendData.revenue_values ? trendData.revenue_values : (trendData && trendData.values ? trendData.values : []);
-            const expenseValues = trendData && trendData.expense_values ? trendData.expense_values : [];
+            const tierData = latestOverviewAnalytics?.overviewTierData || buildOverviewTierData(latestOverviewAnalytics || {}, latestSalesAnalytics || {});
+            const labels = tierData.chartLabels || [];
+            const revenueValues = tierData.currentRevenueSeries || [];
+            const previousYearValues = tierData.previousRevenueSeries || [];
 
             if (!ensureChartLibraryAvailable(canvas)) {
-                currentCharts.push({ canvas, destroy() {} });
+                currentCharts.push({ canvas, destroy() { } });
                 return;
             }
 
@@ -2008,6 +3299,27 @@
                 // Clear previous chart instances so tooltips don't glitch on hover
                 currentCharts.forEach(c => c.destroy());
                 currentCharts = [];
+                const accentColor = overviewAccentColor();
+                const mutedAccentColor = overviewMutedAccentColor();
+                const terminalLabelPlugin = {
+                    id: 'overviewTerminalRevenueLabel',
+                    afterDatasetsDraw(chart) {
+                        const meta = chart.getDatasetMeta(1);
+                        const point = meta?.data?.[tierData.latestIndex];
+                        if (!point) return;
+                        const { ctx } = chart;
+                        const label = formatCurrency(tierData.latestRevenue, { maximumFractionDigits: 0 });
+                        ctx.save();
+                        ctx.fillStyle = '#111827';
+                        ctx.font = '700 12px sans-serif';
+                        ctx.textAlign = 'left';
+                        const textWidth = ctx.measureText(label).width;
+                        const x = Math.min(Math.max(point.x + 16, chart.chartArea.left + 6), chart.chartArea.right - textWidth - 6);
+                        const y = Math.min(Math.max(point.y - 18, chart.chartArea.top + 14), chart.chartArea.bottom - 6);
+                        ctx.fillText(label, x, y);
+                        ctx.restore();
+                    }
+                };
 
                 const chart = createAnalyticsChart(canvas, {
                     type: 'line',
@@ -2015,26 +3327,26 @@
                         labels: labels,
                         datasets: [
                             {
-                                label: 'Revenue IN',
-                                data: revenueValues,
-                                borderColor: '#F97316',
-                                backgroundColor: 'rgba(249, 115, 22, 0.12)',
-                                borderWidth: 2,
-                                tension: 0.35,
-                                fill: true,
-                                pointRadius: 4,
-                                pointHoverRadius: 6
+                                label: `${tierData.previousYear || 'Previous Year'} Revenue`,
+                                data: previousYearValues,
+                                borderColor: mutedAccentColor,
+                                backgroundColor: mutedAccentColor,
+                                borderWidth: 1.5,
+                                tension: 0.5,
+                                fill: false,
+                                pointRadius: 0,
+                                pointHoverRadius: 3
                             },
                             {
-                                label: 'Expense OUT',
-                                data: expenseValues,
-                                borderColor: '#0EA5E9',
-                                backgroundColor: 'rgba(14, 165, 233, 0.1)',
-                                borderWidth: 2,
-                                tension: 0.35,
-                                fill: true,
-                                pointRadius: 4,
-                                pointHoverRadius: 6
+                                label: `${tierData.latestYear || 'Selected Year'} Revenue`,
+                                data: revenueValues,
+                                borderColor: accentColor,
+                                backgroundColor: accentColor,
+                                borderWidth: 2.5,
+                                tension: 0.5,
+                                fill: false,
+                                pointRadius: context => context.dataIndex === tierData.latestIndex ? 4 : 0,
+                                pointHoverRadius: context => context.dataIndex === tierData.latestIndex ? 6 : 0,
                             }
                         ]
                     },
@@ -2051,21 +3363,185 @@
                             }
                         },
                         scales: {
+                            x: {
+                                grid: { display: false },
+                                border: { display: true },
+                                ticks: {
+                                    maxRotation: 0,
+                                    minRotation: 0,
+                                    autoSkip: false,
+                                    font: { size: 6.5, weight: '700' }
+                                }
+                            },
                             y: {
                                 beginAtZero: true,
+                                max: tierData.yAxisMax || undefined,
+                                grid: { display: false },
+                                border: { display: true },
                                 ticks: {
+                                    stepSize: 1000000,
+                                    font: { size: 10, weight: '600' },
                                     callback: function (value) {
-                                        // Keeps your Philippine Peso formatting intact
                                         return formatCurrency(value, { maximumFractionDigits: 0 });
                                     }
                                 }
                             }
                         }
-                    }
+                    },
+                    plugins: [terminalLabelPlugin]
                 });
 
                 // Track this instance globally
                 currentCharts.push(chart);
+                const categories = tierData.categories || [];
+                function overviewOutsideBarLabelPlugin(id, rows, formatter) {
+                    return {
+                        id,
+                        afterDatasetsDraw(chartInstance) {
+                            const { ctx } = chartInstance;
+                            const meta = chartInstance.getDatasetMeta(0);
+                            if (!meta?.data?.length) return;
+                            ctx.save();
+                            ctx.font = '700 11px Inter, system-ui, sans-serif';
+                            ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-main').trim() || '#111827';
+                            ctx.textBaseline = 'middle';
+                            meta.data.forEach((bar, index) => {
+                                const row = rows[index] || {};
+                                const rawValue = Number(chartInstance.data.datasets[0].data[index] || 0);
+                                if (!rawValue) return;
+                                const props = bar.getProps(['x', 'y', 'base'], true);
+                                const isPositive = props.x >= props.base;
+                                ctx.textAlign = isPositive ? 'left' : 'right';
+                                ctx.fillText(formatter(row, rawValue, index), props.x + (isPositive ? 8 : -8), props.y);
+                            });
+                            ctx.restore();
+                        }
+                    };
+                }
+                const categoryRevenueCanvas = document.getElementById('overviewCategoryRevenueChart');
+                if (categoryRevenueCanvas) {
+                    currentCharts.push(createAnalyticsChart(categoryRevenueCanvas, {
+                        type: 'bar',
+                        plugins: [overviewOutsideBarLabelPlugin(
+                            'overviewCategoryRevenueOutsideLabels',
+                            categories,
+                            (_row, value) => formatCurrency(value, { maximumFractionDigits: 0 })
+                        )],
+                        data: {
+                            labels: categories.map(item => item.category),
+                            datasets: [{
+                                label: 'Revenue',
+                                data: categories.map(item => item.revenue),
+                                backgroundColor: categories.map(() => accentColor)
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: { callbacks: { label: context => formatCurrency(context.parsed.x || 0, { maximumFractionDigits: 0 }) } }
+                            },
+                            scales: {
+                                x: {
+                                    beginAtZero: true,
+                                    ticks: { display: false },
+                                    grid: { display: false },
+                                    border: { display: false }
+                                },
+                                y: {
+                                    grid: { display: false },
+                                    border: { display: true }
+                                }
+                            }
+                        }
+                    }));
+                }
+                const categoryMomentumCanvas = document.getElementById('overviewCategoryMomentumChart');
+                if (categoryMomentumCanvas) {
+                    const previousTotalRevenue = categories.reduce((sum, item) => sum + Number(item.previousRevenue || 0), 0);
+                    const momentumRows = categories.map(item => ({
+                        ...item,
+                        momentum: overviewMomentumChange(item.revenue, item.previousRevenue, previousTotalRevenue)
+                    }));
+                    const momentumValues = momentumRows.map(item => Number.isFinite(Number(item.momentum.value)) ? Number(item.momentum.value) : 0);
+                    const comparableValues = momentumRows
+                        .map(item => item.momentum.value)
+                        .filter(value => Number.isFinite(Number(value)));
+                    const positiveValues = comparableValues.filter(value => Number(value || 0) > 0);
+                    const negativeValues = comparableValues.filter(value => Number(value || 0) < 0);
+                    const highestPositive = positiveValues.length ? Math.max(...positiveValues) : null;
+                    const lowestNegative = negativeValues.length ? Math.min(...negativeValues) : null;
+                    const momentumAxis = overviewMomentumAxisBounds(comparableValues);
+                    const momentumOutsideLabelPlugin = overviewOutsideBarLabelPlugin(
+                        'overviewMomentumOutsideLabels',
+                        momentumRows,
+                        (row, value) => row.momentum?.status === 'new_revenue'
+                            ? 'New'
+                            : row.momentum?.status === 'no_activity'
+                                ? '0.0%'
+                                : `${Number(value).toFixed(1)}%`
+                    );
+                    currentCharts.push(createAnalyticsChart(categoryMomentumCanvas, {
+                        type: 'bar',
+                        plugins: [momentumOutsideLabelPlugin],
+                        data: {
+                            labels: momentumRows.map(item => item.category),
+                            datasets: [{
+                                label: 'M-o-M revenue contribution %',
+                                data: momentumValues,
+                                backgroundColor: momentumRows.map(item => {
+                                    const numericValue = Number(item.momentum.value || 0);
+                                    if (item.momentum.status === 'new_revenue') return '#047857';
+                                    if (highestPositive !== null && numericValue === highestPositive) return '#047857';
+                                    if (lowestNegative !== null && numericValue === lowestNegative) return '#B91C1C';
+                                    return mutedAccentColor;
+                                })
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: context => {
+                                            const row = momentumRows[context.dataIndex] || {};
+                                            if (row.momentum?.status === 'new_revenue') {
+                                                return `New revenue this month: ${formatCurrency(row.revenue, { maximumFractionDigits: 0 })}`;
+                                            }
+                                            if (row.momentum?.status === 'new_category_revenue') {
+                                                return `New category revenue contribution: ${Number(context.parsed.x || 0).toFixed(1)}% of previous total revenue`;
+                                            }
+                                            if (row.momentum?.status === 'no_activity') {
+                                                return 'No revenue in current or previous month';
+                                            }
+                                            return `${Number(context.parsed.x || 0).toFixed(1)}% of previous total revenue`;
+                                        }
+                                    }
+                                },
+                                datalabels: { display: false }
+                            },
+                            scales: {
+                                x: {
+                                    min: momentumAxis.min,
+                                    max: momentumAxis.max,
+                                    ticks: { display: false },
+                                    grid: { display: false },
+                                    border: { display: false }
+                                },
+                                y: {
+                                    ticks: { display: false },
+                                    grid: { display: false },
+                                    border: { display: true }
+                                }
+                            }
+                        }
+                    }));
+                }
             }
         }
 
@@ -2139,7 +3615,7 @@
             document.getElementById('btn-view-card')?.addEventListener('click', () => {
                 if (clientViewMode !== 'card') { clientViewMode = 'card'; renderFreshView(clients, getClientValueStatusColor); }
             });
-            initClientBubbleChart(latestClientAnalytics.chartData || clients);
+            initClientParetoChart(latestClientAnalytics.chartData || clients);
         }
 
         // Initialize Expenses Charts
@@ -2157,8 +3633,26 @@
                     <td style="text-align:right;">${Number(item.share_percent || 0).toFixed(1)}%</td>
                 </tr>
             `).join('') || '<tr><td colspan="3" class="no-data">No expense data for this period.</td></tr>';
+            const topParticular = topParticulars[0] || {};
+            const topSupplier = topSuppliers[0] || {};
+            const expenseStoryMap = analyticsBusinessGoalMap([
+                { goal: 'Monitor spending pressure', metric: 'Total Expenses', detail: 'Selected reporting period', visualization: 'KPI card' },
+                { goal: 'Separate cost behavior', metric: 'Fixed and variable share', detail: 'Expense type level', visualization: 'Stacked horizontal bar' },
+                { goal: 'Find high-cost areas', metric: 'Expense amount and share', detail: 'Particular level', visualization: 'Horizontal bar chart and table' },
+                { goal: 'Review supplier concentration', metric: 'Supplier / Payee amount and share', detail: 'Supplier or payee level', visualization: 'Ranked table' }
+            ]);
             return `
                 <div class="analytics-section expenses">
+                    ${analyticsStoryHeader(
+                'Managers use this view to identify where spending is concentrated and which costs need control.',
+                'Total expenses are explained by fixed versus variable pressure and the largest recorded particulars.'
+            )}
+                    ${expenseStoryMap}
+                    ${analyticsSummaryStrip([
+                { label: 'Top Particular', value: topParticular.label || 'Not available' },
+                { label: 'Top Supplier / Payee', value: topSupplier.label || 'Not available' },
+                { label: 'Variable Share', value: `${Number(data.variable_share_percent || 0).toFixed(1)}%` }
+            ], 'Expense analytics summary')}
                     <div class="toolbar-surface" style="margin-bottom:1.5rem; padding:0.75rem 1rem; color:var(--text-muted); font-weight:600;">
                         Reporting Period: ${escapeHtml(data.filter?.label || activeAnalyticsFilterLabel)}
                     </div>
@@ -2169,17 +3663,21 @@
                     </div>
                     <div class="analytics-row-stack">
                         <div class="analytics-flow-row"><div class="card">
-                            <h3>Expense Composition</h3>
+                            <h3>Expense mix shows fixed versus variable pressure</h3>
                             <p class="chart-subtitle">Fixed and variable shares of recorded cash expenses for ${escapeHtml(data.filter?.label || '')}.</p>
+                            ${analyticsTakeaway('Use this mix to see whether recurring fixed costs or flexible variable costs are driving the period.')}
                             <div style="height:240px;"><canvas id="expensesCompositionChart" aria-label="Fixed and variable expense composition chart"></canvas></div>
+                            ${analyticsManagerAction('If variable share rises, review purchase timing and one-time spending before setting the next budget.')}
                         </div></div>
                         <div class="analytics-flow-row"><div class="card">
-                            <h3>Largest Expense Particulars</h3>
+                            <h3>Largest particulars reveal where spending is concentrated</h3>
                             <p class="chart-subtitle">Top recorded expense descriptions ranked by Philippine-peso amount.</p>
+                            ${analyticsTakeaway('The longest bars identify the expense descriptions most worth checking first.')}
                             <div style="height:320px;"><canvas id="expensesParticularsChart" aria-label="Largest expense particulars chart"></canvas></div>
+                            ${analyticsManagerAction('Review the largest particulars and confirm whether they are recurring, one-time, or controllable costs.')}
                         </div></div>
-                        <div class="analytics-flow-row"><div class="card"><h3>Expense Particulars</h3><div class="client-table-scroll"><table class="client-table"><thead><tr><th>Particular</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Share</th></tr></thead><tbody>${rankedRows(topParticulars)}</tbody></table></div></div></div>
-                        <div class="analytics-flow-row"><div class="card"><h3>Suppliers / Payees</h3><div class="client-table-scroll"><table class="client-table"><thead><tr><th>Supplier / Payee</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Share</th></tr></thead><tbody>${rankedRows(topSuppliers)}</tbody></table></div></div></div>
+                        <div class="analytics-flow-row"><div class="card"><h3>Expense particulars provide the supporting detail</h3>${analyticsManagerAction('Use this table to validate the chart before approving cost-control actions.')}<div class="client-table-scroll"><table class="client-table"><thead><tr><th>Particular</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Share</th></tr></thead><tbody>${rankedRows(topParticulars)}</tbody></table></div></div></div>
+                        <div class="analytics-flow-row"><div class="card"><h3>Suppliers and payees show who receives the largest payments</h3>${analyticsManagerAction('Check whether spending is concentrated with one supplier or spread across normal operating vendors.')}<div class="client-table-scroll"><table class="client-table"><thead><tr><th>Supplier / Payee</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Share</th></tr></thead><tbody>${rankedRows(topSuppliers)}</tbody></table></div></div></div>
                     </div>
                 </div>`;
         }
@@ -2248,6 +3746,259 @@
             loadSection('sales');
         }
 
+        function managerForecastStatus(accuracy) {
+            const rawStatus = accuracy?.status || 'insufficient_data';
+            if (rawStatus === 'accepted') return 'Reliable';
+            if (rawStatus === 'above_threshold') return 'Review Needed';
+            return 'Insufficient Data';
+        }
+
+        function formatMapeLabel(accuracy) {
+            return accuracy?.mape == null ? 'Insufficient' : formatPercentValue(accuracy.mape);
+        }
+
+        function forecastManagerAction(statusLabel) {
+            if (statusLabel === 'Reliable') {
+                return 'Prepare stock for expected demand but verify unpaid orders first.';
+            }
+            if (statusLabel === 'Review Needed') {
+                return 'Use the forecast as a warning signal, then verify recent orders, unpaid invoices, and unusual sales before committing stock.';
+            }
+            return 'Continue recording Sales Orders before using the forecast for stock or purchasing decisions.';
+        }
+
+        function forecastQualityLabel(data, accuracy) {
+            const statusLabel = managerForecastStatus(accuracy);
+            const nextRevenue = Number(data?.holt_winters?.next_period_revenue || 0);
+            return `
+                <div class="forecast-quality-label" aria-label="Forecast quality label">
+                    <div class="forecast-quality-heading">
+                        <span>Forecast Quality</span>
+                        <span class="forecast-quality-status">Forecast Status: ${escapeHtml(statusLabel)}</span>
+                    </div>
+                    <div class="forecast-quality-metrics">
+                        <span class="forecast-quality-chip"><b>Historical</b> Sales Order value</span>
+                        <span class="forecast-quality-chip"><b>Forecast</b> ${formatCurrency(nextRevenue)}</span>
+                        <span class="forecast-quality-chip"><b>MAPE</b> ${escapeHtml(formatMapeLabel(accuracy))}</span>
+                        <span class="forecast-quality-chip"><b>Status</b> ${escapeHtml(statusLabel)}</span>
+                    </div>
+                    <p class="forecast-quality-action"><strong>Action:</strong> ${escapeHtml(forecastManagerAction(statusLabel))}</p>
+                </div>
+            `;
+        }
+
+        function revenueQualityClass(accuracy) {
+            const statusLabel = managerForecastStatus(accuracy);
+            if (statusLabel === 'Reliable') return 'high';
+            if (statusLabel === 'Review Needed') return 'moderate';
+            return 'low';
+        }
+
+        function revenueQualityText(accuracy) {
+            const statusLabel = managerForecastStatus(accuracy);
+            if (accuracy?.mape == null) return `${statusLabel} confidence`;
+            const accuracyScore = Math.max(0, 100 - Number(accuracy.mape || 0));
+            return `${accuracyScore.toFixed(1)}% Accuracy (${statusLabel})`;
+        }
+
+        function revenueTrendMeta(direction) {
+            const normalized = String(direction || 'stable').toLowerCase();
+            if (normalized.includes('increas')) {
+                return { className: 'up', arrow: '↑', label: 'Increasing' };
+            }
+            if (normalized.includes('declin') || normalized.includes('decreas')) {
+                return { className: 'down', arrow: '↓', label: 'Declining' };
+            }
+            return { className: 'flat', arrow: '→', label: 'Stable' };
+        }
+
+        function peakLiftText(item, collection, valueField = 'average_quantity') {
+            if (!item) return 'No peak data available yet.';
+            const values = (collection || []).map(row => Number(row[valueField] || 0)).filter(value => value > 0);
+            const baseline = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+            const current = Number(item[valueField] || 0);
+            const lift = baseline ? ((current - baseline) / baseline * 100) : 0;
+            const liftText = lift > 0 ? `${lift.toFixed(1)}% higher than baseline` : 'near the current baseline';
+            return `${current.toLocaleString(undefined, { maximumFractionDigits: 2 })} item(s) per active sales day, ${liftText}.`;
+        }
+
+        function revenueStatusClass(confidence) {
+            const normalized = String(confidence || '').toLowerCase();
+            if (normalized === 'high') return 'high';
+            if (normalized.includes('review')) return 'review';
+            return 'insufficient';
+        }
+
+        function renderRevenueStatusChip(confidence) {
+            const className = revenueStatusClass(confidence);
+            const label = confidence || 'Insufficient Data';
+            return `<span class="revenue-status-chip ${className}"><span class="revenue-dot ${className}"></span>${escapeHtml(label)}</span>`;
+        }
+
+        function metricChips(metrics) {
+            return (metrics || []).filter(item => item && item.label).map(item => `
+                <span class="graph-insight-chip">
+                    <b>${escapeHtml(item.label)}</b>
+                    ${escapeHtml(item.value || 'Not available')}
+                </span>
+            `).join('');
+        }
+
+        function graphInsights(insight) {
+            const hasContent = Boolean(insight?.status || insight?.metrics?.length || insight?.explanation || insight?.action);
+            if (!hasContent) return '';
+            return `
+                <div class="graph-insights" aria-label="Graph insights">
+                    <strong>
+                        <span>Graph Insights</span>
+                        <span class="graph-insight-status-pill">${escapeHtml(insight?.status || 'Status unavailable')}</span>
+                    </strong>
+                    <div class="graph-insight-metrics">
+                        ${metricChips(insight?.metrics)}
+                    </div>
+                    <p class="graph-insight-explanation">${escapeHtml(insight?.explanation || 'No explanation is available yet.')}</p>
+                    <p class="graph-insight-action"><strong>Action:</strong> ${escapeHtml(insight?.action || 'Review this graph with the latest transaction records.')}</p>
+                </div>
+            `;
+        }
+
+        function formatPercentValue(value) {
+            return `${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
+        }
+
+        function itemForecastSummary(forecastRows) {
+            const sortedRows = [...forecastRows].sort((a, b) => Number(b.predicted_revenue || 0) - Number(a.predicted_revenue || 0));
+            const topRow = sortedRows[0] || {};
+            const highRows = forecastRows.filter(row => row.confidence === 'High');
+            const reviewRows = forecastRows.filter(row => row.confidence !== 'High');
+            return `
+                <div class="item-forecast-summary" aria-label="Item forecast summary">
+                    <span class="item-forecast-chip"><b>High Confidence</b> ${highRows.length}</span>
+                    <span class="item-forecast-chip"><b>Review Needed</b> ${reviewRows.length}</span>
+                    <span class="item-forecast-chip"><b>Highest Forecasted Item</b> ${escapeHtml(topRow.item || 'Not available')}</span>
+                </div>
+            `;
+        }
+
+        function buildRevenueForecastInsights(data, accuracy, descriptive) {
+            const revenueForecast = data?.predictive?.monthly_revenue_forecast || {};
+            const nextRevenue = Number(data?.holt_winters?.next_period_revenue || 0);
+            const statusLabel = managerForecastStatus(accuracy);
+            const trendDirection = descriptive?.trend_direction || 'stable';
+            if (revenueForecast.status !== 'ready') {
+                return graphInsights({
+                    status: 'Insufficient Data',
+                    metrics: [
+                        { label: 'MAPE', value: 'Insufficient' },
+                        { label: 'Next Forecast', value: formatCurrency(nextRevenue) }
+                    ],
+                    explanation: 'This graph uses predictive analytics using Holt-Winters forecasting when enough monthly Sales Order history is available.',
+                    action: revenueForecast.message || forecastManagerAction('Insufficient Data')
+                });
+            }
+            const confidence = accuracy?.mape == null
+                ? 'Forecast accuracy still needs more actual-vs-predicted history.'
+                : `Backtesting shows ${formatPercentValue(accuracy.mape)} MAPE, compared with the ${formatPercentValue(accuracy.mape_threshold || salesMapeThreshold)} review threshold.`;
+            return graphInsights({
+                status: statusLabel,
+                metrics: [
+                    { label: 'Next Forecast', value: formatCurrency(nextRevenue) },
+                    { label: 'MAPE', value: formatMapeLabel(accuracy) },
+                    { label: 'Trend', value: trendDirection }
+                ],
+                explanation: `This graph uses predictive analytics using Holt-Winters forecasting to extend historical Sales Order value from ${revenueForecast.latest_historical_month || 'the latest month'} into the next forecast period. The current sales trend is ${trendDirection}.`,
+                action: `${forecastManagerAction(statusLabel)} Treat the forecast as expected booked Sales Order activity, not actual collected cash. ${confidence}`
+            });
+        }
+
+        function buildProductContributionInsights(products) {
+            if (!products.length) {
+                return graphInsights({
+                    status: 'No product pattern yet',
+                    metrics: [
+                        { label: 'Products', value: '0' }
+                    ],
+                    explanation: 'Product contribution insights need Sales Order item details before product-level revenue can be ranked.',
+                    action: 'Encode Sales Order item details before using product-level revenue insights.'
+                });
+            }
+            const totalRevenue = products.reduce((sum, item) => sum + Number(item.revenue || 0), 0);
+            const topProduct = products[0];
+            const topShare = totalRevenue ? Number(topProduct.revenue || 0) / totalRevenue * 100 : 0;
+            const displayedCount = Math.min(products.length, 10);
+            return graphInsights({
+                status: 'Product mix available',
+                metrics: [
+                    { label: 'Top Product', value: topProduct.item || 'Not available' },
+                    { label: 'Top Share', value: formatPercentValue(topShare) },
+                    { label: 'Top Revenue', value: formatCurrency(topProduct.revenue || 0) }
+                ],
+                explanation: 'This graph ranks products by Sales Order value, so managers can see which items drive booked revenue.',
+                action: `Review the top ${displayedCount} product(s) for pricing, stock planning, and possible bundle offers.`
+            });
+        }
+
+        function buildPeakPeriodInsights(descriptive) {
+            const peakMonths = descriptive?.peak_periods?.months || [];
+            const peakWeekdays = descriptive?.peak_periods?.weekdays || [];
+            const topMonth = peakMonths[0];
+            const topWeekday = peakWeekdays[0];
+            if (!topMonth && !topWeekday) {
+                return graphInsights({
+                    status: 'No peak period yet',
+                    metrics: [
+                        { label: 'Best Month', value: 'Not available' },
+                        { label: 'Best Day', value: 'Not available' }
+                    ],
+                    explanation: 'Peak period insights need dated Sales Orders before the system can compare stronger selling months and weekdays.',
+                    action: 'Keep recording dated Sales Orders so the system can identify stronger selling periods.'
+                });
+            }
+            const monthText = topMonth
+                ? `${topMonth.period_label || topMonth.period}: ${Number(topMonth.average_quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} item(s) per active sales day`
+                : 'No monthly peak available';
+            const weekdayText = topWeekday
+                ? `${topWeekday.weekday}: ${Number(topWeekday.average_quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} item(s) per active sales day`
+                : 'No weekday peak available';
+            return graphInsights({
+                status: 'Peak pattern available',
+                metrics: [
+                    { label: 'Best Month', value: monthText },
+                    { label: 'Best Day', value: weekdayText }
+                ],
+                explanation: 'This graph compares average item quantity sold per active sales day, which avoids overstating months with more encoded days.',
+                action: 'Align follow-ups and stock checks with these stronger periods, then add more dated Sales Orders to confirm the pattern.'
+            });
+        }
+
+        function buildItemForecastInsights(forecastRows) {
+            if (!forecastRows.length) {
+                return graphInsights({
+                    status: 'No item forecast yet',
+                    metrics: [
+                        { label: 'Items', value: '0' },
+                        { label: 'Review Needed', value: '0' }
+                    ],
+                    explanation: 'Item forecasts need repeated item sales before the system can estimate demand and revenue.',
+                    action: 'Add more repeated item sales before using item-level forecast decisions.'
+                });
+            }
+            const sortedRows = [...forecastRows].sort((a, b) => Number(b.predicted_revenue || 0) - Number(a.predicted_revenue || 0));
+            const topRow = sortedRows[0];
+            const reviewRows = forecastRows.filter(row => row.confidence !== 'High');
+            const highRows = forecastRows.filter(row => row.confidence === 'High');
+            return graphInsights({
+                status: `${highRows.length} high-confidence item(s), ${reviewRows.length} needing review`,
+                metrics: [
+                    { label: 'Top Item', value: topRow.item || 'Not available' },
+                    { label: 'Forecast Revenue', value: formatCurrency(topRow.predicted_revenue || 0) },
+                    { label: 'Predicted Qty', value: Number(topRow.predicted_qty || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) }
+                ],
+                explanation: 'This table estimates item demand and revenue using Holt-Winters when history is sufficient, otherwise it falls back to recent average movement.',
+                action: 'Use review items as checks before stock or purchasing decisions.'
+            });
+        }
+
         async function loadSales() {
             const data = await cachedAnalyticsJson(baseURL + '/sales', currentAnalyticsFilterParams({ mape_threshold: salesMapeThreshold }));
             if (!data.success) throw new Error(data.error);
@@ -2257,11 +4008,20 @@
             const accuracy = data.forecast_accuracy || {};
             const recommendations = data.recommendations || [];
             const products = descriptive.product_distribution || [];
+            const productDisplayLimit = 5;
             const forecastRows = data.forecast || [];
             latestSalesAnalytics = data;
             latestRecommendations = recommendations;
             updateRecommendationBadge('sales');
+            const forecastQuality = forecastQualityLabel(data, accuracy);
+            const itemForecastSummaryHtml = itemForecastSummary(forecastRows);
             const peakMonth = (descriptive.peak_periods?.months || [])[0];
+            const peakWeekday = (descriptive.peak_periods?.weekdays || [])[0];
+            const trendMeta = revenueTrendMeta(descriptive.trend_direction);
+            const qualityClass = revenueQualityClass(accuracy);
+            const qualityText = revenueQualityText(accuracy);
+            const peakMonthText = peakMonth ? `Peak Month: ${peakMonth.period_label || peakMonth.period} averages ${peakLiftText(peakMonth, descriptive.peak_periods?.months || [])}` : 'Peak Month: Not available yet.';
+            const peakDayText = peakWeekday ? `Peak Day: ${peakWeekday.weekday} averages ${peakLiftText(peakWeekday, descriptive.peak_periods?.weekdays || [])}` : 'Peak Day: Not available yet.';
             const peakSummary = peakMonth
                 ? `${peakMonth.period_label || peakMonth.period} recorded the highest average sales activity with ${Number(peakMonth.average_quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} item(s) sold per active sales day.`
                 : 'No peak sales period is available yet.';
@@ -2270,85 +4030,150 @@
             const itemInsight = itemIncrease.length
                 ? `${itemIncrease.join(', ')} ${itemIncrease.length === 1 ? 'is' : 'are'} forecasted to increase or require attention in the next period${itemReview.length ? `, while ${itemReview.join(', ')} should be reviewed before stock decisions.` : '.'}`
                 : 'Item-level forecasts need more historical sales movement before clear increase or decline signals can be shown.';
+            const revenueForecastInsights = buildRevenueForecastInsights(data, accuracy, descriptive);
+            const productContributionInsights = buildProductContributionInsights(products);
+            const peakPeriodInsights = buildPeakPeriodInsights(descriptive);
+            const itemForecastInsights = buildItemForecastInsights(forecastRows);
+            const revenueStoryMap = analyticsBusinessGoalMap([
+                { goal: 'Forecast future sales activity', metric: 'Next Revenue Forecast', detail: 'Monthly Sales Order value and forecast horizon', visualization: 'Line chart with forecast segment' },
+                { goal: 'Check forecast trustworthiness', metric: 'Forecast Status and MAPE', detail: 'Forecast result level', visualization: 'Quality label and metric chips' },
+                { goal: 'Identify strongest products', metric: 'Product Sales Order value and share', detail: 'Top product level', visualization: 'Horizontal bar chart' },
+                { goal: 'Find peak selling periods', metric: 'Average quantity sold per active sales day', detail: 'Month and weekday level', visualization: 'Horizontal bar charts' },
+                { goal: 'Forecast item demand', metric: 'Predicted quantity, predicted revenue, MAPE, confidence', detail: 'Item level', visualization: 'Forecast table' }
+            ]);
             return `
                 <div class="analytics-section sales">
-                    <div class="filter-controls" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-                        <label style="font-weight: 700; color: var(--text-main);">MAPE Threshold</label>
-                        <input type="number" min="1" max="100" step="1" value="${Number(accuracy.mape_threshold || salesMapeThreshold)}" onchange="changeMapeThreshold(this.value)" style="width: 90px; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
-                        <span style="color: var(--text-muted); font-size: 0.9rem;">Forecast status: <strong>${accuracy.status || 'insufficient_data'}</strong>${accuracy.mape != null ? ` | MAPE ${accuracy.mape}%` : ''}</span>
-                    </div>
-
-                    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-                        <div class="stat-card"><div style="color: var(--text-muted);">Total Sales Orders</div><div style="font-size: 1.7rem; font-weight: 800;">${data.kpis.total_sales || 0}</div></div>
-                        <div class="stat-card"><div style="color: var(--text-muted);">Next Revenue Forecast</div><div class="${kpiClassFor('revenue', data.holt_winters.next_period_revenue || 0)}" style="font-size: 1.7rem; font-weight: 800;">${formatCurrency(data.holt_winters.next_period_revenue || 0)}</div></div>
-                        <div class="stat-card"><div style="color: var(--text-muted);">Trend Direction</div><div style="font-size: 1.7rem; font-weight: 800;">${descriptive.trend_direction || 'stable'}</div></div>
-                    </div>
+                    ${analyticsStoryHeader(
+                'Managers use this view to understand expected sales activity and whether the forecast can be trusted.',
+                'Forecast quality comes first, then product, period, and item details explain the sales plan.'
+            )}
+                    ${revenueStoryMap}
 
                     ${(descriptive.early_warnings || []).map(item => `<div class="surface-panel" style="margin-bottom: 0.75rem; padding: 0.75rem; border-color: #F59E0B !important;">${item}</div>`).join('')}
 
-                    <div class="analytics-row-stack">
-                        <div class="analytics-flow-row"><div class="card">
-                            <h3>Revenue Forecast</h3>
-                            <p class="chart-subtitle">Historical Sales Order value with next 3 months forecast.</p>
-                            <div class="filter-controls" style="margin: 0.85rem 0 0.75rem; display:flex; gap:0.75rem; flex-wrap:wrap; align-items:end;">
-                                <label style="display:grid; gap:0.25rem; font-weight:700; color:var(--text-main);">Range
-                                    <select id="revenueForecastRange" onchange="renderRevenueForecastChart()">
-                                        <option value="last12">Last 12 months</option>
-                                        <option value="thisYear">This year</option>
-                                        <option value="last3Years">Last 3 years</option>
-                                        <option value="all">All time</option>
-                                        <option value="custom">Custom range</option>
-                                    </select>
-                                </label>
-                                <label style="display:grid; gap:0.25rem; font-weight:700; color:var(--text-main);">Grouping
-                                    <select id="revenueForecastGrouping" onchange="renderRevenueForecastChart()">
-                                        <option value="auto">Auto</option>
-                                        <option value="monthly">Monthly</option>
-                                        <option value="quarterly">Quarterly</option>
-                                        <option value="yearly">Yearly</option>
-                                    </select>
-                                </label>
-                                <label style="display:grid; gap:0.25rem; font-weight:700; color:var(--text-main);">Forecast
-                                    <select id="revenueForecastHorizon" onchange="renderRevenueForecastChart()">
-                                        <option value="3">3 months</option>
-                                        <option value="6">6 months</option>
-                                        <option value="12">12 months</option>
-                                    </select>
-                                </label>
-                                <span id="revenueForecastCustomFields" style="display:none; gap:0.5rem; flex-wrap:wrap; align-items:end;">
-                                    <label style="display:grid; gap:0.25rem; font-weight:700; color:var(--text-main);">From
-                                        <input id="revenueForecastStart" type="month" onchange="renderRevenueForecastChart()">
-                                    </label>
-                                    <label style="display:grid; gap:0.25rem; font-weight:700; color:var(--text-main);">To
-                                        <input id="revenueForecastEnd" type="month" onchange="renderRevenueForecastChart()">
-                                    </label>
-                                </span>
+                    <div class="revenue-dashboard-grid">
+                        <section class="revenue-zone revenue-zone-hero analytics-graph-section" data-analytics-graph="revenue-forecast">
+                            <div class="revenue-hero-kpis" aria-label="Revenue forecast KPI summary">
+                                <div class="revenue-kpi-card">
+                                    <span class="revenue-kpi-label">Expected Sales Orders</span>
+                                    <strong class="revenue-kpi-value ${kpiClassFor('revenue', data.holt_winters.next_period_revenue || 0)}">${formatCurrency(data.holt_winters.next_period_revenue || 0)}</strong>
+                                    <span class="revenue-kpi-note">Next Revenue Forecast, based on booked Sales Order value.</span>
+                                </div>
+                                <div class="revenue-kpi-card">
+                                    <span class="revenue-kpi-label">Trend Direction</span>
+                                    <strong class="revenue-kpi-value">${escapeHtml(trendMeta.label)}</strong>
+                                    <span class="revenue-trend-indicator ${trendMeta.className}">${trendMeta.arrow} ${escapeHtml(descriptive.trend_direction || 'stable')}</span>
+                                </div>
+                                <div class="revenue-kpi-card">
+                                    <span class="revenue-kpi-label">Forecast Quality</span>
+                                    <span class="revenue-quality-chip ${qualityClass}">${escapeHtml(qualityText)}</span>
+                                    <span class="revenue-kpi-note">MAPE ${escapeHtml(formatMapeLabel(accuracy))} at threshold ${Number(accuracy.mape_threshold || salesMapeThreshold)}%.</span>
+                                </div>
+                                <div class="revenue-kpi-card">
+                                    <span class="revenue-kpi-label">Total Sales Orders</span>
+                                    <strong class="revenue-kpi-value">${Number(data.kpis.total_sales || 0).toLocaleString()}</strong>
+                                    <span class="revenue-kpi-note">Orders included in the selected date filter.</span>
+                                </div>
                             </div>
-                            <div id="revenueForecastMessage" class="surface-panel" style="display:none; margin:0.75rem 0;"></div>
-                            <div style="height: 340px;"><canvas id="revenueForecastChart" aria-label="Revenue forecast chart"></canvas></div>
-                            <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.75rem;">The Revenue Forecast chart shows historical Sales Order value and extends it into the next forecast period based on the most recent available data. Historical revenue is calculated from Sales Order item quantity multiplied by selling price, grouped by date. The forecasted section estimates possible future booked sales activity and does not represent actual collected cash.</p>
-                            <p style="color:var(--text-muted); font-size:0.86rem; margin-top:0.45rem;"><strong>Revenue Forecast</strong> = historical and predicted Sales Order value. <strong>Overview Revenue IN</strong> = actual cash inflow.</p>
-                        </div></div>
-                        <div class="analytics-flow-row"><div class="card"><h3>Top Product Contributions</h3><p class="chart-subtitle">Top 15 products ranked by Sales Order value. Products outside the displayed list are summarized below instead of grouped into one bar.</p><div style="height: 420px;"><canvas id="productDistributionChart" aria-label="Top product contribution ranking chart"></canvas></div><p id="productContributionSummary" style="color:var(--text-muted); font-size:0.9rem; margin-top:0.85rem;"></p></div></div>
+                            <div>
+                                <div class="revenue-zone-header">
+                                    <div>
+                                        <h3>Forecasted Sales Order value needs stock planning review</h3>
+                                        <p class="chart-subtitle">Historical Sales Order value transitions after Today into a dotted forecast segment.</p>
+                                    </div>
+                                </div>
+                                <div class="revenue-forecast-toolbar">
+                                    <label>Range
+                                        <select id="revenueForecastRange" onchange="renderRevenueForecastChart()">
+                                            <option value="last12">Last 12 months</option>
+                                            <option value="thisYear">This year</option>
+                                            <option value="last3Years">Last 3 years</option>
+                                            <option value="all">All time</option>
+                                            <option value="custom">Custom range</option>
+                                        </select>
+                                    </label>
+                                    <label>Grouping
+                                        <select id="revenueForecastGrouping" onchange="renderRevenueForecastChart()">
+                                            <option value="auto">Auto</option>
+                                            <option value="monthly">Monthly</option>
+                                            <option value="quarterly">Quarterly</option>
+                                            <option value="yearly">Yearly</option>
+                                        </select>
+                                    </label>
+                                    <label>Forecast
+                                        <select id="revenueForecastHorizon" onchange="renderRevenueForecastChart()">
+                                            <option value="3">3 months</option>
+                                            <option value="6">6 months</option>
+                                            <option value="12">12 months</option>
+                                        </select>
+                                    </label>
+                                    <span id="revenueForecastCustomFields" style="display:none; gap:0.5rem; flex-wrap:wrap; align-items:end;">
+                                        <label style="display:grid; gap:0.25rem; font-weight:700; color:var(--text-main);">From
+                                            <input id="revenueForecastStart" type="month" onchange="renderRevenueForecastChart()">
+                                        </label>
+                                        <label style="display:grid; gap:0.25rem; font-weight:700; color:var(--text-main);">To
+                                            <input id="revenueForecastEnd" type="month" onchange="renderRevenueForecastChart()">
+                                        </label>
+                                    </span>
+                                </div>
+                                <div id="revenueForecastMessage" class="surface-panel" style="display:none; margin:0.75rem 0;"></div>
+                                <div class="analytics-chart-frame"><canvas id="revenueForecastChart" aria-label="Revenue forecast chart"></canvas></div>
+                                <p class="revenue-card-footer"><strong>Revenue Forecast</strong> = expected booked Sales Order value, not actual collected cash. <strong>Overview Revenue IN</strong> = actual cash inflow.</p>
+                                ${revenueForecastInsights}
+                            </div>
+                        </section>
 
-                        <div class="analytics-flow-row"><div class="card">
-                            <h3>Peak Sales Periods</h3>
-                            <p class="chart-subtitle">Highest sales activity periods ranked by average item quantity sold per active sales day.</p>
-                            <div style="height: 220px; margin-bottom: 1rem;"><canvas id="peakSalesPeriodChart" aria-label="Peak sales months ranking chart"></canvas></div>
-                            <div style="height: 220px;"><canvas id="peakWeekdayChart" aria-label="Peak sales weekdays ranking chart"></canvas></div>
-                            <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.85rem;">${peakSummary}</p>
-                        </div></div>
-                    </div>
+                        <section class="revenue-zone revenue-zone-timing analytics-graph-section" data-analytics-graph="peak-sales-periods">
+                            <div class="revenue-zone-header">
+                                <div>
+                                    <h3>When do we experience peak demand?</h3>
+                                    <p class="chart-subtitle">Month and weekday patterns ranked by average item quantity sold per active sales day.</p>
+                                </div>
+                            </div>
+                            <div class="revenue-peak-grid">
+                                <div class="revenue-peak-panel">
+                                    <span class="revenue-peak-badge">${escapeHtml(peakMonthText)}</span>
+                                    <div class="analytics-chart-frame analytics-chart-frame-compact"><canvas id="peakSalesPeriodChart" aria-label="Peak sales months ranking chart"></canvas></div>
+                                </div>
+                                <div class="revenue-peak-panel">
+                                    <span class="revenue-peak-badge">${escapeHtml(peakDayText)}</span>
+                                    <div class="analytics-chart-frame analytics-chart-frame-compact"><canvas id="peakWeekdayChart" aria-label="Peak sales weekdays ranking chart"></canvas></div>
+                                </div>
+                            </div>
+                            <p class="revenue-card-footer">${peakSummary}</p>
+                            ${peakPeriodInsights}
+                        </section>
 
-                    <div class="card" style="margin-bottom: 1.5rem;">
-                        <h3>Item Forecasts</h3>
-                        <div class="client-table-scroll">
-                            <table class="client-table">
-                                <thead><tr><th>Item</th><th style="text-align:right;">Qty</th><th style="text-align:right;">Revenue</th><th>Method</th><th>MAPE</th><th>Status</th></tr></thead>
-                                <tbody>${forecastRows.map(row => `<tr><td>${row.item}</td><td style="text-align:right;">${Number(row.predicted_qty || 0).toFixed(2)}</td><td class="${kpiClassFor('revenue', row.predicted_revenue)}" style="text-align:right;">${formatCurrency(row.predicted_revenue)}</td><td>${row.method}</td><td>${row.mape == null ? 'Insufficient' : row.mape + '%'}</td><td>${row.confidence}</td></tr>`).join('')}</tbody>
-                            </table>
-                        </div>
-                        <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.85rem;">${itemInsight}</p>
+                        <section class="revenue-zone revenue-zone-products analytics-graph-section" data-analytics-graph="product-contributions">
+                            <div class="revenue-zone-header">
+                                <div>
+                                    <h3>Which products drive booked revenue?</h3>
+                                    <p class="chart-subtitle">Top ${productDisplayLimit} products ranked by Sales Order value.</p>
+                                </div>
+                                <button id="productContributionToggle" type="button" class="btn btn-secondary revenue-product-header-action" onclick="toggleProductContributionLimit()">View All</button>
+                            </div>
+                            <div class="analytics-chart-frame analytics-chart-frame-tall"><canvas id="productDistributionChart" aria-label="Top product contribution ranking chart"></canvas></div>
+                            <p id="productContributionSummary" class="revenue-card-footer"></p>
+                            ${productContributionInsights}
+                        </section>
+
+                        <section class="revenue-zone revenue-zone-table analytics-table-section revenue-table-section" data-analytics-graph="item-forecasts">
+                            <div class="revenue-zone-header">
+                                <div>
+                                    <h3>Item-level demand forecast</h3>
+                                    <p class="chart-subtitle">Use status chips and MAPE before turning item predictions into purchasing or stock actions.</p>
+                                </div>
+                            </div>
+                            ${itemForecastSummaryHtml}
+                            <div class="client-table-scroll">
+                                <table class="client-table">
+                                    <thead><tr><th>Item</th><th style="text-align:right;">Qty</th><th style="text-align:right;">Predicted Revenue</th><th>Method</th><th>MAPE</th><th>Status</th></tr></thead>
+                                    <tbody>${forecastRows.map(row => `<tr><td>${escapeHtml(row.item || 'Unknown item')}</td><td style="text-align:right;">${Number(row.predicted_qty || 0).toFixed(2)}</td><td class="revenue-forecast-revenue ${kpiClassFor('revenue', row.predicted_revenue)}" style="text-align:right;">${formatCurrency(row.predicted_revenue)}</td><td>${escapeHtml(row.method || 'fallback_average')}</td><td>${row.mape == null ? 'Insufficient' : escapeHtml(row.mape + '%')}</td><td>${renderRevenueStatusChip(row.confidence)}</td></tr>`).join('')}</tbody>
+                                </table>
+                            </div>
+                            <p class="revenue-card-footer">${itemInsight}</p>
+                            ${itemForecastInsights}
+                        </section>
                     </div>
                 </div>`;
         }
@@ -2443,6 +4268,15 @@
             }
         }
 
+        function toggleProductContributionLimit() {
+            const toggle = document.getElementById('productContributionToggle');
+            if (!toggle) return;
+            const expanded = toggle.dataset.expanded === 'true';
+            toggle.dataset.expanded = expanded ? 'false' : 'true';
+            toggle.textContent = expanded ? 'View All' : 'Show Top 5';
+            initSalesCharts(latestSalesAnalytics);
+        }
+
         function renderRevenueForecastChart(data = latestSalesAnalytics) {
             const revenueForecast = data?.predictive?.monthly_revenue_forecast || {};
             const forecastCanvas = document.getElementById('revenueForecastChart');
@@ -2497,18 +4331,18 @@
                     const xScale = scales.x;
                     const markerX = xScale.getPixelForValue(forecastStartIndex);
                     ctx.save();
-                    ctx.strokeStyle = '#64748B';
+                    ctx.strokeStyle = '#111827';
                     ctx.setLineDash([4, 4]);
-                    ctx.lineWidth = 1;
+                    ctx.lineWidth = 2;
                     ctx.beginPath();
                     ctx.moveTo(markerX, chartArea.top);
                     ctx.lineTo(markerX, chartArea.bottom);
                     ctx.stroke();
                     ctx.setLineDash([]);
-                    ctx.fillStyle = '#64748B';
+                    ctx.fillStyle = '#111827';
                     ctx.font = '12px sans-serif';
                     ctx.textAlign = 'left';
-                    ctx.fillText('Forecast starts here', Math.min(markerX + 8, chartArea.right - 120), chartArea.top + 16);
+                    ctx.fillText('Today - Forecast starts here', Math.min(markerX + 8, chartArea.right - 145), chartArea.top + 16);
                     ctx.restore();
                 }
             };
@@ -2575,7 +4409,9 @@
             const descriptive = data.descriptive || {};
             const trend = descriptive.monthly_trend || [];
             const allProducts = descriptive.product_distribution || [];
-            const products = allProducts.slice(0, 15);
+            const productToggle = document.getElementById('productContributionToggle');
+            const productDisplayLimit = productToggle?.dataset.expanded === 'true' ? allProducts.length : 5;
+            const products = allProducts.slice(0, productDisplayLimit);
             const totalProductRevenue = allProducts.reduce((sum, item) => sum + Number(item.revenue || 0), 0);
             const displayedProductRevenue = products.reduce((sum, item) => sum + Number(item.revenue || 0), 0);
             const remainingProductCount = Math.max(allProducts.length - products.length, 0);
@@ -2584,13 +4420,13 @@
             if (productSummary) {
                 const remainingShare = totalProductRevenue ? remainingProductRevenue / totalProductRevenue * 100 : 0;
                 productSummary.textContent = remainingProductCount
-                    ? `Products outside the top 15 account for ${formatCurrency(remainingProductRevenue)} (${remainingShare.toFixed(1)}% of Sales Order value). They are not combined into one bar to avoid making the remainder look like a single product.`
+                    ? `Products outside the top ${productDisplayLimit} account for ${formatCurrency(remainingProductRevenue)} (${remainingShare.toFixed(1)}% of Sales Order value). They are not combined into one bar to avoid making the remainder look like a single product.`
                     : 'All products in the selected period are shown.';
             }
             renderRevenueForecastChart(data);
             const productCanvas = document.getElementById('productDistributionChart');
             if (productCanvas) {
-                currentCharts.push(createAnalyticsChart(productCanvas, {
+                replaceChartForCanvas(productCanvas, {
                     type: 'bar',
                     data: {
                         labels: [...products].reverse().map(item => item.item),
@@ -2619,20 +4455,20 @@
                             y: { grid: { display: false } }
                         }
                     }
-                }));
+                });
             }
             const peakCanvas = document.getElementById('peakSalesPeriodChart');
             if (peakCanvas) {
                 const peakMonths = descriptive.peak_periods?.months || [];
                 const maxAverageQuantity = Math.max(...peakMonths.map(item => Number(item.average_quantity || 0)), 0);
-                currentCharts.push(createAnalyticsChart(peakCanvas, {
+                replaceChartForCanvas(peakCanvas, {
                     type: 'bar',
                     data: {
                         labels: [...peakMonths].reverse().map(item => item.period_label || item.period),
                         datasets: [{
                             label: 'Average quantity sold per active sales day',
                             data: [...peakMonths].reverse().map(item => item.average_quantity),
-                            backgroundColor: [...peakMonths].reverse().map(item => Number(item.average_quantity || 0) === maxAverageQuantity ? '#F97316' : '#FBBF24')
+                            backgroundColor: [...peakMonths].reverse().map(item => Number(item.average_quantity || 0) === maxAverageQuantity ? '#F97316' : '#CBD5E1')
                         }]
                     },
                     options: {
@@ -2659,20 +4495,20 @@
                             y: { grid: { display: false } }
                         }
                     }
-                }));
+                });
             }
             const weekdayCanvas = document.getElementById('peakWeekdayChart');
             if (weekdayCanvas) {
                 const weekdays = descriptive.peak_periods?.weekdays || [];
                 const maxWeekdayAverage = Math.max(...weekdays.map(item => Number(item.average_quantity || 0)), 0);
-                currentCharts.push(createAnalyticsChart(weekdayCanvas, {
+                replaceChartForCanvas(weekdayCanvas, {
                     type: 'bar',
                     data: {
                         labels: [...weekdays].reverse().map(item => item.weekday),
                         datasets: [{
                             label: 'Average quantity sold per active sales day',
                             data: [...weekdays].reverse().map(item => item.average_quantity),
-                            backgroundColor: [...weekdays].reverse().map(item => Number(item.average_quantity || 0) === maxWeekdayAverage ? '#2563EB' : '#93C5FD')
+                            backgroundColor: [...weekdays].reverse().map(item => Number(item.average_quantity || 0) === maxWeekdayAverage ? '#2563EB' : '#CBD5E1')
                         }]
                     },
                     options: {
@@ -2696,7 +4532,7 @@
                             y: { grid: { display: false } }
                         }
                     }
-                }));
+                });
             }
         }
 
@@ -2747,10 +4583,26 @@
             recommendationSeverityFilter = 'all';
             recommendationSearchQuery = '';
             updateRecommendationBadge('recommendations');
+            const recommendationStoryMap = analyticsBusinessGoalMap([
+                { goal: 'Prioritize manager action', metric: 'Recommendation severity', detail: 'Store recommendation level', visualization: 'Summary chips and filtered list' },
+                { goal: 'Explain why action is needed', metric: 'Rule triggers and evidence', detail: 'Recommendation detail level', visualization: 'Recommendation row and detail modal' },
+                { goal: 'Support follow-up by store', metric: 'Store name and recommendation result', detail: 'Store level', visualization: 'Searchable ranked list' },
+                { goal: 'Defend recommendation logic', metric: 'Calculation process and thresholds', detail: 'Rule detail level', visualization: 'Expandable modal detail' }
+            ]);
             return `
                 <div class="analytics-section recommendations">
+                    ${analyticsStoryHeader(
+                'Managers use this view to turn analytics signals into ranked follow-up actions.',
+                'High-priority recommendations come first, then each card explains why it appeared and what to do next.'
+            )}
+                    ${recommendationStoryMap}
+                    ${analyticsSummaryStrip([
+                { label: 'High Priority', value: String(storeRecommendations.filter(item => item.severity === 'danger').length) },
+                { label: 'Needs Attention', value: String(storeRecommendations.filter(item => item.severity === 'warning').length) },
+                { label: 'Maintain', value: String(storeRecommendations.filter(item => item.severity === 'success').length) }
+            ], 'Recommendation priority summary')}
                     <div class="card recommendation-intro">
-                        <h3>Per-Store Recommendations</h3>
+                        <h3>Rule-based recommendations convert analytics signals into manager actions</h3>
                         <p style="color:var(--text-muted); font-size:0.95rem;">This rule-based recommendation system reviews each store's sales, margin, order activity, branch coverage, and item evidence for the selected period. It highlights where managers may need to follow up, protect a good account, review pricing, or complete missing data.</p>
                         <p style="color:var(--text-muted); font-size:0.82rem; margin-bottom:0;">Each card explains why it appeared, what it means for the business, the recommended action, and the evidence behind it. Technical thresholds remain available inside each card's calculation details.</p>
                     </div>
@@ -2937,8 +4789,8 @@
                             <strong>Evidence</strong>
                             <div class="recommendation-evidence-grid">
                                 ${(evidence.length ? evidence : [
-                                    { label: 'Result', value: rec.result || rec.reason || 'No additional evidence was provided.' }
-                                ]).map(item => `
+                    { label: 'Result', value: rec.result || rec.reason || 'No additional evidence was provided.' }
+                ]).map(item => `
                                     <span class="recommendation-row-metric">
                                         ${escapeHtml(item.label || 'Evidence')}
                                         <strong>${escapeHtml(String(recommendationEvidenceValue(item)))}</strong>

@@ -47,6 +47,11 @@ from analytics_services import (
     get_expenses_breakdown,
     get_sales_analysis,
     get_comparative_analysis,
+    ANALYTICS_ITEM_CATEGORIES,
+    ANALYTICS_UNCATEGORIZED,
+    analytics_item_category_key,
+    analytics_revenue_item_display_name,
+    analytics_valid_item_category,
 )
 from admin_services import (
     bulk_delete,
@@ -369,6 +374,20 @@ class AnalyticsData(db.Model):
     def __repr__(self):
         return f"<analytics_data {self.analytics_id} - {self.source_type}:{self.source_id}>"
 
+class AnalyticsItemCategory(db.Model):
+    __tablename__ = 'analytics_item_categories'
+    id = db.Column(db.Integer, primary_key=True)
+    normalized_item_key = db.Column(db.String(500), unique=True, nullable=False)
+    display_item_name = db.Column(db.String(500), nullable=False)
+    category = db.Column(db.String(80), nullable=False)
+    updated_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
+
+    updated_by = db.relationship('User', foreign_keys=[updated_by_user_id])
+
+    def __repr__(self):
+        return f"<analytics_item_category {self.display_item_name}:{self.category}>"
+
 class EvaluationSession(db.Model):
     __tablename__ = 'evaluation_sessions'
     id = db.Column(db.Integer, primary_key=True)
@@ -661,6 +680,7 @@ def app_models():
         'AuditLog': AuditLog,
         'PasswordReset': PasswordReset,
         'AnalyticsData': AnalyticsData,
+        'AnalyticsItemCategory': AnalyticsItemCategory,
         'EvaluationSession': EvaluationSession,
         'EvaluationQuestion': EvaluationQuestion,
         'EvaluationResponse': EvaluationResponse,
@@ -831,25 +851,7 @@ def build_theme_css(settings):
     surface_strong_opacity = 1 if is_solid_mode else 0.90 if is_dark_theme else 0.82
     highlight_r, highlight_g, highlight_b = hex_to_rgb_tuple(settings['orange'])
     accent_r, accent_g, accent_b = hex_to_rgb_tuple(settings['orange_2'])
-    glass_shadow = (
-        '0 10px 26px rgba(2, 6, 23, 0.22)'
-        if is_contrast_mode else
-        '0 4px 20px rgba(0, 0, 0, 0.40)'
-        if is_solid_mode else
-        (
-            '0 24px 70px rgba(0, 0, 0, 0.42), '
-            '0 12px 34px rgba(0, 0, 0, 0.30), '
-            'inset 1px 1px 0 rgba(255, 255, 255, 0.08), '
-            f'inset -18px -18px 42px rgba({accent_r}, {accent_g}, {accent_b}, 0.08)'
-        )
-        if is_dark_theme else
-        (
-            f'0 24px 70px rgba({highlight_r}, {highlight_g}, {highlight_b}, 0.18), '
-            '0 12px 34px rgba(15, 23, 42, 0.16), '
-            'inset 1px 1px 0 rgba(255, 255, 255, 0.84), '
-            f'inset -18px -18px 42px rgba({accent_r}, {accent_g}, {accent_b}, 0.13)'
-        )
-    )
+    glass_shadow = 'none'
     body_background = (
         f'var(--bg)'
         if is_dashboard_dark or is_contrast_mode else
@@ -889,7 +891,7 @@ def build_theme_css(settings):
     --border-color: var(--glass-border);
     --border-width: 1px;
     --card-bg: var(--surface-strong);
-    --card-shadow: var(--shadow-soft);
+    --card-shadow: none;
     --line: {hex_to_rgba(line_base, 0.44 if (is_black_mode or is_contrast_mode) else 0.22 if is_dark_theme else 0.10)};
     --line-strong: {hex_to_rgba(line_base, 0.72 if (is_black_mode or is_contrast_mode) else 0.34 if is_dark_theme else 0.18)};
     --glass-blur: {'none' if is_solid_mode else f"blur({settings['blur_px']}px) saturate({settings['saturate_percent']}%)"};
@@ -905,8 +907,8 @@ def build_theme_css(settings):
     --ui-font-section-title: 1.05rem;
     --ui-font-card-title: 0.95rem;
     --ui-font-kpi: clamp(1.25rem, 1.8vw, 1.55rem);
-    --shadow: {'0 16px 40px rgba(2, 6, 23, 0.28)' if is_contrast_mode else '0 4px 20px rgba(0, 0, 0, 0.40)' if is_solid_mode else '0 28px 90px rgba(0, 0, 0, 0.48)' if is_dark_theme else '0 24px 80px rgba(15, 23, 42, 0.14)'};
-    --shadow-soft: {'0 10px 26px rgba(2, 6, 23, 0.22)' if is_contrast_mode else '0 4px 20px rgba(0, 0, 0, 0.40)' if is_solid_mode else '0 14px 44px rgba(0, 0, 0, 0.38)' if is_dark_theme else '0 12px 38px rgba(15, 23, 42, 0.10)'};
+    --shadow: none;
+    --shadow-soft: none;
     --glass-shadow: {glass_shadow};
 }}
 
@@ -1055,7 +1057,7 @@ body > nav {{
     border-radius: 0 !important;
     background: var(--card-bg) !important;
     background-image: none !important;
-    box-shadow: 0 1px 0 var(--line) !important;
+    box-shadow: none;
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
 }}
@@ -1072,7 +1074,7 @@ body > nav {{
     border: 0 !important;
     border-radius: 0 !important;
     background: transparent !important;
-    box-shadow: none !important;
+    box-shadow: none;
     scrollbar-width: none !important;
 }}
 
@@ -1091,7 +1093,7 @@ body > nav {{
     line-height: 1.15 !important;
     text-decoration: none !important;
     white-space: nowrap !important;
-    box-shadow: none !important;
+    box-shadow: none;
 }}
 
 .section-header h1,
@@ -1185,7 +1187,7 @@ td,
     background-image: none !important;
     border: var(--border-width) solid var(--border-color) !important;
     border-radius: var(--radius-xl) !important;
-    box-shadow: var(--card-shadow) !important;
+    box-shadow: none;
     color: var(--text-main) !important;
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
@@ -1206,7 +1208,7 @@ td,
     background: var(--card-bg) !important;
     border: var(--border-width) solid var(--border-color) !important;
     border-radius: var(--radius-lg) !important;
-    box-shadow: none !important;
+    box-shadow: none;
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
 }}
@@ -1260,7 +1262,7 @@ td,
     border-radius: {settings['control_radius_px']}px !important;
     background: transparent !important;
     color: var(--text-muted) !important;
-    box-shadow: none !important;
+    box-shadow: none;
 }}
 
 main,
@@ -3956,10 +3958,10 @@ def upload_too_large_error(error):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
+        username = (request.form.get('username') or '').strip()
         password = request.form.get('password')
         
-        user = User.query.filter_by(username=username).first()
+        user = User.query.filter(func.lower(User.username) == username.lower()).first()
         
         if user and check_password_hash(user.password_hash, password):
             if not is_user_approved(user):
@@ -8086,6 +8088,107 @@ def api_analytics_expenses():
     except Exception as e:
         return jsonify({'success': False, 'error': public_error_message(e, 'Expense analytics could not be loaded.')}), 400
 
+def analytics_detected_item_categories():
+    rows = (
+        db.session.query(
+            SalesOrderItem.particular,
+            func.sum(SalesOrderItem.quantity).label('quantity'),
+            func.sum(SalesOrderItem.total).label('revenue'),
+        )
+        .group_by(SalesOrderItem.particular)
+        .order_by(func.sum(SalesOrderItem.total).desc())
+        .all()
+    )
+    saved = {
+        row.normalized_item_key: row
+        for row in AnalyticsItemCategory.query.all()
+    }
+    detected = {}
+    for row in rows:
+        display_name = analytics_revenue_item_display_name(row.particular)
+        item_key = analytics_item_category_key(display_name)
+        saved_row = saved.get(item_key)
+        bucket = detected.setdefault(item_key, {
+            'normalized_item_key': item_key,
+            'display_item_name': saved_row.display_item_name if saved_row else display_name,
+            'category': saved_row.category if saved_row else ANALYTICS_UNCATEGORIZED,
+            'is_mapped': bool(saved_row),
+            'quantity': 0,
+            'revenue': 0.0,
+        })
+        bucket['quantity'] += int(row.quantity or 0)
+        bucket['revenue'] += float(row.revenue or 0)
+    return sorted(detected.values(), key=lambda item: item['revenue'], reverse=True)
+
+@app.route('/api/analytics/item-categories', methods=['GET'])
+@login_required
+@role_required('manager', 'admin')
+def api_analytics_item_categories():
+    try:
+        return jsonify({
+            'success': True,
+            'allowed_categories': list(ANALYTICS_ITEM_CATEGORIES),
+            'uncategorized_label': ANALYTICS_UNCATEGORIZED,
+            'items': analytics_detected_item_categories(),
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': public_error_message(e, 'Item categories could not be loaded.')}), 400
+
+@app.route('/api/analytics/item-categories', methods=['POST'])
+@login_required
+@role_required('manager', 'admin')
+def api_analytics_item_categories_save():
+    try:
+        payload = request.get_json(silent=True) or {}
+        assignments = payload.get('assignments') or []
+        if not isinstance(assignments, list):
+            return jsonify({'success': False, 'error': 'Assignments must be a list.'}), 400
+        allowed = {category.upper(): category for category in ANALYTICS_ITEM_CATEGORIES}
+        saved_count = 0
+        removed_count = 0
+        for assignment in assignments:
+            if not isinstance(assignment, dict):
+                continue
+            item_name = str(assignment.get('display_item_name') or assignment.get('item') or '').strip()
+            raw_key = str(assignment.get('normalized_item_key') or '').strip()
+            if not item_name and not raw_key:
+                continue
+            normalized_key = raw_key or analytics_item_category_key(item_name)
+            display_name = analytics_revenue_item_display_name(item_name or normalized_key)
+            raw_category = str(assignment.get('category') or '').strip()
+            category = analytics_valid_item_category(raw_category)
+            existing = AnalyticsItemCategory.query.filter_by(normalized_item_key=normalized_key).first()
+            if not raw_category or raw_category.upper() == ANALYTICS_UNCATEGORIZED.upper():
+                if existing:
+                    db.session.delete(existing)
+                    removed_count += 1
+                continue
+            if category.upper() not in allowed:
+                return jsonify({'success': False, 'error': f'Invalid category: {assignment.get("category")}'}), 400
+            if not existing:
+                existing = AnalyticsItemCategory(normalized_item_key=normalized_key, display_item_name=display_name, category=category)
+                db.session.add(existing)
+            existing.display_item_name = display_name
+            existing.category = category
+            existing.updated_by_user_id = session.get('user_id')
+            existing.updated_at = datetime.now(UTC)
+            saved_count += 1
+        log_audit('UPDATE_ANALYTICS_ITEM_CATEGORIES', 'analytics_item_categories', None, None, {
+            'saved': saved_count,
+            'removed': removed_count,
+        })
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': f'Saved {saved_count} product category assignment(s).',
+            'saved': saved_count,
+            'removed': removed_count,
+            'items': analytics_detected_item_categories(),
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': public_error_message(e, 'Item categories could not be saved.')}), 400
+
 @app.route('/api/analytics/sales')
 @login_required
 @role_required('manager', 'admin')
@@ -8105,13 +8208,14 @@ def api_analytics_sales():
         return jsonify({'success': False, 'error': public_error_message(e, 'Sales analytics could not be loaded.')}), 400
 
 def likert_interpretation(mean_score):
-    if mean_score >= 4.21:
+    score = float(mean_score or 0)
+    if score >= 4.50:
         return 'Strongly Agree'
-    if mean_score >= 3.41:
+    if score >= 3.50:
         return 'Agree'
-    if mean_score >= 2.61:
+    if score >= 2.50:
         return 'Moderately Agree'
-    if mean_score >= 1.81:
+    if score >= 1.50:
         return 'Disagree'
     return 'Strongly Disagree'
 
@@ -8215,16 +8319,25 @@ def evaluation_results():
     )
     question_results = []
     category_totals = {}
+    category_tables = {}
     all_scores = []
     for question, avg_rating, response_count in rows:
         average = round(float(avg_rating or 0), 2)
+        interpretation = likert_interpretation(average) if response_count else 'No responses'
         question_results.append({
             'question_id': question.id,
             'category': question.category,
             'question_text': question.question_text,
             'average': average,
             'response_count': int(response_count or 0),
-            'interpretation': likert_interpretation(average) if response_count else 'No responses',
+            'interpretation': interpretation,
+        })
+        category_tables.setdefault(question.category, []).append({
+            'question_id': question.id,
+            'question_text': question.question_text,
+            'mean': average,
+            'response_count': int(response_count or 0),
+            'interpretation': interpretation,
         })
         if response_count:
             category_totals.setdefault(question.category, []).append(average)
@@ -8237,11 +8350,49 @@ def evaluation_results():
         }
         for category, scores in category_totals.items()
     ]
+    category_table_payload = []
+    for category, questions in category_tables.items():
+        scored_questions = [item for item in questions if item['response_count']]
+        total_weighted_mean = round(
+            sum(item['mean'] for item in scored_questions) / len(scored_questions),
+            2,
+        ) if scored_questions else 0
+        category_table_payload.append({
+            'category': category,
+            'category_label': category,
+            'total_weighted_mean': total_weighted_mean,
+            'interpretation': likert_interpretation(total_weighted_mean) if scored_questions else 'No responses',
+            'questions': questions,
+        })
     overall_mean = round(sum(all_scores) / len(all_scores), 2) if all_scores else 0
-    sessions = EvaluationSession.query.filter(
+    session_query = EvaluationSession.query.filter(
         EvaluationSession.created_at >= datetime.combine(filters['start_date'], datetime.min.time()),
         EvaluationSession.created_at < datetime.combine(filters['end_date'], datetime.min.time()),
-    ).order_by(EvaluationSession.created_at.desc()).limit(10).all()
+    )
+    all_sessions = session_query.all()
+    respondent_counts = {'IT Professional': 0, 'End User': 0}
+    respondent_role_counts = {}
+    for item in all_sessions:
+        role_value = (item.evaluator_role or '').strip()
+        normalized_role = role_value.lower()
+        respondent_group = (
+            'IT Professional'
+            if any(token in normalized_role for token in ('it', 'professional', 'evaluator', 'developer', 'administrator'))
+            else 'End User'
+        )
+        respondent_counts[respondent_group] += 1
+        display_role = role_value or 'Unspecified'
+        respondent_role_counts[display_role] = respondent_role_counts.get(display_role, 0) + 1
+    respondent_total = sum(respondent_counts.values())
+    respondent_mix = [
+        {
+            'label': label,
+            'count': count,
+            'percentage': round((count / respondent_total * 100), 2) if respondent_total else 0,
+        }
+        for label, count in respondent_counts.items()
+    ]
+    sessions = session_query.order_by(EvaluationSession.created_at.desc()).limit(10).all()
     return jsonify({
         'success': True,
         'filter': {
@@ -8254,7 +8405,14 @@ def evaluation_results():
         'overall_mean': overall_mean,
         'interpretation': likert_interpretation(overall_mean) if all_scores else 'No responses',
         'categories': categories,
+        'category_tables': category_table_payload,
         'questions': question_results,
+        'respondent_mix': respondent_mix,
+        'respondent_role_counts': [
+            {'role': role, 'count': count}
+            for role, count in sorted(respondent_role_counts.items(), key=lambda item: item[0].lower())
+        ],
+        'response_count': respondent_total,
         'sessions': [
             {
                 'id': item.id,

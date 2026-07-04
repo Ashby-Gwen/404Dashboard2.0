@@ -20,7 +20,7 @@
         .evaluation-tab:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent-main, #2563eb) 28%, transparent); outline-offset: 2px; }
         .evaluation-panel[hidden] { display: none; }
         .evaluation-instruction { margin: 0 0 1rem; }
-        .evaluation-survey { overflow: hidden; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-card, #fff); box-shadow: var(--shadow); }
+        .evaluation-survey { overflow: hidden; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-card, #fff); box-shadow: none; }
         .evaluation-grid-header, .evaluation-question-row { display: grid; grid-template-columns: 64px minmax(260px, 1fr) repeat(5, 72px); }
         .evaluation-grid-header { background: var(--nav-bg, #1a4971); color: white; font-weight: 700; }
         .evaluation-grid-header > div, .evaluation-question-row > div, .evaluation-question-row > label { padding: 0.85rem 0.6rem; border-right: 1px solid var(--border-color); }
@@ -34,10 +34,10 @@
         .evaluation-rating-cell { display: grid; place-items: center; cursor: pointer; position: relative; }
         .evaluation-rating-cell input { position: absolute; opacity: 0; pointer-events: none; }
         .evaluation-rating-box { width: 27px; height: 27px; display: grid; place-items: center; border: 2px solid #9ca3af; border-radius: 5px; background: white; transition: 160ms ease; }
-        .evaluation-rating-cell:hover .evaluation-rating-box, .evaluation-rating-cell input:focus-visible + .evaluation-rating-box { border-color: var(--accent-main); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-main) 18%, transparent); }
+        .evaluation-rating-cell:hover .evaluation-rating-box, .evaluation-rating-cell input:focus-visible + .evaluation-rating-box { border-color: var(--accent-main); box-shadow: none; }
         .evaluation-rating-cell input:checked + .evaluation-rating-box { background: var(--accent-main); border-color: var(--accent-main); color: white; }
         .evaluation-rating-cell input:checked + .evaluation-rating-box::after { content: "V"; font-weight: 900; }
-        .evaluation-feedback, .qa-card { margin-top: 1rem; padding: 1rem; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-card, #fff); box-shadow: var(--shadow-sm); }
+        .evaluation-feedback, .qa-card { margin-top: 1rem; padding: 1rem; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-card, #fff); box-shadow: none; }
         .evaluation-feedback label, .qa-field label { display: block; margin-bottom: 0.45rem; font-weight: 700; }
         .evaluation-feedback textarea, .qa-field textarea, .qa-field input, .qa-field select { width: 100%; min-height: 42px; padding: 0.65rem 0.75rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-card, #fff); color: var(--text-main); font: inherit; }
         .evaluation-feedback textarea, .qa-field textarea { min-height: 90px; }
@@ -46,14 +46,29 @@
         .evaluation-success { display: none; margin-top: 1rem; padding: 1rem; border: 1px solid #34d399; border-radius: var(--radius-lg); background: #d1fae5; color: #065f46; text-align: center; font-weight: 700; }
         .evaluation-results { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); }
         .evaluation-result-summary, .qa-summary-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; }
-        .evaluation-kpi, .qa-stat-card { padding: 1rem; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-card, #fff); box-shadow: var(--shadow-sm); }
+        .evaluation-kpi, .qa-stat-card { padding: 1rem; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-card, #fff); box-shadow: none; }
         .evaluation-kpi span, .qa-stat-card span:first-child { display: block; color: var(--text-muted); font-size: 0.82rem; font-weight: 800; text-transform: uppercase; }
         .evaluation-kpi strong, .qa-stat-card strong { display: block; margin-top: 0.35rem; font-size: var(--ui-font-kpi, 1.45rem); }
         .evaluation-result-list { margin-top: 1rem; display: grid; grid-template-columns: minmax(0,1.05fr) minmax(0,.95fr); gap: 1rem; align-items: start; }
         .evaluation-result-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color); }
+        .evaluation-category-results { display: grid; gap: 1rem; margin-top: 1rem; }
+        .evaluation-category-table-wrap { overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-card, #fff); }
+        .evaluation-category-table { width: 100%; min-width: 680px; border-collapse: collapse; }
+        .evaluation-category-table th, .evaluation-category-table td { padding: 0.75rem; border-bottom: 1px solid var(--border-color); text-align: left; vertical-align: top; }
+        .evaluation-category-table th { background: var(--nav-bg, #1a4971); color: #fff; font-weight: 800; }
+        .evaluation-category-table td:nth-child(2), .evaluation-category-table td:nth-child(3), .evaluation-category-table th:nth-child(2), .evaluation-category-table th:nth-child(3) { width: 170px; text-align: center; }
+        .evaluation-category-table tfoot td { background: var(--bg-secondary, #f8fafc); font-weight: 800; }
+        .evaluation-respondent-card { display: grid; gap: 1rem; align-items: center; }
+        .evaluation-respondent-chart-row { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 1rem; align-items: center; }
+        .evaluation-respondent-pie { width: 150px; aspect-ratio: 1; border-radius: 999px; background: conic-gradient(#2563eb 0deg, #2563eb var(--it-slice, 0deg), #f97316 var(--it-slice, 0deg), #f97316 360deg); border: 1px solid var(--border-color); }
+        .evaluation-respondent-legend { display: grid; gap: 0.6rem; }
+        .evaluation-respondent-legend-row { display: flex; justify-content: space-between; gap: 0.75rem; align-items: center; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); }
+        .evaluation-legend-label { display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 800; }
+        .evaluation-legend-swatch { width: 0.75rem; height: 0.75rem; border-radius: 999px; background: var(--swatch); }
+        .evaluation-range-note { margin: 1rem 0 0; color: var(--text-muted); font-size: 0.86rem; line-height: 1.45; }
         .qa-tester-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1rem; }
         .qa-role-options { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; min-height: 42px; }
-        .qa-module-section { margin-top: 1rem; border: 1px solid var(--border-color); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-card, #fff); box-shadow: var(--shadow-sm); }
+        .qa-module-section { margin-top: 1rem; border: 1px solid var(--border-color); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-card, #fff); box-shadow: none; }
         .qa-module-title { margin: 0; padding: 1rem 1.25rem; background: var(--bg-secondary, #f8fafc); border-bottom: 1px solid var(--border-color); font-size: 1rem; }
         .qa-test-case { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(300px, 1.05fr); gap: 1rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color); }
         .qa-test-case:last-child { border-bottom: 0; }
@@ -67,7 +82,7 @@
         .qa-muted { color: var(--text-muted); font-size: 0.82rem; }
         .evaluation-print-overlay { position: fixed; inset: 0; z-index: 10040; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(15,23,42,.62); backdrop-filter: blur(3px); }
         .evaluation-print-overlay[hidden] { display: none; }
-        .evaluation-print-dialog { width: min(1100px, 100%); max-height: 92vh; display: flex; flex-direction: column; border-radius: var(--radius-xl); background: var(--bg-card, #fff); box-shadow: var(--shadow-lg); overflow: hidden; }
+        .evaluation-print-dialog { width: min(1100px, 100%); max-height: 92vh; display: flex; flex-direction: column; border-radius: var(--radius-xl); background: var(--bg-card, #fff); box-shadow: none; overflow: hidden; }
         .evaluation-print-header, .evaluation-print-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; background: var(--bg-secondary, #f8fafc); }
         .evaluation-print-body { padding: 1.25rem; overflow: auto; }
         @media (max-width: 850px) {
@@ -78,6 +93,7 @@
             .evaluation-statement { grid-column: 1 / -1; font-weight: 700; }
             .evaluation-rating-cell::before { content: attr(data-label); display: block; margin-bottom: 0.25rem; color: var(--text-muted); font-size: 0.8rem; font-weight: 700; }
             .evaluation-result-list, .qa-test-case { grid-template-columns: 1fr; }
+            .evaluation-respondent-chart-row { grid-template-columns: 1fr; justify-items: start; }
         }
         @media print {
             body { background: white !important; }
@@ -375,11 +391,66 @@
                 <div class="evaluation-result-summary">
                     <div class="evaluation-kpi"><span>Overall Mean</span><strong>${Number(payload.overall_mean || 0).toFixed(2)} / 5</strong></div>
                     <div class="evaluation-kpi"><span>Interpretation</span><strong>${escapeEvaluationHtml(payload.interpretation)}</strong></div>
-                    <div class="evaluation-kpi"><span>Recent Responses</span><strong>${(payload.sessions || []).length}</strong></div>
+                    <div class="evaluation-kpi"><span>Total Responses</span><strong>${Number(payload.response_count || 0).toLocaleString()}</strong></div>
                 </div>
                 <div class="evaluation-result-list">
-                    <div class="qa-card"><h3>Categories</h3>${(payload.categories || []).map(item => `<div class="evaluation-result-row"><span>${escapeEvaluationHtml(evaluationCategoryDisplayLabel(item.category))}</span><strong>${Number(item.average || 0).toFixed(2)} - ${escapeEvaluationHtml(item.interpretation)}</strong></div>`).join('') || '<p>No category results yet.</p>'}</div>
+                    ${renderRespondentMixChart(payload)}
                     <div class="qa-card"><h3>Recent Feedback</h3>${(payload.sessions || []).map(item => `<div class="evaluation-result-row"><span><strong>${escapeEvaluationHtml(item.evaluator_name)}</strong><br><small>${escapeEvaluationHtml(item.overall_comment || 'No comment')}</small></span><strong>${Number(item.overall_mean || 0).toFixed(2)}</strong></div>`).join('') || '<p>No sessions submitted yet.</p>'}</div>
+                </div>
+                ${renderEvaluationCategoryTables(payload.category_tables || [])}`;
+        }
+
+        function renderRespondentMixChart(payload) {
+            const mix = payload.respondent_mix || [];
+            const itItem = mix.find(item => item.label === 'IT Professional') || {count: 0, percentage: 0};
+            const endUserItem = mix.find(item => item.label === 'End User') || {count: 0, percentage: 0};
+            const itDegrees = Number(itItem.percentage || 0) * 3.6;
+            return `
+                <div class="qa-card evaluation-respondent-card">
+                    <h3>Respondent Type Distribution</h3>
+                    <div class="evaluation-respondent-chart-row">
+                        <div class="evaluation-respondent-pie" style="--it-slice:${itDegrees}deg" role="img" aria-label="IT Professionals ${Number(itItem.percentage || 0).toFixed(1)} percent, End Users ${Number(endUserItem.percentage || 0).toFixed(1)} percent"></div>
+                        <div class="evaluation-respondent-legend">
+                            <div class="evaluation-respondent-legend-row"><span class="evaluation-legend-label"><span class="evaluation-legend-swatch" style="--swatch:#2563eb"></span>IT Professional</span><strong>${Number(itItem.count || 0).toLocaleString()} (${Number(itItem.percentage || 0).toFixed(1)}%)</strong></div>
+                            <div class="evaluation-respondent-legend-row"><span class="evaluation-legend-label"><span class="evaluation-legend-swatch" style="--swatch:#f97316"></span>End User</span><strong>${Number(endUserItem.count || 0).toLocaleString()} (${Number(endUserItem.percentage || 0).toFixed(1)}%)</strong></div>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        function renderEvaluationCategoryTables(categoryTables) {
+            if (!categoryTables.length) return '<div class="qa-card"><p>No category results yet.</p></div>';
+            return `
+                <div class="evaluation-category-results">
+                    ${categoryTables.map(category => `
+                        <div class="evaluation-category-table-wrap">
+                            <table class="evaluation-category-table">
+                                <thead>
+                                    <tr>
+                                        <th>${escapeEvaluationHtml(evaluationCategoryDisplayLabel(category.category))}</th>
+                                        <th>Mean</th>
+                                        <th>Verbal Interpretation</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${(category.questions || []).map(question => `
+                                        <tr>
+                                            <td>${escapeEvaluationHtml(question.question_text)}</td>
+                                            <td>${Number(question.mean || 0).toFixed(2)}</td>
+                                            <td>${escapeEvaluationHtml(question.interpretation || 'No responses')}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="2">Total Weighted Mean</td>
+                                        <td>${Number(category.total_weighted_mean || 0).toFixed(2)} - ${escapeEvaluationHtml(category.interpretation || 'No responses')}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    `).join('')}
+                    <p class="evaluation-range-note"><strong>Range:</strong> 1.00-1.49 Strongly Disagree; 1.50-2.49 Disagree; 2.50-3.49 Moderately Agree; 3.50-4.49 Agree; 4.50-5.00 Strongly Agree.</p>
                 </div>`;
         }
 
