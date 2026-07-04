@@ -51,13 +51,20 @@
         .evaluation-kpi strong, .qa-stat-card strong { display: block; margin-top: 0.35rem; font-size: var(--ui-font-kpi, 1.45rem); }
         .evaluation-result-list { margin-top: 1rem; display: grid; grid-template-columns: minmax(0,1.05fr) minmax(0,.95fr); gap: 1rem; align-items: start; }
         .evaluation-result-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color); }
-        .evaluation-category-results { display: grid; gap: 1rem; margin-top: 1rem; }
-        .evaluation-category-table-wrap { overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-card, #fff); }
-        .evaluation-category-table { width: 100%; min-width: 680px; border-collapse: collapse; }
-        .evaluation-category-table th, .evaluation-category-table td { padding: 0.75rem; border-bottom: 1px solid var(--border-color); text-align: left; vertical-align: top; }
-        .evaluation-category-table th { background: var(--nav-bg, #1a4971); color: #fff; font-weight: 800; }
+        .evaluation-category-results { display: grid; gap: 1.25rem; margin-top: 1rem; }
+        .evaluation-category-result-card { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 1rem; align-items: start; padding: 1rem; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-card, #fff); }
+        .evaluation-category-chart { display: grid; gap: 0.75rem; justify-items: center; }
+        .evaluation-category-pie { width: 145px; aspect-ratio: 1; border-radius: 999px; border: 1px solid var(--border-color); background: conic-gradient(#991b1b 0deg var(--sd-end, 0deg), #dc2626 var(--sd-end, 0deg) var(--d-end, 0deg), #f59e0b var(--d-end, 0deg) var(--ma-end, 0deg), #2563eb var(--ma-end, 0deg) var(--a-end, 0deg), #16a34a var(--a-end, 0deg) 360deg); }
+        .evaluation-category-legend { display: grid; gap: 0.35rem; width: 100%; font-size: 0.76rem; color: var(--text-muted); }
+        .evaluation-category-legend-row { display: flex; justify-content: space-between; gap: 0.5rem; }
+        .evaluation-category-table-wrap { overflow-x: auto; background: var(--bg-card, #fff); }
+        .evaluation-category-table { width: 100%; min-width: 680px; border-collapse: collapse; font-family: "Times New Roman", Times, serif; font-size: 12px; }
+        .evaluation-category-table th, .evaluation-category-table td { padding: 0.45rem 0.55rem; border: 0; text-align: left; vertical-align: top; }
+        .evaluation-category-table thead th { border-top: 1px solid #111; border-bottom: 1px solid #111; }
+        .evaluation-category-table th { background: transparent; color: #111; font-weight: 700; }
         .evaluation-category-table td:nth-child(2), .evaluation-category-table td:nth-child(3), .evaluation-category-table th:nth-child(2), .evaluation-category-table th:nth-child(3) { width: 170px; text-align: center; }
-        .evaluation-category-table tfoot td { background: var(--bg-secondary, #f8fafc); font-weight: 800; }
+        .evaluation-category-table tfoot td { border-top: 1px solid #111; border-bottom: 1px solid #111; background: transparent; font-weight: 400; }
+        .evaluation-category-table tfoot td:last-child { font-weight: 700; }
         .evaluation-respondent-card { display: grid; gap: 1rem; align-items: center; }
         .evaluation-respondent-chart-row { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 1rem; align-items: center; }
         .evaluation-respondent-pie { width: 150px; aspect-ratio: 1; border-radius: 999px; background: conic-gradient(#2563eb 0deg, #2563eb var(--it-slice, 0deg), #f97316 var(--it-slice, 0deg), #f97316 360deg); border: 1px solid var(--border-color); }
@@ -93,6 +100,7 @@
             .evaluation-statement { grid-column: 1 / -1; font-weight: 700; }
             .evaluation-rating-cell::before { content: attr(data-label); display: block; margin-bottom: 0.25rem; color: var(--text-muted); font-size: 0.8rem; font-weight: 700; }
             .evaluation-result-list, .qa-test-case { grid-template-columns: 1fr; }
+            .evaluation-category-result-card { grid-template-columns: 1fr; }
             .evaluation-respondent-chart-row { grid-template-columns: 1fr; justify-items: start; }
         }
         @media print {
@@ -123,6 +131,9 @@
 
         <div class="evaluation-tabs" role="tablist" aria-label="Evaluation workspace tabs">
             <button class="evaluation-tab" id="questionnaireTab" type="button" role="tab" aria-selected="true" aria-controls="questionnairePanel" data-panel="questionnairePanel">Questionnaire</button>
+            {% if can_view_results %}
+            <button class="evaluation-tab" id="questionnaireResultsTab" type="button" role="tab" aria-selected="false" aria-controls="questionnaireResultsPanel" data-panel="questionnaireResultsPanel">Questionnaire Results</button>
+            {% endif %}
             <button class="evaluation-tab" id="testCasesTab" type="button" role="tab" aria-selected="false" aria-controls="testCasesPanel" data-panel="testCasesPanel">Test Cases</button>
         </div>
 
@@ -151,16 +162,17 @@
                 <div class="evaluation-page-status" id="evaluationStatus" role="status" aria-live="polite"></div>
             </form>
             <div class="evaluation-success" id="evaluationSuccess">Thank you. Your evaluation has been successfully submitted.</div>
-            {% if can_view_results %}
-            <section class="evaluation-results" aria-labelledby="evaluationResultsTitle">
-                <header class="evaluation-page-header">
-                    <h2 id="evaluationResultsTitle">Evaluation Results</h2>
-                    <p>Administrative summary of submitted system evaluations.</p>
-                </header>
-                <div id="evaluationResultsContent">Loading results...</div>
-            </section>
-            {% endif %}
         </section>
+
+        {% if can_view_results %}
+        <section class="evaluation-panel" id="questionnaireResultsPanel" role="tabpanel" aria-labelledby="questionnaireResultsTab" hidden>
+            <header class="evaluation-page-header">
+                <h2 id="evaluationResultsTitle">Questionnaire Results</h2>
+                <p>Administrative summary of submitted system evaluations.</p>
+            </header>
+            <div id="evaluationResultsContent">Loading results...</div>
+        </section>
+        {% endif %}
 
         <section class="evaluation-panel" id="testCasesPanel" role="tabpanel" aria-labelledby="testCasesTab" hidden>
             <header class="evaluation-page-header">
@@ -423,34 +435,69 @@
             return `
                 <div class="evaluation-category-results">
                     ${categoryTables.map(category => `
-                        <div class="evaluation-category-table-wrap">
-                            <table class="evaluation-category-table">
-                                <thead>
-                                    <tr>
-                                        <th>${escapeEvaluationHtml(evaluationCategoryDisplayLabel(category.category))}</th>
-                                        <th>Mean</th>
-                                        <th>Verbal Interpretation</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${(category.questions || []).map(question => `
+                        <div class="evaluation-category-result-card">
+                            ${renderCategoryPieChart(category)}
+                            <div class="evaluation-category-table-wrap">
+                                <table class="evaluation-category-table">
+                                    <thead>
                                         <tr>
-                                            <td>${escapeEvaluationHtml(question.question_text)}</td>
-                                            <td>${Number(question.mean || 0).toFixed(2)}</td>
-                                            <td>${escapeEvaluationHtml(question.interpretation || 'No responses')}</td>
+                                            <th>${escapeEvaluationHtml(evaluationCategoryDisplayLabel(category.category))}</th>
+                                            <th>Mean</th>
+                                            <th>Verbal Interpretation</th>
                                         </tr>
-                                    `).join('')}
-                                </tbody>
-                                <tfoot>
-                                    <tr>
-                                        <td colspan="2">Total Weighted Mean</td>
-                                        <td>${Number(category.total_weighted_mean || 0).toFixed(2)} - ${escapeEvaluationHtml(category.interpretation || 'No responses')}</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        ${(category.questions || []).map(question => `
+                                            <tr>
+                                                <td>${escapeEvaluationHtml(question.question_text)}</td>
+                                                <td>${Number(question.mean || 0).toFixed(2)}</td>
+                                                <td>${escapeEvaluationHtml(question.interpretation || 'No responses')}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colspan="2">Total Weighted Mean</td>
+                                            <td>${Number(category.total_weighted_mean || 0).toFixed(2)} - ${escapeEvaluationHtml(category.interpretation || 'No responses')}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
                         </div>
                     `).join('')}
                     <p class="evaluation-range-note"><strong>Range:</strong> 1.00-1.49 Strongly Disagree; 1.50-2.49 Disagree; 2.50-3.49 Moderately Agree; 3.50-4.49 Agree; 4.50-5.00 Strongly Agree.</p>
+                </div>`;
+        }
+
+        function categoryInterpretationBucket(mean) {
+            const value = Number(mean || 0);
+            if (value >= 4.50) return 'Strongly Agree';
+            if (value >= 3.50) return 'Agree';
+            if (value >= 2.50) return 'Moderately Agree';
+            if (value >= 1.50) return 'Disagree';
+            if (value > 0) return 'Strongly Disagree';
+            return 'No responses';
+        }
+
+        function renderCategoryPieChart(category) {
+            const buckets = ['Strongly Disagree', 'Disagree', 'Moderately Agree', 'Agree', 'Strongly Agree'];
+            const counts = buckets.reduce((result, bucket) => ({...result, [bucket]: 0}), {});
+            (category.questions || []).forEach(question => {
+                const bucket = categoryInterpretationBucket(question.mean);
+                if (counts[bucket] != null) counts[bucket] += 1;
+            });
+            const total = buckets.reduce((sum, bucket) => sum + counts[bucket], 0);
+            let cumulative = 0;
+            const degrees = buckets.map(bucket => {
+                cumulative += total ? counts[bucket] / total * 360 : 0;
+                return cumulative;
+            });
+            return `
+                <div class="evaluation-category-chart">
+                    <div class="evaluation-category-pie" style="--sd-end:${degrees[0]}deg;--d-end:${degrees[1]}deg;--ma-end:${degrees[2]}deg;--a-end:${degrees[3]}deg" role="img" aria-label="${escapeEvaluationHtml(evaluationCategoryDisplayLabel(category.category))} verbal interpretation distribution"></div>
+                    <div class="evaluation-category-legend">
+                        ${buckets.map(bucket => `<div class="evaluation-category-legend-row"><span>${escapeEvaluationHtml(bucket)}</span><strong>${counts[bucket]}</strong></div>`).join('')}
+                    </div>
                 </div>`;
         }
 

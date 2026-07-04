@@ -267,7 +267,18 @@ def main():
     assert 'evaluation-rating-cell' in evaluation
     assert 'role="tablist"' in evaluation
     assert 'id="questionnairePanel"' in evaluation
+    assert 'id="questionnaireResultsPanel"' in evaluation
+    assert 'Questionnaire Results' in evaluation
     assert 'id="testCasesPanel"' in evaluation
+    assert '.evaluation-category-result-card' in evaluation
+    assert '.evaluation-category-pie' in evaluation
+    assert 'conic-gradient(#991b1b' in evaluation
+    assert 'font-family: "Times New Roman", Times, serif' in evaluation
+    assert 'font-size: 12px' in evaluation
+    assert '.evaluation-category-table thead th { border-top: 1px solid #111; border-bottom: 1px solid #111; }' in evaluation
+    assert '.evaluation-category-table tfoot td { border-top: 1px solid #111; border-bottom: 1px solid #111; background: transparent; font-weight: 400; }' in evaluation
+    assert '.evaluation-category-table tfoot td:last-child { font-weight: 700; }' in evaluation
+    assert 'renderCategoryPieChart' in evaluation
     assert 'qa-summary-dashboard' in evaluation
     assert 'downloadQaCsv' in evaluation
     assert 'Screenshot Filename' in evaluation

@@ -107,7 +107,8 @@ def main():
                 assert 'role="tablist"' in html
                 assert 'role="tabpanel"' in html
                 assert 'qaTestData' in html
-                assert ('Evaluation Results' in html) == (role_name == 'admin')
+                assert ('Questionnaire Results' in html) == (role_name == 'admin')
+                assert ('id="questionnaireResultsPanel"' in html) == (role_name == 'admin')
                 access_payload = client.get('/api/evaluation/access').get_json()
                 assert access_payload['can_access'] is True
 
