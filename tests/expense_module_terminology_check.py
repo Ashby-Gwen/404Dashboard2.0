@@ -104,6 +104,27 @@ def main():
             assert len(compatibility['expenses']) == 2
 
             created_expense = PurchaseOrder.query.filter_by(check_voucher_number='CV-NEW').first()
+            optional_cash = client.post('/create-expense', json={
+                'check_voucher_number': 'CV-NO-CASH',
+                'check_number': 'CHK-NO-CASH',
+                'check_date': '2026-06-03',
+                'date': '2026-06-03',
+                'or_date': '',
+                'ar_cr_or_number': '',
+                'po_number': 'REF-NO-CASH',
+                'lf_no': '',
+                'particulars': 'Expense without cash amount yet',
+                'supplier_payee': 'Deferred Cash Supplier',
+                'tin_number': '',
+                'cash_amount': '',
+                'debits': [{'debit_type': 'Various Expenses', 'amount': 250}],
+            }).get_json()
+            assert optional_cash['success'] is True
+            no_cash_expense = PurchaseOrder.query.filter_by(check_voucher_number='CV-NO-CASH').first()
+            assert no_cash_expense.cash_amount == 0
+            assert no_cash_expense.net_balance == 250
+            assert no_cash_expense.status == 'PENDING'
+
             update_response = client.put(f'/expenses/{created_expense.id}', json={
                 'check_voucher_number': 'CV-EDITED',
                 'check_number': 'CHK-EDITED',
@@ -133,6 +154,27 @@ def main():
             edited_payload = next(item for item in refreshed['expenses'] if item['id'] == edited.id)
             assert edited_payload['check_voucher_number'] == 'CV-EDITED'
             assert edited_payload['debits'][0]['amount'] == 1000
+
+            blank_cash_update = client.put(f'/expenses/{created_expense.id}', json={
+                'check_voucher_number': 'CV-EDITED',
+                'check_number': 'CHK-EDITED',
+                'check_date': '2026-06-04',
+                'date': '2026-06-05',
+                'or_date': '',
+                'ar_cr_or_number': 'OR-EDITED',
+                'po_number': 'REF-EDITED',
+                'lf_no': 'LF-EDITED',
+                'particulars': 'Edited expense',
+                'supplier_payee': 'Edited Supplier',
+                'tin_number': 'TIN-EDITED',
+                'cash_amount': '',
+                'debits': [{'debit_type': 'Various Expenses', 'amount': 1000}],
+            })
+            assert blank_cash_update.status_code == 200, blank_cash_update.get_json()
+            db.session.expire_all()
+            edited = db.session.get(PurchaseOrder, created_expense.id)
+            assert edited.cash_amount == 0
+            assert edited.net_balance == 1000
 
             audit = AuditLog.query.filter_by(action='UPDATE', table_name='purchase_orders', record_id=str(edited.id)).first()
             assert audit is not None

@@ -74,10 +74,10 @@
         .evaluation-category-y-axis { writing-mode: vertical-rl; transform: rotate(180deg); align-self: center; color: #6b7280; font-size: 12px; font-weight: 400; text-transform: uppercase; }
         .evaluation-category-bars { display: grid; grid-template-columns: repeat(5, minmax(42px, 1fr)); gap: 0.75rem; align-items: end; padding: 1.75rem 0.75rem 0; border-left: 1px solid #111; background: linear-gradient(to top, rgba(148,163,184,.16) 1px, transparent 1px); background-size: 100% 25%; }
         .evaluation-category-bar-column { display: grid; grid-template-rows: 20px 160px 24px; gap: 0; min-height: 204px; text-align: center; }
-        .evaluation-category-bar-count { color: #6b7280; font-size: 9px; font-weight: 400; }
+        .evaluation-category-bar-count { color: #6b7280; font-size: 11px; font-weight: 400; }
         .evaluation-category-bar-slot { display: flex; align-items: flex-end; justify-content: center; min-height: 160px; }
         .evaluation-category-bar-fill { width: min(75px, 72%); height: var(--bar-height, 0%); min-height: var(--bar-min-height, 0); border-radius: 6px 6px 0 0; background: linear-gradient(180deg, #2563eb, #16a34a); }
-        .evaluation-category-bar-label { display: grid; place-items: end center; border-top: 1px solid #111; color: #111; font-size: 12px; font-weight: 700; }
+        .evaluation-category-bar-label { display: grid; place-items: end center; border-top: 1px solid #111; color: #111; font-size: 12px; font-weight: 400; }
         .evaluation-category-x-axis { margin: 0.35rem 0 0; text-align: center; color: #6b7280; font-size: 12px; font-weight: 400; text-transform: uppercase; }
         .evaluation-category-graph-total { display: flex; justify-content: space-between; gap: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color); font-weight: 900; }
         .evaluation-respondent-card { display: grid; gap: 1rem; align-items: center; }
@@ -380,6 +380,12 @@
                     </div>`;
                 }).join('')}
             `).join('');
+            if (payload.already_submitted) {
+                const status = document.getElementById('evaluationStatus');
+                status.className = 'evaluation-page-status evaluation-status-success';
+                status.textContent = 'You have already submitted your system evaluation.';
+                document.querySelectorAll('#evaluationForm input, #evaluationForm textarea, #evaluationForm button').forEach(control => control.disabled = true);
+            }
             if (canViewEvaluationResults) await loadEvaluationResults();
         }
 

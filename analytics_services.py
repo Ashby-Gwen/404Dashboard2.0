@@ -1354,14 +1354,31 @@ def get_sales_kpis(db: Any, models: dict[str, Any], start_date: Any = None, end_
     }
 
 
-def get_sales_analysis(db: Any, models: dict[str, Any], mape_threshold: float = MAPE_DEFAULT_THRESHOLD, start_date: Any = None, end_date: Any = None) -> dict[str, Any]:
+def get_sales_analysis(
+    db: Any,
+    models: dict[str, Any],
+    mape_threshold: float = MAPE_DEFAULT_THRESHOLD,
+    start_date: Any = None,
+    end_date: Any = None,
+    forecast_start_date: Any = None,
+    forecast_end_date: Any = None,
+) -> dict[str, Any]:
     """Build the complete sales analytics response payload."""
     SalesOrder = models["SalesOrder"]
     SalesOrderItem = models["SalesOrderItem"]
     Invoice = models["Invoice"]
     PurchaseOrder = models.get("PurchaseOrder")
     category_map = analytics_item_category_map(db, models)
-    forecast = get_sales_forecast(db, SalesOrderItem, SalesOrder, mape_threshold, start_date, end_date)
+    forecast = get_sales_forecast(
+        db,
+        SalesOrderItem,
+        SalesOrder,
+        mape_threshold,
+        start_date,
+        end_date,
+        forecast_start_date,
+        forecast_end_date,
+    )
     descriptive = get_sales_descriptive(db, SalesOrderItem, SalesOrder, start_date, end_date, category_map)
     clients = get_clients_analysis(db, models, start_date, end_date)
     pondo = 0.0
@@ -1643,7 +1660,7 @@ def add_months(month_key: str, offset: int) -> str:
 
 def month_label(month_key: str) -> str:
     try:
-        return datetime.strptime(f"{month_key}-01", "%Y-%m-%d").strftime("%B %Y")
+        return datetime.strptime(f"{month_key}-01", "%Y-%m-%d").strftime("%b")
     except (TypeError, ValueError):
         return str(month_key or "Unknown period")
 
@@ -1708,6 +1725,8 @@ def get_sales_forecast(
     mape_threshold: float = MAPE_DEFAULT_THRESHOLD,
     start_date: Any = None,
     end_date: Any = None,
+    forecast_start_date: Any = None,
+    forecast_end_date: Any = None,
 ) -> dict[str, Any]:
     """Forecast expected revenue and profit from sales order item history."""
     forecast_data = []
@@ -1788,7 +1807,8 @@ def get_sales_forecast(
         monthly_periods = [row.month for row in rows if row.month]
         monthly_revenue = [float(row.revenue or 0) for row in rows]
         monthly_profit = [float(row.profit or 0) for row in rows]
-        all_revenue_rows = revenue_query.group_by(month_key).order_by(month_key).all()
+        forecast_revenue_query = _apply_date_bounds(revenue_query, SalesOrder.order_date, forecast_start_date, forecast_end_date)
+        all_revenue_rows = forecast_revenue_query.group_by(month_key).order_by(month_key).all()
         forecast_monthly_periods = [row.month for row in all_revenue_rows if row.month]
         forecast_monthly_revenue = [float(row.revenue or 0) for row in all_revenue_rows if row.month]
     else:

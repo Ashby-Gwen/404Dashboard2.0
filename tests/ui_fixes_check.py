@@ -38,6 +38,7 @@ def main():
         init_db()
 
         staff = add_user('ui_staff', 'sales staff')
+        staff.evaluation_enabled = True
         manager = add_user('ui_manager', 'manager')
         db.session.commit()
 

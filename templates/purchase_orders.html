@@ -387,9 +387,9 @@
                         <input type="text" id="tinNumber">
                     </div>
                     
-                    <div class="form-group required-field">
-                        <label for="cashAmount">Cash Amount *</label>
-                        <input type="number" id="cashAmount" min="0" step="0.01" required>
+                    <div class="form-group">
+                        <label for="cashAmount">Cash Amount</label>
+                        <input type="number" id="cashAmount" min="0" step="0.01" placeholder="Amount Here">
                     </div>
                     </div>
                 </section>
@@ -486,7 +486,7 @@
 
     <div id="editExpenseModal" class="expense-modal-overlay hidden" role="dialog" aria-modal="true"
         aria-labelledby="editExpenseTitle" aria-hidden="true">
-        <div class="expense-modal" tabindex="-1">
+        <div class="expense-modal" style="background-color: var(--bg);" tabindex="-1">
             <div class="expense-modal-header">
                 <h2 id="editExpenseTitle" style="margin: 0;">Edit Expense</h2>
                 <button type="button" class="btn btn-outline btn-sm" onclick="closeEditExpenseModal()">Close</button>
@@ -541,9 +541,9 @@
                         <label for="editTinNumber">TIN Number</label>
                         <input type="text" id="editTinNumber">
                     </div>
-                    <div class="form-group required-field">
-                        <label for="editCashAmount">Cash Amount *</label>
-                        <input type="number" id="editCashAmount" min="0" step="0.01" required>
+                    <div class="form-group">
+                        <label for="editCashAmount">Cash Amount</label>
+                        <input type="number" id="editCashAmount" min="0" step="0.01" placeholder="Amount Here">
                     </div>
                 </div>
 
@@ -825,7 +825,7 @@
             document.getElementById('editParticulars').value = expense.particulars || '';
             document.getElementById('editSupplierPayee').value = expense.supplier_payee || '';
             document.getElementById('editTinNumber').value = expense.tin_number || '';
-            document.getElementById('editCashAmount').value = Number(expense.cash_amount || 0);
+            document.getElementById('editCashAmount').value = Number(expense.cash_amount || 0) || '';
 
             const debitsList = document.getElementById('editDebitsList');
             debitsList.innerHTML = '';

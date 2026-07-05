@@ -134,10 +134,10 @@ def main():
             assert 'Performance breakdown' in analytics_html
             assert 'Product Category Manager' in analytics_html
             assert 'Save Product Categories' in analytics_html
-            assert 'Month-on-Month Revenue % Change' in analytics_html
-            assert 'Year-on-Year Revenue % Change' in analytics_html
+            assert 'Month-on-Month Sales Order Revenue % Change' in analytics_html
+            assert 'Year-on-Year Sales Order Revenue % Change' in analytics_html
             assert 'This is the Revenue split by <span class="overview-highlight">Client Value Category</span> this' in analytics_html
-            assert 'Total revenue by date current versus previous year chart' in analytics_html
+            assert 'Sales Order revenue by order date current versus previous year chart' in analytics_html
             assert 'Total revenue by client value category chart' in analytics_html
             assert 'Month-over-month revenue change by client value category chart' in analytics_html
             assert 'ABC Pareto revenue bar and cumulative line chart' in analytics_html
@@ -155,8 +155,8 @@ def main():
             assert 'Forecast Status:' in analytics_html
             assert 'Prepare stock for expected demand but verify unpaid orders first.' in analytics_html
             assert 'predictive analytics using Holt-Winters forecasting' in analytics_html
-            assert 'class="analytics-graph-section"' in analytics_html
-            assert 'class="analytics-table-section"' in analytics_html
+            assert 'analytics-graph-section' in analytics_html
+            assert 'analytics-table-section' in analytics_html
             assert 'data-analytics-graph="item-forecasts"' in analytics_html
             assert 'aria-label="Revenue forecast chart"' in analytics_html
             assert 'aria-label="ABC Pareto revenue bar and cumulative line chart"' in analytics_html

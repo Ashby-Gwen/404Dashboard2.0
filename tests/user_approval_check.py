@@ -30,6 +30,24 @@ def main():
         db.session.commit()
 
         with app.test_client() as client:
+            admin_case_login = client.post('/login', data={
+                'username': 'APPROVAL_ADMIN',
+                'password': 'admin123',
+            })
+            assert admin_case_login.status_code == 302
+            with client.session_transaction() as session:
+                assert session['username'] == 'approval_admin'
+            client.get('/logout')
+
+            duplicate_case_response = client.post('/register', data={
+                'email': 'duplicate.case@example.com',
+                'username': 'Approval_Admin',
+                'password': 'staff123',
+                'confirm_password': 'staff123',
+            })
+            assert duplicate_case_response.status_code == 200
+            assert User.query.filter_by(username='Approval_Admin').first() is None
+
             register_response = client.post('/register', data={
                 'email': 'new.staff@example.com',
                 'username': 'new_staff',

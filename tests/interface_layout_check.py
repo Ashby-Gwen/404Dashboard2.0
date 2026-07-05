@@ -18,6 +18,7 @@ def read(path):
 def main():
     styles = read(os.path.join('static', 'css', 'styles.css'))
     analytics = read(os.path.join('templates', 'analytics.html'))
+    app_source = read('app.py')
     evaluation = read(os.path.join('templates', 'evaluation.html'))
     admin = read(os.path.join('templates', 'admin.html'))
     invoices = read(os.path.join('templates', 'invoices.html'))
@@ -37,6 +38,12 @@ def main():
     assert '--ui-font-card-title: 0.95rem' in styles
     assert '--ui-font-kpi: clamp(1.25rem, 1.8vw, 1.55rem)' in styles
     assert 'font-size: var(--ui-font-page-title) !important' in styles
+    assert '<label for="cashAmount">Cash Amount</label>' in expenses
+    assert 'id="cashAmount" min="0" step="0.01"' in expenses
+    assert 'id="cashAmount" min="0" step="0.01" required' not in expenses
+    assert '<label for="editCashAmount">Cash Amount</label>' in expenses
+    assert 'id="editCashAmount" min="0" step="0.01"' in expenses
+    assert 'id="editCashAmount" min="0" step="0.01" required' not in expenses
     assert 'font-size: var(--ui-font-card-title) !important' in styles
     assert 'font-size: var(--ui-font-table) !important' in styles
     assert '.history-fit-table' in styles
@@ -95,11 +102,12 @@ def main():
     assert '.analytics-manager-action' in analytics
     assert '.analytics-summary-strip' in analytics
     assert 'Business goal > Metric > Level of detail > Type of visualization' in analytics
+    assert "label = start_date.strftime('%b %Y')" in app_source
     assert 'analyticsStoryHeader' in analytics
     assert 'analyticsBusinessGoalMap' in analytics
     assert 'analyticsManagerAction' in analytics
     assert 'analyticsSummaryStrip' in analytics
-    assert 'Latest-month revenue is the anchor; the rest of the dashboard explains trend, client value momentum, and client-level movement.' in analytics
+    assert 'Latest-month Sales Order revenue is the anchor; the rest of the dashboard explains trend, client value momentum, and client-level movement.' in analytics
     assert '.overview-asymmetric-layout' in analytics
     assert '.overview-left-column' in analytics
     assert '.overview-main-panel' in analytics
@@ -127,17 +135,158 @@ def main():
     assert '.overview-driver-table-decrease.client-table th:nth-child(4)' in analytics
     assert 'class="client-table overview-driver-table overview-driver-table-increase"' in analytics
     assert 'class="client-table overview-driver-table overview-driver-table-decrease"' in analytics
+    assert '.overview-morph-grid' in analytics
+    assert '.overview-morph-card' in analytics
+    assert '.overview-morph-ghost' in analytics
+    assert '.overview-morph-card.is-morphing' in analytics
+    assert '.overview-morph-card.is-expanded' in analytics
+    assert '.overview-layer-summary' in analytics
+    assert '.overview-layer-canvas' in analytics
+    assert '.overview-morph-tabs' not in analytics
+    assert '.overview-morph-tab' not in analytics
+    assert '.overview-morph-panel' not in analytics
+    assert 'class="overview-morph-title"' not in analytics
+    assert 'overview-morph-body' in analytics
+    assert 'overview-revenue-summary' in analytics
+    assert 'overview-year-trend' in analytics
+    assert 'overview-client-category' in analytics
+    assert 'overview-client-drivers' in analytics
+    assert 'openOverviewMorph' in analytics
+    assert 'closeOverviewMorph' in analytics
+    assert 'measureOverviewCard' in analytics
+    assert 'createOverviewGhost' in analytics
+    assert 'overviewMorphContainerRect' in analytics
+    assert 'overviewMorphContainerElement' in analytics
+    assert 'overviewViewportRectToMorphRect' in analytics
+    assert "card.style.position = hasContainer ? 'absolute' : 'fixed'" in analytics
+    assert 'function overviewMorphTargetRect(card = activeOverviewMorph?.card)' in analytics
+    assert "card?.closest('.overview-morph-grid')" in analytics
+    assert 'top: rect.top - containerRect.top' in analytics
+    assert 'syncOverviewMorphToContainer' in analytics
+    assert "window.addEventListener('resize'" in analytics
+    assert 'renderOverviewPlaceholderCanvas' in analytics
+    assert 'ensureOverviewMorphData' in analytics
+    assert 'destroyOverviewMorphCharts' in analytics
+    assert 'overviewMorphCharts' in analytics
+    assert 'overviewForecastAccuracy' in analytics
+    assert 'salesOrderMonthlyTrendRows' in analytics
+    assert 'buildOverviewSalesOrderTrend' in analytics
+    assert 'sales_order_trend' in analytics
+    assert "latest_data_source: 'Sales Order'" in analytics
+    assert 'overviewClientsWithZScores' in analytics
+    assert 'overviewMorphBody' in analytics
+    assert 'overviewLatestActualForecastPoints' in analytics
+    assert 'overviewMorphShortMonthLabel' in analytics
+    assert '.slice(-12)' in analytics
+    assert 'overviewSignedForecastTotal' in analytics
+    assert 'overviewValueWithNegativeSign' in analytics
+    assert 'const latestActualIndex = Math.min(Math.max(Number(tierData.latestIndex || 0), 0), Math.max(baseLabels.length - 1, 0))' in analytics
+    assert 'const finalForecastIndex = labels.length - 1' in analytics
+    assert 'const signedForecastLabel = overviewSignedForecastTotal(forecastTotal, forecastDelta)' in analytics
+    assert "const negativeForecastColor = '#dc6b6b'" in analytics
+    assert 'const forecastBoundaryIndex = baseLabels.length' in analytics
+    assert "ctx.strokeStyle = '#cbd5e1'" in analytics
+    assert "latestActualDate?.getMonth() === 11 ? String(latestActualDate.getFullYear() + 1) : ''" in analytics
+    assert 'const labelWidth = ctx.measureText(signedForecastLabel).width' in analytics
+    assert 'chartArea.right - labelWidth / 2 - 4' in analytics
+    assert '_context.dataIndex === latestActualIndex ? 4 : 0' in analytics
+    assert '_context.dataIndex === finalForecastIndex ? 4 : 0' in analytics
+    assert 'overviewRevenueForecastParams' in analytics
+    assert 'refreshOverviewRevenueForecastMorph' in analytics
+    assert 'initializeOverviewRevenueForecastControls' in analytics
+    assert 'renderOverviewRevenueForecastMorphChart' in analytics
+    assert 'overviewMorphBarLabelPlugin' in analytics
+    assert 'overviewZScoreBounds' in analytics
+    assert 'renderOverviewRevenueSummaryMorph' in analytics
+    assert 'renderOverviewYearTrendMorph' in analytics
+    assert 'renderOverviewClientCategoryMorph' in analytics
+    assert 'renderOverviewClientDriversMorph' in analytics
+    assert 'activateOverviewMorphTab' not in analytics
+    assert 'handleOverviewMorphKeydown' in analytics
+    assert 'Back to Executive Grid' in analytics
+    assert 'Descriptive' not in analytics
+    assert 'Predictive' not in analytics
+    assert 'Prescriptive' not in analytics
+    assert "the ${overviewStoryHighlight('Revenue')} Generated" in analytics
+    assert 'Forecasted ${overviewStoryHighlight' in analytics
+    assert 'forecast <strong style="color:#111827;">Accuracy</strong> of' in analytics
+    assert 'overviewMorphForecastScope' in analytics
+    assert '<option value="all">All data</option>' in analytics
+    assert '<option value="year">Specific year</option>' in analytics
+    assert 'overviewMorphForecastMonths' in analytics
+    assert '<option value="3">3 months</option>' in analytics
+    assert '<option value="6">6 months</option>' in analytics
+    assert '<option value="12">12 months</option>' in analytics
+    assert 'Holt-Winters Forecast' in analytics
+    assert "label: `${tierData.previousYear || 'Previous Year'} Sales Order Revenue`" in analytics
+    assert "label: `${tierData.latestYear || 'Selected Year'} Sales Order Revenue`" in analytics
+    assert "params.forecast_scope = 'all'" in analytics
+    assert 'forecast_scope' in analytics
+    assert 'Peak sale' in analytics
+    assert 'overviewStoreNameOnly' in analytics
+    assert 'const name = overviewStoreNameOnly(peakClient)' in analytics
+    assert 'Store Name: <strong>${escapeHtml(name)}</strong>' not in analytics
+    assert 'Combined client category frequency z-score and Sales Order value z-score scatter plot' in analytics
+    assert 'Sales Order value z-score' in analytics
+    assert 'overview-driver-recommendations' in analytics
+    assert 'overview-driver-morph-grid' in analytics
+    assert 'border: 1px solid #c4c4c4' in analytics
+    assert 'borderDash: [5, 4]' in analytics
+    assert "ticks: { callback: value => Number(value) === 0 ? '0%' : '' }" in analytics
+    assert 'Top 5 clients driving revenue increase' in analytics
+    assert 'Top 5 clients driving revenue decrease' in analytics
+    assert 'Recommendation' in analytics
+    assert 'overviewMorphRevenueForecastChart' in analytics
+    assert 'overviewMorphYearTrendChart' in analytics
+    assert 'overviewMorphCategoryRevenueChart' in analytics
+    assert 'overviewMorphCategoryMomentumChart' in analytics
+    assert 'overviewMorphCombinedScatterChart' in analytics
+    assert 'overviewMorphClientParetoChart' in analytics
+    assert 'Client Value and Categorization' in analytics
+    assert 'activateOverviewCategoryView' in analytics
+    assert 'overviewParetoRows' in analytics
+    assert 'overviewParetoCategoryCuts' in analytics
+    assert 'overviewParetoCategoryCutPlugin' in analytics
+    assert 'overviewParetoRows(clients)' in analytics
+    assert 'overviewParetoRows(clients, 12)' not in analytics
+    assert 'The vertical lines show where the category cuts begin.' in analytics
+    assert 'Cumulative Revenue %' in analytics
+    assert 'this is how clients are' in analytics
+    assert 'scatterColors' in analytics
+    assert 'applyOverviewScatterVisibleBounds' in analytics
+    assert 'overviewVisibleScatterPoints' in analytics
+    assert 'overviewScatterDataBounds' in analytics
+    assert 'chart.setDatasetVisibility(index, !chart.isDatasetVisible(index))' in analytics
+    assert 'data: { datasets }' in analytics
+    assert "legend: {\n                                display: true" in analytics
+    assert 'overviewMorphScatterAChart' not in analytics
+    assert 'overviewMorphScatterBChart' not in analytics
+    assert 'overviewMorphScatterCChart' not in analytics
+    assert analytics.count('id="trendChart"') == 1
+    assert analytics.count('id="overviewCategoryRevenueChart"') == 1
+    assert analytics.count('id="overviewCategoryMomentumChart"') == 1
+    assert 'role="button"' in analytics
+    assert 'tabindex="0"' in analytics
+    assert 'aria-expanded="false"' in analytics
     assert '.analytics-category-manager' in analytics
     assert '.overview-change-badge' in analytics
     assert 'Overview revenue dashboard' in analytics
     assert 'Core Revenue Trends' in analytics
     assert 'Performance breakdown' in analytics
-    assert 'This is the <span class="overview-highlight">Revenue</span> generated...' in analytics
-    assert 'Total Monthly Revenue' in analytics
-    assert 'Month-on-Month Revenue % Change' in analytics
-    assert 'Year-on-Year Revenue % Change' in analytics
+    assert 'This is the <span class="overview-highlight">Sales Order Revenue</span> generated...' in analytics
+    assert 'Total Monthly Sales Order Revenue' in analytics
+    assert 'Month-on-Month Sales Order Revenue % Change' in analytics
+    assert 'Year-on-Year Sales Order Revenue % Change' in analytics
+    assert 'Sales Order value by order date' in analytics
     assert '... and the trend of' in analytics
     assert 'overviewMonthAxisLabel' in analytics
+    assert 'parseOverviewMonthLabel(label) || parseForecastPeriod(label)' in analytics
+    assert 'const parsed = parseOverviewMonthLabel(label) || parseForecastPeriod(label)' in analytics
+    assert 'function analyticsMonthDisplay' in analytics
+    assert 'revenueForecast.latest_historical_month ? analyticsMonthDisplay(revenueForecast.latest_historical_month)' in analytics
+    assert 'topMonth.period_label || analyticsMonthDisplay(topMonth.period)' in analytics
+    assert 'peakMonth.period_label || analyticsMonthDisplay(peakMonth.period)' in analytics
+    assert 'const extensionLabels = useSalesOrderTrend ? [] : nextOverviewMonthLabels(latestLabel)' in analytics
     assert 'nextOverviewMonthLabels' in analytics
     assert "month: 'short', year: 'numeric'" in analytics
     assert 'This is the Revenue split by <span class="overview-highlight">Client Value Category</span> this' in analytics
@@ -265,6 +414,8 @@ def main():
     assert "category === 'Design/User Experience' ? 'Usability' : category" in evaluation
     assert 'evaluationPrintOverlay' in evaluation
     assert 'evaluation-rating-cell' in evaluation
+    assert 'already_submitted' in evaluation
+    assert 'You have already submitted your system evaluation.' in evaluation
     assert 'role="tablist"' in evaluation
     assert 'id="questionnairePanel"' in evaluation
     assert 'id="questionnaireResultsPanel"' in evaluation

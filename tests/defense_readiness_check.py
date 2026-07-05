@@ -340,8 +340,10 @@ def production_guard_source_check():
     assert "filters['start_date']" in app_source
     assert "ranked_particulars" in analytics_services_source
     assert 'data-section="expenses"' in analytics_template
-    assert "x: Number(c.order_count || 0)" in analytics_template
-    assert "y: Number(c.sales_order_value || c.total_revenue || 0)" in analytics_template
+    assert "const frequencies = clients.map(client => Number(client.order_count || 0));" in analytics_template
+    assert "const salesValues = clients.map(client => Number(client.sales_order_value || client.total_revenue || 0));" in analytics_template
+    assert "x: Number(client.frequencyZScore.toFixed(2))" in analytics_template
+    assert "y: Number(client.salesValueZScore.toFixed(2))" in analytics_template
     assert "Quick Actions" in dashboard_template
     assert "Admin Command Center" in dashboard_template
     assert "Net Cash Flow" not in dashboard_template

@@ -240,7 +240,7 @@ def main():
             assert sales_payload['success'] is True
             assert sales_payload['forecast_accuracy']['mape_threshold'] == 25
             assert 'descriptive' in sales_payload and 'predictive' in sales_payload and 'prescriptive' in sales_payload
-            assert sales_payload['descriptive']['monthly_trend'][0]['period_label'] == 'January 2026'
+            assert sales_payload['descriptive']['monthly_trend'][0]['period_label'] == 'Jan'
             assert 'quantity' in sales_payload['descriptive']['peak_periods']['months'][0]
             assert 'quantity' in sales_payload['descriptive']['peak_periods']['weekdays'][0]
             assert 'average_quantity' in sales_payload['descriptive']['peak_periods']['months'][0]
@@ -286,7 +286,7 @@ def main():
             assert len(monthly_forecast['forecast_points']) == 12
             assert monthly_forecast['default_horizon'] == 3
             assert monthly_forecast['horizon_options'] == [3, 6, 12]
-            assert monthly_forecast['historical_points'][0]['label'] == 'January 2026'
+            assert monthly_forecast['historical_points'][0]['label'] == 'Jan'
             assert all(item['type'] == 'forecast' for item in monthly_forecast['forecast_points'])
             insufficient_forecast = build_monthly_revenue_forecast(['2026-01', '2026-02'], [1000, 1200])
             assert insufficient_forecast['status'] == 'insufficient_data'

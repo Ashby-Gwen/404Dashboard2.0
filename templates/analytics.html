@@ -29,7 +29,8 @@
         }
 
         .analytics-tabs {
-            display: flex;
+            /* display:flex; */
+            display: none;
             gap: 1rem;
             border-bottom: 2px solid var(--border-color);
             margin-bottom: 2rem;
@@ -191,6 +192,367 @@
             border: 1px solid var(--border-color);
             border-radius: var(--radius-md);
             background: var(--surface-card, #fff);
+        }
+
+        .overview-morph-grid {
+            position: relative;
+        }
+
+        .overview-morph-card {
+            position: relative;
+            min-width: 0;
+            overflow: hidden;
+            cursor: pointer;
+            transition:
+                transform 180ms ease,
+                border-radius 500ms cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 500ms cubic-bezier(0.16, 1, 0.3, 1);
+            will-change: top, left, width, height, border-radius;
+        }
+
+        .overview-morph-card:hover,
+        .overview-morph-card:focus-visible {
+            transform: translateY(-4px);
+        }
+
+        .overview-morph-card:focus-visible {
+            outline: 3px solid color-mix(in srgb, var(--brand-orange, #F97316) 35%, transparent);
+            outline-offset: 3px;
+        }
+
+        .overview-morph-card.is-morphing,
+        .overview-morph-card.is-expanded {
+            cursor: default;
+            transform: none;
+            z-index: 10020;
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
+        }
+
+        .overview-morph-card.is-expanded {
+            overflow: auto;
+        }
+
+        .overview-morph-ghost {
+            min-width: 0;
+            border: 1px dashed color-mix(in srgb, var(--brand-orange, #F97316) 35%, var(--border-color));
+            border-radius: var(--radius-md);
+            background: color-mix(in srgb, var(--brand-orange, #F97316) 5%, transparent);
+            pointer-events: none;
+        }
+
+        .overview-layer-summary,
+        .overview-layer-canvas {
+            transition: opacity 150ms ease;
+        }
+
+        .overview-layer-canvas {
+            display: none;
+            min-height: 100%;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .overview-morph-card.is-expanded .overview-layer-summary {
+            display: none;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .overview-morph-card.is-expanded .overview-layer-canvas {
+            display: flex;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .overview-morph-canvas-inner {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            width: 100%;
+            min-height: 100%;
+        }
+
+        .overview-morph-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .overview-morph-title {
+            margin: 0;
+            color: var(--text-main);
+        }
+
+        .overview-story-grid {
+            display: grid;
+            grid-template-columns: minmax(240px, 0.85fr) minmax(360px, 1.35fr);
+            gap: 1rem;
+            min-height: 100%;
+        }
+
+        .overview-story-grid.with-divider> :first-child {
+            border-right: 1px solid #c4c4c4;
+            padding-right: 1rem;
+        }
+
+        .overview-story-stack,
+        .overview-story-chart-stack {
+            display: grid;
+            gap: 1rem;
+            align-content: start;
+        }
+
+        .overview-story-kpi {
+            display: grid;
+            gap: 0.35rem;
+            padding: 0.85rem;
+            border: 1px solid #c4c4c4;
+            border-radius: var(--radius-md);
+            background: var(--surface-card, #fff);
+        }
+
+        .overview-story-kpi span {
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+
+        .overview-story-value {
+            font-size: clamp(1.25rem, 2vw, 1.9rem);
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .overview-story-value.positive,
+        .overview-story-text .positive {
+            color: #15803d;
+        }
+
+        .overview-story-value.negative,
+        .overview-story-text .negative {
+            color: #dc6b6b;
+        }
+
+        .overview-story-value.neutral,
+        .overview-story-text .neutral {
+            color: var(--text-main);
+        }
+
+        .overview-story-highlight {
+            color: var(--brand-orange, #F97316);
+            font-weight: 900;
+        }
+
+        .overview-story-chart {
+            position: relative;
+            min-height: 280px;
+            width: 100%;
+        }
+
+        .overview-story-chart.compact {
+            min-height: 220px;
+        }
+
+        .overview-forecast-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: end;
+            padding: 0.75rem;
+            border: 1px solid #c4c4c4;
+            border-radius: var(--radius-md);
+            background: var(--surface-card, #fff);
+        }
+
+        .overview-forecast-controls label {
+            display: grid;
+            gap: 0.25rem;
+            color: var(--text-main);
+            font-size: 0.78rem;
+            font-weight: 800;
+        }
+
+        .overview-forecast-controls select {
+            min-height: 34px;
+            border: 1px solid #c4c4c4;
+            border-radius: var(--radius-sm);
+            padding: 0.35rem 0.55rem;
+            background: #fff;
+            color: var(--text-main);
+            font: inherit;
+        }
+
+        .overview-story-note {
+            margin: 0;
+            padding: 0.65rem 0.8rem;
+            border: 1px solid #c4c4c4;
+            border-left: 4px solid var(--brand-orange, #F97316);
+            background: color-mix(in srgb, var(--brand-orange, #F97316) 8%, #fff);
+            color: var(--text-main);
+            font-size: 0.92rem;
+            font-weight: 700;
+        }
+
+        .overview-story-text {
+            color: var(--text-main);
+            font-weight: 700;
+            font-size: 0.92rem;
+            line-height: 1.55;
+        }
+
+        .overview-category-story-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem;
+        }
+
+        .overview-scatter-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
+        }
+
+        .overview-scatter-card {
+            display: grid;
+            gap: 0.65rem;
+            min-width: 0;
+            padding: 0.75rem;
+            border: 1px solid #c4c4c4;
+            border-radius: var(--radius-md);
+            background: var(--surface-card, #fff);
+        }
+
+        .overview-scatter-card h4 {
+            margin: 0;
+            color: var(--text-main);
+        }
+
+        .overview-category-toggle {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            width: fit-content;
+            padding: 0.25rem;
+            border: 1px solid #c4c4c4;
+            border-radius: var(--radius-sm);
+            background: #fff;
+        }
+
+        .overview-category-toggle button {
+            border: 0;
+            border-radius: calc(var(--radius-sm) - 2px);
+            padding: 0.45rem 0.7rem;
+            background: transparent;
+            color: var(--text-muted);
+            font-weight: 800;
+            font-size: 0.82rem;
+            cursor: pointer;
+        }
+
+        .overview-category-toggle button.is-active,
+        .overview-category-toggle button[aria-pressed="true"] {
+            background: var(--brand-orange, #F97316);
+            color: #fff;
+        }
+
+        .overview-category-chart-panels {
+            display: grid;
+            position: relative;
+            min-height: 245px;
+        }
+
+        .overview-category-chart-panel {
+            grid-area: 1 / 1;
+            display: grid;
+            gap: 0.45rem;
+            min-width: 0;
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 180ms ease;
+        }
+
+        .overview-category-chart-panel.is-hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .overview-driver-morph-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+
+        .overview-driver-recommendations {
+            display: grid;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .overview-driver-recommendation {
+            padding: 0.6rem 0.75rem;
+            border: 1px solid #c4c4c4;
+            border-radius: var(--radius-sm);
+            background: var(--surface-card, #fff);
+            color: var(--text-main);
+            font-size: 0.86rem;
+            line-height: 1.4;
+        }
+
+        .overview-driver-recommendation strong {
+            color: var(--brand-orange, #F97316);
+        }
+
+        .overview-story-empty {
+            display: grid;
+            place-items: center;
+            min-height: 180px;
+            padding: 1rem;
+            border: 1px dashed var(--border-color);
+            border-radius: var(--radius-md);
+            color: var(--text-muted);
+            text-align: center;
+            font-weight: 700;
+        }
+
+        @media (max-width: 900px) {
+
+            .overview-story-grid,
+            .overview-category-story-grid,
+            .overview-scatter-grid,
+            .overview-driver-morph-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .overview-story-grid.with-divider> :first-child {
+                border-right: 0;
+                border-bottom: 1px solid var(--border-color);
+                padding-right: 0;
+                padding-bottom: 1rem;
+            }
+        }
+
+        .overview-morph-hint {
+            /* display: block; */
+            display: none;
+            margin-top: 0.65rem;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+
+        body.overview-morph-active .analytics-story-header,
+        body.overview-morph-active .analytics-story-map,
+        body.overview-morph-active .analytics-toolbar,
+        body.overview-morph-active .toolbar-surface {
+            opacity: 0;
+            transition: opacity 180ms ease;
+            pointer-events: none;
+        }
+
+        body.overview-morph-active .overview-morph-card:not(.is-expanded):not(.is-morphing) {
+            pointer-events: none;
         }
 
         .overview-main-row {
@@ -1081,6 +1443,7 @@
         }
 
         @media (max-width: 1100px) {
+
             .revenue-zone-hero,
             .revenue-peak-grid {
                 grid-template-columns: 1fr;
@@ -1780,6 +2143,9 @@
         let latestExpenseAnalytics = null;
         let latestSalesAnalytics = null;
         let revenueForecastChart = null;
+        let activeOverviewMorph = null;
+        let overviewMorphCharts = [];
+        let overviewMorphRevenueForecastData = null;
         const initialAnalyticsYears = {{ available_years| tojson }};
 
         function escapeHtml(value) {
@@ -1930,6 +2296,7 @@
 
         // Clean up existing charts
         function destroyCharts() {
+            destroyOverviewMorphCharts();
             currentCharts.forEach(chart => chart.destroy());
             currentCharts = [];
             revenueForecastChart = null;
@@ -2230,7 +2597,7 @@
                 </div>
             `).join('');
             return `
-                <details class="analytics-story-map">
+                <details class="analytics-story-map" style="display:none;">
                     <summary>Business goal > Metric > Level of detail > Type of visualization</summary>
                     <div class="analytics-story-map-grid">${body}</div>
                 </details>
@@ -2306,13 +2673,13 @@
         }
 
         function shortOverviewMonthLabel(label) {
-            const parsed = parseOverviewMonthLabel(label);
+            const parsed = parseOverviewMonthLabel(label) || parseForecastPeriod(label);
             if (!parsed) return String(label || '');
             return parsed.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
         }
 
         function overviewMonthParamsFromLabel(label) {
-            const parsed = parseOverviewMonthLabel(label);
+            const parsed = parseOverviewMonthLabel(label) || parseForecastPeriod(label);
             if (!parsed) return null;
             return {
                 year: parsed.getFullYear(),
@@ -2322,7 +2689,7 @@
         }
 
         function previousOverviewMonthParams(label) {
-            const parsed = parseOverviewMonthLabel(label);
+            const parsed = parseOverviewMonthLabel(label) || parseForecastPeriod(label);
             if (!parsed) return null;
             const previous = new Date(parsed.getFullYear(), parsed.getMonth() - 1, 1);
             return {
@@ -2340,9 +2707,9 @@
         }
 
         function overviewMonthAxisLabel(label) {
-            const parsed = parseOverviewMonthLabel(label);
+            const parsed = parseOverviewMonthLabel(label) || parseForecastPeriod(label);
             if (!parsed) return String(label || '').toUpperCase();
-            return parsed.toLocaleDateString('en-PH', { month: 'short' }).toUpperCase();
+            return parsed.toLocaleDateString('en-PH', { month: 'short' });
         }
 
         //Do not remove
@@ -2366,17 +2733,68 @@
 
 
         function overviewLatestIndex(values) {
+            let latestObservedIndex = -1;
             for (let index = (values || []).length - 1; index >= 0; index -= 1) {
+                if (values[index] != null && latestObservedIndex < 0) latestObservedIndex = index;
                 if (Number(values[index] || 0) !== 0) return index;
             }
-            return Math.max((values || []).length - 1, 0);
+            return latestObservedIndex >= 0 ? latestObservedIndex : 0;
+        }
+
+        function salesOrderMonthlyTrendRows(salesData) {
+            return Array.isArray(salesData?.descriptive?.monthly_trend)
+                ? salesData.descriptive.monthly_trend
+                : [];
+        }
+
+        function buildOverviewSalesOrderTrend(currentSalesData = {}, previousSalesData = {}, selectedYear = overviewSelectedYear) {
+            const currentRows = salesOrderMonthlyTrendRows(currentSalesData);
+            const previousRows = salesOrderMonthlyTrendRows(previousSalesData);
+            const fallbackYear = currentRows.find(row => /^\d{4}-\d{2}/.test(String(row.period || '')))?.period?.slice(0, 4);
+            const currentYear = Number(selectedYear || fallbackYear || new Date().getFullYear());
+            const previousYear = currentYear - 1;
+
+            const monthLabels = Array.from({ length: 12 }, (_item, index) => `${currentYear}-${String(index + 1).padStart(2, '0')}`);
+            const currentByMonth = currentRows.reduce((map, row) => {
+                const match = String(row.period || '').match(/^(\d{4})-(\d{2})/);
+                if (match && Number(match[1]) === currentYear) {
+                    map[Number(match[2]) - 1] = Number(row.revenue || 0);
+                }
+                return map;
+            }, {});
+            const previousByMonth = previousRows.reduce((map, row) => {
+                const match = String(row.period || '').match(/^(\d{4})-(\d{2})/);
+                if (match && Number(match[1]) === previousYear) {
+                    map[Number(match[2]) - 1] = Number(row.revenue || 0);
+                }
+                return map;
+            }, {});
+
+            const currentValues = monthLabels.map((_label, index) => Object.prototype.hasOwnProperty.call(currentByMonth, index) ? currentByMonth[index] : null);
+            const previousValues = monthLabels.map((_label, index) => Object.prototype.hasOwnProperty.call(previousByMonth, index) ? previousByMonth[index] : null);
+            return {
+                source: 'sales_order',
+                labels: monthLabels,
+                values: currentValues,
+                revenue_values: currentValues,
+                comparison_values: previousValues,
+                latest_data_source: 'Sales Order',
+                current_year: currentYear,
+                previous_year: previousYear
+            };
         }
 
         function buildOverviewTierData(overviewData, currentClientsData = {}, previousClientsData = {}) {
             const trendData = overviewData?.trend_data || {};
-            const labels = trendData.labels || [];
-            const revenueValues = trendData.revenue_values || trendData.values || [];
-            const previousYearValues = trendData.comparison_values || [];
+            const salesOrderTrend = overviewData?.sales_order_trend || {};
+            const useSalesOrderTrend = Array.isArray(salesOrderTrend.labels) && salesOrderTrend.labels.length;
+            const labels = useSalesOrderTrend ? salesOrderTrend.labels : (trendData.labels || []);
+            const revenueValues = useSalesOrderTrend
+                ? (salesOrderTrend.revenue_values || salesOrderTrend.values || [])
+                : (trendData.revenue_values || trendData.values || []);
+            const previousYearValues = useSalesOrderTrend
+                ? (salesOrderTrend.comparison_values || [])
+                : (trendData.comparison_values || []);
             const latestIndex = overviewLatestIndex(revenueValues);
             const latestRevenue = Number(revenueValues[latestIndex] || 0);
             const previousRevenue = Number(revenueValues[latestIndex - 1] || 0);
@@ -2384,7 +2802,7 @@
             const momChange = percentChange(latestRevenue, previousRevenue);
             const yoyChange = percentChange(latestRevenue, priorYearRevenue);
             const latestLabel = labels[latestIndex] || overviewData?.filter?.label || 'Latest available month';
-            const extensionLabels = nextOverviewMonthLabels(latestLabel);
+            const extensionLabels = useSalesOrderTrend ? [] : nextOverviewMonthLabels(latestLabel);
             const currentClients = currentClientsData?.clients || currentClientsData?.clients_table || [];
             const previousClients = previousClientsData?.clients || previousClientsData?.clients_table || [];
             const previousByClient = previousClients.reduce((map, client) => {
@@ -2423,14 +2841,16 @@
                 .filter(client => Number(client.delta || 0) < 0)
                 .sort((left, right) => Number(left.delta || 0) - Number(right.delta || 0));
             const latestDate = parseOverviewMonthLabel(latestLabel);
-            const latestYear = latestDate?.getFullYear() || overviewData?.selected_year || '';
-            const previousYear = latestYear ? Number(latestYear) - 1 : '';
+            const latestYear = salesOrderTrend.current_year || latestDate?.getFullYear() || overviewData?.selected_year || '';
+            const previousYear = salesOrderTrend.previous_year || (latestYear ? Number(latestYear) - 1 : '');
+            const numericRevenueValues = revenueValues.filter(value => value != null).map(value => Number(value || 0));
+            const numericPreviousYearValues = previousYearValues.filter(value => value != null).map(value => Number(value || 0));
             return {
                 labels,
                 chartLabels: [...labels.map(overviewMonthAxisLabel), ...extensionLabels],
-                currentRevenueSeries: [...revenueValues.map(value => Number(value || 0)), ...extensionLabels.map(() => null)],
-                previousRevenueSeries: [...previousYearValues.map(value => Number(value || 0)), ...extensionLabels.map(() => null)],
-                yAxisMax: Math.ceil((Math.max(...revenueValues, ...previousYearValues, 0) + 500000) / 1000000) * 1000000,
+                currentRevenueSeries: [...revenueValues.map(value => value == null ? null : Number(value || 0)), ...extensionLabels.map(() => null)],
+                previousRevenueSeries: [...previousYearValues.map(value => value == null ? null : Number(value || 0)), ...extensionLabels.map(() => null)],
+                yAxisMax: Math.ceil((Math.max(...numericRevenueValues, ...numericPreviousYearValues, 0) + 500000) / 1000000) * 1000000,
                 latestIndex,
                 latestLabel,
                 latestRevenue,
@@ -2440,6 +2860,7 @@
                 yoyChange,
                 latestYear,
                 previousYear,
+                revenueSource: useSalesOrderTrend ? 'sales_order' : 'overview',
                 categories: categoryRows,
                 topClientsByGain: increasingClients.slice(0, 5),
                 bottomClientsByGain: decliningClients.slice(0, 5)
@@ -2477,6 +2898,1182 @@
             }).join('');
         }
 
+        const overviewMorphTitles = {
+            'overview-revenue-summary': 'This is the Sales Order Revenue generated...',
+            'overview-year-trend': 'Selected Year vs Previous Year Sales Order Revenue Trend',
+            'overview-client-category': 'Revenue Split by Client Value Category',
+            'overview-client-drivers': 'Top 5 Clients Driving Revenue Increase and Decrease'
+        };
+
+        function overviewStoryHighlight(text) {
+            return `<span class="overview-story-highlight">${escapeHtml(text)}</span>`;
+        }
+
+        function overviewDeltaClass(delta) {
+            const numeric = Number(delta || 0);
+            if (numeric > 0) return 'positive';
+            if (numeric < 0) return 'negative';
+            return 'neutral';
+        }
+
+        function overviewSignedCurrency(value) {
+            const numeric = Number(value || 0);
+            const sign = numeric > 0 ? '+' : numeric < 0 ? '-' : '';
+            return `${sign}${formatCurrency(Math.abs(numeric), { maximumFractionDigits: 0 })}`;
+        }
+
+        function overviewSignedForecastTotal(total, delta) {
+            const numericDelta = Number(delta || 0);
+            const sign = numericDelta >= 0 ? '+' : '-';
+            return `${sign}${formatCurrency(Math.abs(Number(total || 0)), { maximumFractionDigits: 0 })}`;
+        }
+
+        function overviewValueWithNegativeSign(value, delta) {
+            const numericDelta = Number(delta || 0);
+            const formatted = formatCurrency(Math.abs(Number(value || 0)), { maximumFractionDigits: 0 });
+            return numericDelta < 0 ? `-${formatted}` : formatted;
+        }
+
+        function overviewStoreNameOnly(client) {
+            return String(client?.store_name || '').trim() || 'Unspecified Store';
+        }
+
+        function overviewForecastAccuracy(accuracy) {
+            if (accuracy?.mape == null || !Number.isFinite(Number(accuracy.mape))) return 'Insufficient';
+            return `${Math.max(0, 100 - Number(accuracy.mape || 0)).toFixed(1)}%`;
+        }
+
+        function renderOverviewPlaceholderCanvas(cardKey) {
+            return `
+                <div class="overview-morph-canvas-inner" data-overview-canvas="${escapeHtml(cardKey)}">
+                    <div class="overview-morph-header">
+                        <button type="button" class="btn btn-outline overview-morph-back" onclick="event.stopPropagation(); closeOverviewMorph();">← Back to Executive Grid</button>
+                    </div>
+                    <section class="overview-morph-body">
+                        ${overviewMorphBody(cardKey)}
+                    </section>
+                </div>
+            `;
+        }
+
+        function overviewMorphBody(cardKey) {
+            const map = {
+                'overview-revenue-summary': {
+                    html: `
+                        <div class="overview-story-grid with-divider">
+                            <div class="overview-story-stack">
+                                <div class="overview-story-kpi">
+                                    <span>This is the ${overviewStoryHighlight('Revenue')} Generated...</span>
+                                    <strong id="overviewMorphRevenueGeneratedValue" class="overview-story-value neutral">Loading...</strong>
+                                </div>
+                                <div class="overview-story-kpi">
+                                    <span>... with A Forecasted ${overviewStoryHighlight('Revenue')} of</span>
+                                    <strong id="overviewMorphForecastRevenueValue" class="overview-story-value neutral">Loading...</strong>
+                                </div>
+                            </div>
+                            <div class="overview-story-chart-stack">
+                                <div class="overview-forecast-controls" aria-label="Revenue forecast filter controls">
+                                    <label>Data
+                                        <select id="overviewMorphForecastScope" onchange="refreshOverviewRevenueForecastMorph()">
+                                            <option value="all">All data</option>
+                                            <option value="year">Specific year</option>
+                                        </select>
+                                    </label>
+                                    <label id="overviewMorphForecastYearField">Year
+                                        <select id="overviewMorphForecastYear" onchange="refreshOverviewRevenueForecastMorph()">
+                                            ${initialAnalyticsYears.map(year => `<option value="${escapeHtml(year)}">${escapeHtml(year)}</option>`).join('')}
+                                        </select>
+                                    </label>
+                                    <label>Forecast months
+                                        <select id="overviewMorphForecastMonths" onchange="refreshOverviewRevenueForecastMorph()">
+                                            <option value="3">3 months</option>
+                                            <option value="6">6 months</option>
+                                            <option value="12">12 months</option>
+                                        </select>
+                                    </label>
+                                </div>
+                                <div class="overview-story-chart"><canvas style="max-height: 300px;" id="overviewMorphRevenueForecastChart" aria-label="Expanded revenue generated and forecast chart"></canvas></div>
+                                <p id="overviewMorphRevenueForecastNote" class="overview-story-note">Loading forecast Accuracy...</p>
+                            </div>
+                        </div>
+                    `
+                },
+                'overview-year-trend': {
+                    html: `
+                        <div class="overview-story-chart-stack">
+                            <div class="overview-story-chart"><canvas id="overviewMorphYearTrendChart" aria-label="Expanded selected year versus previous year trend chart"></canvas></div>
+                            <p id="overviewMorphPeakSaleNote" class="overview-story-note">Loading Peak sale...</p>
+                            <p id="overviewMorphPeakClientNote" class="overview-story-text">Loading peak client Revenue...</p>
+                        </div>
+                    `
+                },
+                'overview-client-category': {
+                    html: `
+                        <div class="overview-story-chart-stack">
+                            <p class="overview-story-text">This is the <strong>Revenue</strong> split by Client Value Category...</p>
+                            <div class="overview-category-story-grid">
+                                <div class="overview-story-chart compact"><canvas id="overviewMorphCategoryRevenueChart" aria-label="Expanded revenue by client value category chart"></canvas></div>
+                                <div class="overview-story-chart compact"><canvas id="overviewMorphCategoryMomentumChart" aria-label="Expanded momentum by client value category chart"></canvas></div>
+                            </div>
+                            <div class="overview-scatter-card" aria-label="Client value category scatter and Pareto chart toggle">
+                                <div class="overview-category-toggle" role="group" aria-label="Revenue split chart view">
+                                    <button type="button" class="is-active" data-category-view="scatter" aria-pressed="true" onclick="activateOverviewCategoryView('scatter')">Client Value Category Scatter</button>
+                                    <button type="button" data-category-view="pareto" aria-pressed="false" onclick="activateOverviewCategoryView('pareto')">Client Value and Categorization</button>
+                                </div>
+                                <div class="overview-category-chart-panels">
+                                    <div class="overview-category-chart-panel" data-category-panel="scatter">
+                                        <h4>Client Value Category Scatter</h4>
+                                        <div class="overview-story-chart compact"><canvas id="overviewMorphCombinedScatterChart" aria-label="Combined client category frequency z-score and Sales Order value z-score scatter plot"></canvas></div>
+                                    </div>
+                                    <div class="overview-category-chart-panel is-hidden" data-category-panel="pareto">
+                                        <h4>Client Value and Categorization</h4>
+                                        <div class="overview-story-chart compact"><canvas id="overviewMorphClientParetoChart" aria-label="Sales Order revenue Pareto by client and value category chart"></canvas></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <p id="overviewMorphCategoryInsight" class="overview-story-note">Loading category scatter plot insight...</p>
+                        </div>
+                    `
+                },
+                'overview-client-drivers': {
+                    html: `
+                        <div class="overview-story-chart-stack">
+                            <div id="overviewMorphDriverTables" class="overview-driver-morph-grid">Loading client driver recommendations...</div>
+                            <div id="overviewMorphDriverRecommendations" class="overview-driver-recommendations"></div>
+                        </div>
+                    `
+                }
+            };
+            return map[cardKey]?.html || '<p class="overview-story-text">Expanded overview content is not available yet.</p>';
+        }
+
+        function destroyOverviewMorphCharts() {
+            overviewMorphCharts.forEach(chart => {
+                if (chart && typeof chart.destroy === 'function') chart.destroy();
+            });
+            overviewMorphCharts = [];
+            overviewMorphRevenueForecastData = null;
+        }
+
+        function replaceOverviewMorphChart(canvas, config) {
+            if (!canvas) return null;
+            const existing = overviewMorphCharts.find(chart => chart.canvas === canvas);
+            if (existing) {
+                existing.destroy();
+                overviewMorphCharts = overviewMorphCharts.filter(chart => chart !== existing);
+            }
+            const chart = createAnalyticsChart(canvas, config);
+            overviewMorphCharts.push(chart);
+            return chart;
+        }
+
+        async function ensureOverviewMorphData() {
+            const tasks = [];
+            if (!latestSalesAnalytics) {
+                tasks.push(cachedAnalyticsJson(baseURL + '/sales', currentAnalyticsFilterParams({ mape_threshold: salesMapeThreshold }))
+                    .then(data => {
+                        if (data?.success) {
+                            latestSalesAnalytics = data;
+                            latestRecommendations = data.recommendations || latestRecommendations || [];
+                        }
+                    }));
+            }
+            if (!latestClientAnalytics) {
+                tasks.push(cachedAnalyticsJson(baseURL + '/clients', currentAnalyticsFilterParams())
+                    .then(data => {
+                        if (data?.success) {
+                            latestClientAnalytics = {
+                                clients: data.clients || data.clients_table || [],
+                                chartData: data.chart_data || data.clients || data.clients_table || []
+                            };
+                        }
+                    }));
+            }
+            if (tasks.length) await Promise.allSettled(tasks);
+        }
+
+        async function hydrateOverviewMorphCanvas(cardKey) {
+            const canvas = document.querySelector(`[data-overview-canvas="${cardKey}"]`);
+            if (!canvas) return;
+            canvas.querySelectorAll('.overview-story-empty').forEach(item => item.remove());
+            await ensureOverviewMorphData();
+            if (!activeOverviewMorph || activeOverviewMorph.card?.dataset.overviewCard !== cardKey) return;
+            if (cardKey === 'overview-revenue-summary') {
+                initializeOverviewRevenueForecastControls();
+                await refreshOverviewRevenueForecastMorph();
+            }
+            if (cardKey === 'overview-year-trend') await renderOverviewYearTrendMorph();
+            if (cardKey === 'overview-client-category') renderOverviewClientCategoryMorph();
+            if (cardKey === 'overview-client-drivers') renderOverviewClientDriversMorph();
+        }
+
+        function initializeOverviewRevenueForecastControls() {
+            const scope = document.getElementById('overviewMorphForecastScope');
+            const year = document.getElementById('overviewMorphForecastYear');
+            const months = document.getElementById('overviewMorphForecastMonths');
+            const currentYear = document.getElementById('analyticsYear')?.value || initialAnalyticsYears[0];
+            if (scope && !scope.dataset.initialized) {
+                scope.value = 'all';
+                scope.dataset.initialized = 'true';
+            }
+            if (year && currentYear) year.value = String(currentYear);
+            if (months && !months.value) months.value = '3';
+        }
+
+        function overviewForecastPointsForSelectedHorizon() {
+            const forecast = overviewMorphRevenueForecastData?.predictive?.monthly_revenue_forecast || latestSalesAnalytics?.predictive?.monthly_revenue_forecast || {};
+            const horizon = Number(document.getElementById('overviewMorphForecastMonths')?.value || forecast.default_horizon || 3);
+            return (forecast.forecast_points || []).slice(0, horizon);
+        }
+
+        function overviewMorphShortMonthLabel(period) {
+            const date = parseForecastPeriod(period);
+            if (date) return date.toLocaleDateString('en-PH', { month: 'short' });
+            const parsed = parseOverviewMonthLabel(period);
+            if (parsed) return parsed.toLocaleDateString('en-PH', { month: 'short' });
+            return String(period || 'N/A');
+        }
+
+        function overviewLatestActualForecastPoints() {
+            const forecast = overviewMorphRevenueForecastData?.predictive?.monthly_revenue_forecast || latestSalesAnalytics?.predictive?.monthly_revenue_forecast || {};
+            const actualPoints = [...(forecast.historical_points || [])]
+                .sort((left, right) => compareForecastPeriods(left.period || left.label, right.period || right.label))
+                .slice(-12)
+                .map(point => ({
+                    label: overviewMorphShortMonthLabel(point.period || point.label || ''),
+                    revenue: Number(point.revenue || 0),
+                    type: 'actual'
+                }));
+            const forecastPoints = overviewForecastPointsForSelectedHorizon();
+            return {
+                actualPoints,
+                forecastPoints: forecastPoints.map(point => ({
+                    label: overviewMorphShortMonthLabel(point.period || point.label || ''),
+                    revenue: Number(point.revenue || 0),
+                    type: 'forecast'
+                }))
+            };
+        }
+
+        function overviewRevenueForecastParams() {
+            const scope = document.getElementById('overviewMorphForecastScope')?.value || 'all';
+            const selectedYear = document.getElementById('overviewMorphForecastYear')?.value || document.getElementById('analyticsYear')?.value || new Date().getFullYear();
+            const params = { mape_threshold: salesMapeThreshold };
+            if (scope === 'year') {
+                params.year = selectedYear;
+                params.period = 'year';
+                params.forecast_scope = 'filter';
+            } else {
+                params.forecast_scope = 'all';
+            }
+            return params;
+        }
+
+        async function refreshOverviewRevenueForecastMorph() {
+            const yearField = document.getElementById('overviewMorphForecastYearField');
+            const scope = document.getElementById('overviewMorphForecastScope')?.value || 'all';
+            if (yearField) yearField.style.display = scope === 'year' ? 'grid' : 'none';
+            const note = document.getElementById('overviewMorphRevenueForecastNote');
+            if (note) note.textContent = 'Loading revenue forecast...';
+            const data = await cachedAnalyticsJson(baseURL + '/sales', overviewRevenueForecastParams());
+            if (data?.success) {
+                overviewMorphRevenueForecastData = data;
+                renderOverviewRevenueSummaryMorph(data);
+            } else if (note) {
+                note.textContent = data?.error || 'Revenue forecast could not be loaded.';
+            }
+        }
+
+        function renderOverviewRevenueSummaryMorph(data = overviewMorphRevenueForecastData || latestSalesAnalytics) {
+            if (!overviewMorphRevenueForecastData && data) overviewMorphRevenueForecastData = data;
+            const tierData = latestOverviewAnalytics?.overviewTierData || buildOverviewTierData(latestOverviewAnalytics || {});
+            const { actualPoints, forecastPoints } = overviewLatestActualForecastPoints();
+            const accuracy = data?.forecast_accuracy || latestSalesAnalytics?.forecast_accuracy || {};
+            const latestActualRevenue = actualPoints.length ? Number(actualPoints[actualPoints.length - 1].revenue || 0) : Number(tierData.latestRevenue || 0);
+            const previousActualRevenue = actualPoints.length > 1 ? Number(actualPoints[actualPoints.length - 2].revenue || 0) : null;
+            const latestDelta = previousActualRevenue == null ? 0 : latestActualRevenue - previousActualRevenue;
+            const forecastTotal = forecastPoints.reduce((sum, point) => sum + Number(point.revenue || 0), 0);
+            const comparisonTotal = actualPoints.reduce((sum, point) => sum + Number(point.revenue || 0), 0);
+            const forecastDelta = forecastTotal - comparisonTotal;
+            const revenueValue = document.getElementById('overviewMorphRevenueGeneratedValue');
+            const forecastValue = document.getElementById('overviewMorphForecastRevenueValue');
+            const note = document.getElementById('overviewMorphRevenueForecastNote');
+            if (revenueValue) {
+                revenueValue.className = `overview-story-value ${overviewDeltaClass(latestDelta)}`;
+                revenueValue.textContent = overviewValueWithNegativeSign(latestActualRevenue, latestDelta);
+            }
+            if (forecastValue) {
+                forecastValue.className = `overview-story-value ${overviewDeltaClass(forecastDelta)}`;
+                forecastValue.textContent = forecastPoints.length ? overviewValueWithNegativeSign(forecastTotal, forecastDelta) : 'Insufficient data';
+            }
+            if (note) {
+                const deltaClass = overviewDeltaClass(forecastDelta);
+                note.innerHTML = `.. with a forecast <strong style="color:#111827;">Accuracy</strong> of <span class="${deltaClass}">${escapeHtml(overviewForecastAccuracy(accuracy))}</span>`;
+            }
+            renderOverviewRevenueForecastMorphChart(actualPoints, forecastPoints, forecastDelta, tierData, forecastTotal);
+        }
+
+        function renderOverviewRevenueForecastMorphChart(actualPoints, forecastPoints, forecastDelta, tierData = latestOverviewAnalytics?.overviewTierData || {}, forecastTotal = 0) {
+            const canvas = document.getElementById('overviewMorphRevenueForecastChart');
+            if (!canvas || !forecastPoints.length || !actualPoints.length) {
+                if (canvas) canvas.insertAdjacentHTML('afterend', '<div class="overview-story-empty">Not enough forecast data is available for this expanded revenue chart.</div>');
+                return;
+            }
+            const baseLabels = (tierData.chartLabels || []).slice(0, 12);
+            const currentBaseValues = (tierData.currentRevenueSeries || []).slice(0, baseLabels.length);
+            const previousBaseValues = (tierData.previousRevenueSeries || []).slice(0, baseLabels.length);
+            const latestActualIndex = Math.min(Math.max(Number(tierData.latestIndex || 0), 0), Math.max(baseLabels.length - 1, 0));
+            const latestActualRevenue = Number(currentBaseValues[latestActualIndex] ?? actualPoints[actualPoints.length - 1]?.revenue ?? 0);
+            const forecastLabels = forecastPoints.map(point => point.label);
+            const labels = [...baseLabels, ...forecastLabels];
+            const finalForecastIndex = labels.length - 1;
+            const forecastLineData = Array(labels.length).fill(null);
+            forecastLineData[latestActualIndex] = latestActualRevenue;
+            forecastPoints.forEach((point, index) => {
+                forecastLineData[baseLabels.length + index] = Number(point.revenue || 0);
+            });
+            const currentLineData = [...currentBaseValues, ...forecastPoints.map(() => null)];
+            const previousLineData = [...previousBaseValues, ...forecastPoints.map(() => null)];
+            const signedForecastLabel = overviewSignedForecastTotal(forecastTotal, forecastDelta);
+            const forecastBoundaryIndex = baseLabels.length;
+            const latestActualPeriod = (tierData.labels || [])[latestActualIndex] || tierData.latestLabel;
+            const latestActualDate = parseForecastPeriod(latestActualPeriod) || parseOverviewMonthLabel(latestActualPeriod);
+            const forecastBoundaryLabel = latestActualDate?.getMonth() === 11 ? String(latestActualDate.getFullYear() + 1) : '';
+            const negativeForecastColor = '#dc6b6b';
+            const revenueLabelPlugin = {
+                id: 'overviewMorphRevenueForecastLabels',
+                afterDatasetsDraw(chart) {
+                    const { ctx, chartArea } = chart;
+                    const xScale = chart.scales.x;
+                    const currentMeta = chart.getDatasetMeta(1);
+                    const forecastMeta = chart.getDatasetMeta(2);
+                    const latestPoint = currentMeta?.data?.[latestActualIndex];
+                    const finalForecastPoint = forecastMeta?.data?.[finalForecastIndex];
+                    ctx.save();
+                    if (forecastBoundaryIndex < labels.length && xScale) {
+                        const x = xScale.getPixelForValue(forecastBoundaryIndex);
+                        ctx.strokeStyle = '#cbd5e1';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([]);
+                        ctx.beginPath();
+                        ctx.moveTo(x, chartArea.top);
+                        ctx.lineTo(x, chartArea.bottom);
+                        ctx.stroke();
+                        if (forecastBoundaryLabel) {
+                            ctx.fillStyle = '#64748b';
+                            ctx.font = '700 10px Inter, system-ui, sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(forecastBoundaryLabel, x, chartArea.top + 12);
+                        }
+                    }
+                    if (latestPoint) {
+                        ctx.fillStyle = '#374151';
+                        ctx.font = '700 10px Inter, system-ui, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(formatCurrency(latestActualRevenue, { maximumFractionDigits: 0 }), latestPoint.x, Math.max(chartArea.top + 12, latestPoint.y - 10));
+                    }
+                    if (finalForecastPoint) {
+                        ctx.fillStyle = forecastDelta >= 0 ? '#15803d' : negativeForecastColor;
+                        ctx.font = '800 12px Inter, system-ui, sans-serif';
+                        ctx.textAlign = 'center';
+                        const labelWidth = ctx.measureText(signedForecastLabel).width;
+                        const labelX = Math.min(
+                            Math.max(finalForecastPoint.x, chartArea.left + labelWidth / 2 + 4),
+                            chartArea.right - labelWidth / 2 - 4
+                        );
+                        ctx.fillText(signedForecastLabel, labelX, Math.max(chartArea.top + 16, finalForecastPoint.y - 14));
+                    }
+                    ctx.restore();
+                }
+            };
+            replaceOverviewMorphChart(canvas, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: `${tierData.previousYear || 'Previous Year'} Sales Order Revenue`,
+                            data: previousLineData,
+                            borderColor: overviewMutedAccentColor(),
+                            backgroundColor: overviewMutedAccentColor(),
+                            borderWidth: 1.5,
+                            tension: 0.42,
+                            pointRadius: 0,
+                            pointHoverRadius: 3
+                        },
+                        {
+                            label: `${tierData.latestYear || 'Selected Year'} Sales Order Revenue`,
+                            data: currentLineData,
+                            borderColor: overviewAccentColor(),
+                            backgroundColor: overviewAccentColor(),
+                            borderWidth: 2,
+                            tension: 0.42,
+                            pointRadius: (_context) => _context.dataIndex === latestActualIndex ? 4 : 0,
+                            pointHoverRadius: (_context) => _context.dataIndex === latestActualIndex ? 6 : 0
+                        },
+                        {
+                            label: `Holt-Winters Forecast (${forecastPoints.length} month${forecastPoints.length === 1 ? '' : 's'})`,
+                            data: forecastLineData,
+                            borderColor: forecastDelta >= 0 ? '#15803d' : negativeForecastColor,
+                            backgroundColor: forecastDelta >= 0 ? '#15803d' : negativeForecastColor,
+                            borderWidth: 2,
+                            borderDash: [5, 4],
+                            tension: 0.25,
+                            pointRadius: (_context) => _context.dataIndex === finalForecastIndex ? 4 : 0,
+                            pointHoverRadius: (_context) => _context.dataIndex === finalForecastIndex ? 6 : 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: context => `${context.dataset.label}: ${formatCurrency(context.parsed.y || 0)}` } } },
+                    scales: { x: { grid: { display: false }, ticks: { autoSkip: false, maxRotation: 0, minRotation: 0, font: { size: 9, weight: '700' } } }, y: { beginAtZero: true, grid: { display: false }, ticks: { font: { size: 10 }, callback: value => formatCurrency(value, { maximumFractionDigits: 0 }) } } }
+                },
+                plugins: [revenueLabelPlugin]
+            });
+        }
+
+        function overviewPeakPoint() {
+            const tierData = latestOverviewAnalytics?.overviewTierData || buildOverviewTierData(latestOverviewAnalytics || {});
+            const values = tierData.currentRevenueSeries || [];
+            let peakIndex = -1;
+            let peakValue = -Infinity;
+            values.forEach((value, index) => {
+                const numeric = Number(value || 0);
+                if (Number.isFinite(numeric) && numeric > peakValue) {
+                    peakValue = numeric;
+                    peakIndex = index;
+                }
+            });
+            return { tierData, peakIndex, peakValue: peakValue === -Infinity ? 0 : peakValue, peakLabel: (tierData.chartLabels || [])[peakIndex] || 'No peak month' };
+        }
+
+        async function renderOverviewYearTrendMorph() {
+            const { tierData, peakIndex, peakValue, peakLabel } = overviewPeakPoint();
+            const note = document.getElementById('overviewMorphPeakSaleNote');
+            const clientNote = document.getElementById('overviewMorphPeakClientNote');
+            if (note) {
+                note.innerHTML = `... with a <u>Peak</u> sale of <span class="positive">${formatCurrency(peakValue, { maximumFractionDigits: 0 })}</span> During <strong>${escapeHtml(peakLabel)}</strong>`;
+            }
+            const peakParams = overviewMonthParamsFromLabel((tierData.labels || [])[peakIndex] || tierData.latestLabel);
+            let peakClient = null;
+            if (peakParams) {
+                const peakPayload = await cachedAnalyticsJson(baseURL + '/clients', currentAnalyticsFilterParams(peakParams));
+                const peakClients = peakPayload?.clients || peakPayload?.clients_table || [];
+                peakClient = [...peakClients].sort((a, b) => Number(b.sales_order_value || b.total_revenue || 0) - Number(a.sales_order_value || a.total_revenue || 0))[0] || null;
+            }
+            if (clientNote) {
+                if (peakClient) {
+                    const name = overviewStoreNameOnly(peakClient);
+                    const value = Number(peakClient.sales_order_value || peakClient.total_revenue || 0);
+                    clientNote.innerHTML = `<strong>${escapeHtml(name)}</strong> has the highest ${overviewStoryHighlight('Revenue')} with a total of <span class="positive">${formatCurrency(value, { maximumFractionDigits: 0 })}</span> during <strong>${escapeHtml(peakLabel)}</strong>.`;
+                } else {
+                    clientNote.textContent = 'No top client data is available for the peak month yet.';
+                }
+            }
+            const canvas = document.getElementById('overviewMorphYearTrendChart');
+            if (!canvas) return;
+
+            const peakLinePlugin = {
+                id: 'overviewMorphPeakLine',
+                afterDatasetsDraw(chart) {
+                    // Note: Make sure 'peakValue' is accessible within this scope
+                    if (typeof peakValue === 'undefined' || peakValue === null) return;
+
+                    const { ctx, chartArea, scales } = chart;
+                    const y = scales.y.getPixelForValue(peakValue);
+
+                    // Guard rail: Don't draw if the peak value falls completely outside the chart grid
+                    if (y < chartArea.top || y > chartArea.bottom) return;
+
+                    ctx.save();
+
+                    // 1. Draw the horizontal dashed line
+                    ctx.strokeStyle = '#047857';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([4, 4]);
+                    ctx.beginPath();
+                    ctx.moveTo(chartArea.left, y);
+                    ctx.lineTo(chartArea.right, y);
+                    ctx.stroke();
+
+                    // 2. Configure text styling
+                    ctx.setLineDash([]); // Reset dash line style
+                    ctx.fillStyle = '#047857';
+                    ctx.font = '800 11px Inter, system-ui, sans-serif';
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'bottom'; // Ensures text sits perfectly on top of the Y coordinate
+
+                    // 3. Position text cleanly on the left edge, sitting 4px above the line
+                    const labelX = chartArea.left + 8;
+                    const labelY = y - 4;
+
+                    // 4. Render the currency text
+                    const formattedText = formatCurrency(peakValue, { maximumFractionDigits: 0 });
+                    ctx.fillText(formattedText, labelX, labelY);
+
+                    ctx.restore();
+                }
+            };
+            replaceOverviewMorphChart(canvas, {
+                type: 'line',
+                data: {
+                    labels: tierData.chartLabels || [],
+                    datasets: [
+                        { label: `${tierData.previousYear || 'Previous Year'} Sales Order Revenue`, data: tierData.previousRevenueSeries || [], borderColor: overviewMutedAccentColor(), backgroundColor: overviewMutedAccentColor(), borderWidth: 1.5, tension: 0.42, pointRadius: 0 },
+                        { label: `${tierData.latestYear || 'Selected Year'} Sales Order Revenue`, data: tierData.currentRevenueSeries || [], borderColor: overviewAccentColor(), backgroundColor: overviewAccentColor(), borderWidth: 2.25, tension: 0.42, pointRadius: context => context.dataIndex === peakIndex ? 5 : 2, pointBackgroundColor: context => context.dataIndex === peakIndex ? '#047857' : overviewAccentColor() }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: context => `${context.dataset.label}: ${formatCurrency(context.parsed.y || 0)}` } } },
+                    scales: { x: { grid: { display: false }, ticks: { autoSkip: true, maxTicksLimit: 12 } }, y: { beginAtZero: true, ticks: { callback: value => formatCurrency(value, { maximumFractionDigits: 0 }) } } }
+                },
+                plugins: [peakLinePlugin]
+            });
+        }
+
+        function overviewClientsWithZScores() {
+            const clients = latestClientAnalytics?.clients || [];
+            const frequencies = clients.map(client => Number(client.order_count || 0));
+            const salesValues = clients.map(client => Number(client.sales_order_value || client.total_revenue || 0));
+            const zScoreMeta = values => {
+                const mean = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+                const variance = values.length ? values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / values.length : 0;
+                return { mean, stdDev: Math.sqrt(variance) || 1 };
+            };
+            const frequencyMeta = zScoreMeta(frequencies);
+            const salesMeta = zScoreMeta(salesValues);
+            return clients.map(client => {
+                const frequency = Number(client.order_count || 0);
+                const salesValue = Number(client.sales_order_value || client.total_revenue || 0);
+                return {
+                    ...client,
+                    category: clientValueCategory(client),
+                    frequency,
+                    salesValue,
+                    frequencyZScore: (frequency - frequencyMeta.mean) / frequencyMeta.stdDev,
+                    salesValueZScore: (salesValue - salesMeta.mean) / salesMeta.stdDev
+                };
+            });
+        }
+
+        function overviewZScoreBounds(values) {
+            const clean = values.map(value => Number(value || 0)).filter(value => Number.isFinite(value));
+            const maxAbs = Math.max(1, ...clean.map(value => Math.abs(value)));
+            const bound = Math.ceil((maxAbs + 0.25) * 2) / 2;
+            return { min: -bound, max: bound };
+        }
+
+        function overviewScatterDataBounds(points, field) {
+            const values = points.map(point => Number(point?.[field])).filter(value => Number.isFinite(value));
+            if (!values.length) return { min: -1, max: 1 };
+            let min = Math.min(...values);
+            let max = Math.max(...values);
+            if (min === max) {
+                min -= 1;
+                max += 1;
+            }
+            const padding = Math.max((max - min) * 0.18, 0.35);
+            return {
+                min: Number((min - padding).toFixed(2)),
+                max: Number((max + padding).toFixed(2))
+            };
+        }
+
+        function overviewVisibleScatterPoints(chart) {
+            const visiblePoints = [];
+            const allPoints = [];
+            chart.data.datasets.forEach((dataset, index) => {
+                const points = Array.isArray(dataset.data) ? dataset.data : [];
+                allPoints.push(...points);
+                if (chart.isDatasetVisible(index)) visiblePoints.push(...points);
+            });
+            return visiblePoints.length ? visiblePoints : allPoints;
+        }
+
+        function applyOverviewScatterVisibleBounds(chart) {
+            if (!chart?.options?.scales) return;
+            const points = overviewVisibleScatterPoints(chart);
+            const xBounds = overviewScatterDataBounds(points, 'x');
+            const yBounds = overviewScatterDataBounds(points, 'y');
+            chart.options.scales.x.min = xBounds.min;
+            chart.options.scales.x.max = xBounds.max;
+            chart.options.scales.y.min = yBounds.min;
+            chart.options.scales.y.max = yBounds.max;
+        }
+
+        function overviewClientDisplayName(client) {
+            return String(client?.store_name || client?.label || client?.company_name || 'Client').trim() || 'Client';
+        }
+
+        function shortOverviewClientLabel(name, maxLength = 14) {
+            const value = String(name || 'Client').trim();
+            return value.length > maxLength ? `${value.slice(0, maxLength - 1)}...` : value;
+        }
+
+        function overviewParetoRows(clients) {
+            const rows = clients
+                .map(client => ({
+                    name: overviewClientDisplayName(client),
+                    category: client.category,
+                    salesValue: Number(client.salesValue || 0)
+                }))
+                .filter(row => row.salesValue > 0)
+                .sort((a, b) => {
+                    const categoryDelta = overviewCategoryOrder.indexOf(a.category) - overviewCategoryOrder.indexOf(b.category);
+                    return categoryDelta || b.salesValue - a.salesValue;
+                });
+            const total = rows.reduce((sum, row) => sum + row.salesValue, 0) || 1;
+            let runningTotal = 0;
+            return rows.map(row => {
+                runningTotal += row.salesValue;
+                return {
+                    ...row,
+                    cumulativePercent: Number(((runningTotal / total) * 100).toFixed(1))
+                };
+            });
+        }
+
+        function overviewParetoCategoryCuts(rows) {
+            return rows.reduce((cuts, row, index) => {
+                const next = rows[index + 1];
+                if (next && row.category !== next.category) {
+                    cuts.push({ index, nextCategory: next.category });
+                }
+                return cuts;
+            }, []);
+        }
+
+        function overviewParetoCategoryCutPlugin(cuts) {
+            return {
+                id: 'overviewParetoCategoryCutLines',
+                afterDatasetsDraw(chart) {
+                    if (!cuts?.length) return;
+                    const { ctx, chartArea } = chart;
+                    const meta = chart.getDatasetMeta(0);
+                    if (!meta?.data?.length) return;
+                    ctx.save();
+                    ctx.strokeStyle = '#9ca3af';
+                    ctx.fillStyle = '#4b5563';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([4, 4]);
+                    ctx.font = '700 10px Inter, system-ui, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'top';
+                    cuts.forEach(cut => {
+                        const current = meta.data[cut.index];
+                        const next = meta.data[cut.index + 1];
+                        if (!current || !next) return;
+                        const x = (current.x + next.x) / 2;
+                        ctx.beginPath();
+                        ctx.moveTo(x, chartArea.top);
+                        ctx.lineTo(x, chartArea.bottom);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                        ctx.fillText(cut.nextCategory.replace(' Clients', ''), x, chartArea.top + 4);
+                        ctx.setLineDash([4, 4]);
+                    });
+                    ctx.restore();
+                }
+            };
+        }
+
+        function activateOverviewCategoryView(view) {
+            const nextView = view === 'pareto' ? 'pareto' : 'scatter';
+            document.querySelectorAll('[data-category-view]').forEach(button => {
+                const active = button.dataset.categoryView === nextView;
+                button.classList.toggle('is-active', active);
+                button.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+            document.querySelectorAll('[data-category-panel]').forEach(panel => {
+                panel.classList.toggle('is-hidden', panel.dataset.categoryPanel !== nextView);
+            });
+            const insight = document.getElementById('overviewMorphCategoryInsight');
+            if (insight) {
+                insight.innerHTML = nextView === 'pareto'
+                    ? (insight.dataset.paretoMessage || `...this is how clients are ${overviewStoryHighlight('categorized')}.`)
+                    : (insight.dataset.scatterMessage || 'Loading category scatter plot insight...');
+            }
+            overviewMorphCharts.forEach(chart => {
+                if (chart?.canvas?.id === 'overviewMorphCombinedScatterChart') applyOverviewScatterVisibleBounds(chart);
+                chart?.resize?.();
+                chart?.update?.();
+            });
+        }
+
+        function overviewMorphBarLabelPlugin(id, formatter, mode = 'currency') {
+            return {
+                id,
+                afterDatasetsDraw(chart) {
+                    const { ctx, chartArea } = chart;
+                    const meta = chart.getDatasetMeta(0);
+                    if (!meta?.data?.length) return;
+                    ctx.save();
+                    ctx.font = '800 11px Inter, system-ui, sans-serif';
+                    ctx.textBaseline = 'middle';
+                    meta.data.forEach((bar, index) => {
+                        const value = Number(chart.data.datasets[0].data[index] || 0);
+                        if (!Number.isFinite(value)) return;
+                        const props = bar.getProps(['x', 'y', 'base'], true);
+                        const label = formatter(value, index);
+                        const textWidth = ctx.measureText(label).width;
+                        const isPositive = props.x >= props.base;
+                        const barSpace = Math.abs(props.x - props.base);
+                        const fitsInside = barSpace > textWidth + 12;
+                        ctx.fillStyle = fitsInside ? '#fff' : mode === 'percent' && value < 0 ? '#B91C1C' : '#111827';
+                        ctx.textAlign = fitsInside ? (isPositive ? 'right' : 'left') : (isPositive ? 'left' : 'right');
+                        const insideOffset = isPositive ? -6 : 6;
+                        const outsideOffset = isPositive ? 6 : -6;
+                        const rawX = fitsInside ? props.x + insideOffset : props.x + outsideOffset;
+                        const x = Math.min(Math.max(rawX, chartArea.left + textWidth / 2), chartArea.right - textWidth / 2);
+                        ctx.fillText(label, x, props.y);
+                    });
+                    ctx.restore();
+                }
+            };
+        }
+
+        function renderOverviewClientCategoryMorph() {
+            const tierData = latestOverviewAnalytics?.overviewTierData || buildOverviewTierData(latestOverviewAnalytics || {});
+            const categories = tierData.categories || [];
+            const revenueCanvas = document.getElementById('overviewMorphCategoryRevenueChart');
+            const momentumCanvas = document.getElementById('overviewMorphCategoryMomentumChart');
+            if (revenueCanvas) {
+                replaceOverviewMorphChart(revenueCanvas, {
+                    type: 'bar',
+                    plugins: [overviewMorphBarLabelPlugin('overviewMorphRevenueBarLabels', value => formatCurrency(value, { maximumFractionDigits: 0 }))],
+                    data: { labels: categories.map(item => item.category), datasets: [{ label: 'Revenue', data: categories.map(item => item.revenue), backgroundColor: overviewAccentColor() }] },
+                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: context => formatCurrency(context.parsed.x || 0, { maximumFractionDigits: 0 }) } } }, scales: { x: { beginAtZero: true, grid: { display: false }, border: { display: false }, ticks: { display: false } }, y: { grid: { display: false }, border: { display: false } } } }
+                });
+            }
+            if (momentumCanvas) {
+                const momentumValues = categories.map(item => overviewMomentumChange(item.revenue, item.previousRevenue, categories.reduce((sum, row) => sum + Number(row.previousRevenue || 0), 0)).value);
+                replaceOverviewMorphChart(momentumCanvas, {
+                    type: 'bar',
+                    plugins: [overviewMorphBarLabelPlugin('overviewMorphMomentumBarLabels', value => `${Number(value || 0).toFixed(1)}%`, 'percent')],
+                    data: { labels: categories.map(item => item.category), datasets: [{ label: 'MoM revenue % change', data: momentumValues, backgroundColor: momentumValues.map(value => Number(value || 0) >= 0 ? '#15803d' : '#B91C1C') }] },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: { callbacks: { label: context => `${Number(context.parsed.x || 0).toFixed(1)}%` } } },
+                        scales: {
+                            x: {
+                                grid: { color: context => Number(context.tick?.value || 0) === 0 ? '#111827' : 'transparent', lineWidth: context => Number(context.tick?.value || 0) === 0 ? 1 : 0 },
+                                border: { display: false },
+                                ticks: { callback: value => Number(value) === 0 ? '0%' : '' }
+                            },
+                            y: { grid: { display: false }, border: { display: false } }
+                        }
+                    }
+                });
+            }
+            const clients = overviewClientsWithZScores();
+            const xBounds = overviewZScoreBounds(clients.map(client => client.frequencyZScore));
+            const yBounds = overviewZScoreBounds(clients.map(client => client.salesValueZScore));
+            const scatterCanvas = document.getElementById('overviewMorphCombinedScatterChart');
+            const paretoCanvas = document.getElementById('overviewMorphClientParetoChart');
+            const scatterColors = {
+                'A-Class Clients': { background: 'rgba(4, 120, 87, 0.55)', border: '#047857' },
+                'B-Class Clients': { background: 'rgba(37, 99, 235, 0.55)', border: '#2563EB' },
+                'C-Class Clients': { background: 'rgba(100, 116, 139, 0.55)', border: '#64748B' }
+            };
+
+            if (scatterCanvas) {
+                const datasets = overviewCategoryOrder.map(category => {
+                    const colors = scatterColors[category] || scatterColors['C-Class Clients'];
+                    const rows = clients.filter(client => client.category === category);
+                    return {
+                        label: category,
+                        data: rows.map(client => ({
+                            x: Number(client.frequencyZScore.toFixed(2)),
+                            y: Number(client.salesValueZScore.toFixed(2)),
+                            clientName: overviewClientDisplayName(client),
+                            salesValue: client.salesValue
+                        })),
+                        backgroundColor: colors.background,
+                        borderColor: colors.border,
+                        borderWidth: 1,
+                        pointRadius: 5,
+                        pointHoverRadius: 7
+                    };
+                });
+
+                const scatterChart = replaceOverviewMorphChart(scatterCanvas, {
+                    type: 'scatter',
+                    data: { datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                onClick: (event, legendItem, legend) => {
+                                    const chart = legend.chart;
+                                    const index = legendItem.datasetIndex;
+                                    chart.setDatasetVisibility(index, !chart.isDatasetVisible(index));
+
+                                    applyOverviewScatterVisibleBounds(chart);
+
+                                    chart.options.scales.x.max = Math.min(chart.options.scales.x.max, 3.5);
+                                    chart.options.scales.y.max = Math.min(chart.options.scales.y.max, 3.5);
+
+                                    chart.update();
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => {
+                                        const p = context.raw;
+                                        const formattedValue = formatCurrency(p.salesValue, { maximumFractionDigits: 0 });
+                                        return `${p.clientName}: frequency z ${p.x}, value z ${p.y}, ${formattedValue}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                min: xBounds.min,
+                                max: Math.min(xBounds.max, 3.5),
+                                grid: {
+                                    display: true,
+                                    drawOnChartArea: false, // Hides inner grid lines, keeps main axis border line
+                                    drawTicks: true
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Order Frequency',
+                                    font: { size: 12, weight: 'bold' }
+                                },
+                                ticks: { display: false }
+                            },
+                            y: {
+                                min: yBounds.min,
+                                max: Math.min(yBounds.max, 3.5),
+                                grid: {
+                                    display: true,
+                                    drawOnChartArea: false, // Hides inner grid lines, keeps main axis border line
+                                    drawTicks: true
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Sales Order Value',
+                                    font: { size: 12, weight: 'bold' }
+                                },
+                                ticks: { display: false }
+                            }
+                        }
+                    }
+                });
+                applyOverviewScatterVisibleBounds(scatterChart);
+                scatterChart?.update();
+            }
+            if (paretoCanvas) {
+                const paretoRows = overviewParetoRows(clients);
+                const categoryCuts = overviewParetoCategoryCuts(paretoRows);
+                if (!paretoRows.length) {
+                    const paretoWrapper = paretoCanvas.closest('.overview-story-chart');
+                    if (paretoWrapper) paretoWrapper.innerHTML = '<div class="overview-story-empty">Not enough client revenue data for Pareto analysis yet.</div>';
+                } else {
+                    replaceOverviewMorphChart(paretoCanvas, {
+                        type: 'bar',
+                        data: {
+                            labels: paretoRows.map(row => shortOverviewClientLabel(row.name)),
+                            datasets: [
+                                {
+                                    type: 'bar',
+                                    label: 'Sales Order Revenue',
+                                    data: paretoRows.map(row => row.salesValue),
+                                    backgroundColor: paretoRows.map(row => (scatterColors[row.category] || scatterColors['C-Class Clients']).background),
+                                    borderColor: paretoRows.map(row => (scatterColors[row.category] || scatterColors['C-Class Clients']).border),
+                                    borderWidth: 1,
+                                    yAxisID: 'y'
+                                },
+                                {
+                                    type: 'line',
+                                    label: 'Cumulative Revenue %',
+                                    data: paretoRows.map(row => row.cumulativePercent),
+                                    borderColor: overviewAccentColor(),
+                                    backgroundColor: overviewAccentColor(),
+                                    borderWidth: 2,
+                                    pointRadius: 0,
+                                    pointHoverRadius: 3,
+                                    tension: 0.25,
+                                    yAxisID: 'y1'
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: true, position: 'bottom' },
+                                tooltip: {
+                                    callbacks: {
+                                        title: context => paretoRows[context[0]?.dataIndex]?.name || '',
+                                        label: context => {
+                                            const row = paretoRows[context.dataIndex];
+                                            if (context.dataset.yAxisID === 'y1') return `Cumulative: ${row.cumulativePercent}%`;
+                                            return `${row.category}: ${formatCurrency(row.salesValue, { maximumFractionDigits: 0 })}`;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { maxRotation: 0, minRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+                                y: { beginAtZero: true, grid: { display: false }, ticks: { callback: value => formatCurrency(value, { maximumFractionDigits: 0 }) } },
+                                y1: { beginAtZero: true, min: 0, max: 100, position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: value => `${value}%` } }
+                            }
+                        },
+                        plugins: [overviewParetoCategoryCutPlugin(categoryCuts)]
+                    });
+                }
+            }
+            const categoryStats = overviewCategoryOrder.map(category => {
+                const rows = clients.filter(client => client.category === category);
+                const revenue = rows.reduce((sum, client) => sum + client.salesValue, 0);
+                const avgFrequency = rows.length ? rows.reduce((sum, client) => sum + client.frequency, 0) / rows.length : 0;
+                const avgValue = rows.length ? revenue / rows.length : 0;
+                return { category, rows, revenue, avgFrequency, avgValue };
+            }).sort((a, b) => b.revenue - a.revenue);
+            const top = categoryStats[0];
+            const insight = document.getElementById('overviewMorphCategoryInsight');
+            if (insight && top) {
+                const allAvgFrequency = clients.length ? clients.reduce((sum, client) => sum + client.frequency, 0) / clients.length : 0;
+                const allAvgValue = clients.length ? clients.reduce((sum, client) => sum + client.salesValue, 0) / clients.length : 0;
+                const highFrequency = top.avgFrequency >= allAvgFrequency;
+                const highValue = top.avgValue >= allAvgValue;
+                const driver = highFrequency && highValue
+                    ? `${overviewStoryHighlight('high frequency')} and ${overviewStoryHighlight('high Sales Order value')}`
+                    : highFrequency
+                        ? overviewStoryHighlight('high frequency')
+                        : overviewStoryHighlight('high Sales Order value');
+                const scatterMessage = `... this shows what is important to have a ${overviewStoryHighlight('high revenue value')}. Based on ${escapeHtml(top.category)} having ${driver} is important.`;
+                const paretoMessage = `...this is how clients are ${overviewStoryHighlight('categorized')} by Sales Order revenue contribution and Client Value Category. The vertical lines show where the category cuts begin.`;
+                insight.dataset.scatterMessage = scatterMessage;
+                insight.dataset.paretoMessage = paretoMessage;
+                insight.innerHTML = scatterMessage;
+            }
+            activateOverviewCategoryView('scatter');
+        }
+
+        function overviewClientRecommendation(row, direction, clientMap) {
+            const key = String(row.client || row.product || '').trim().toUpperCase();
+            const client = clientMap[key] || {};
+            const existing = (client.recommendations || [])[0];
+            if (existing) return existing;
+            if (direction === 'up') return 'Protect this growth by confirming repeat order needs and preparing enough stock for likely follow-up purchases.';
+            return 'Review the account with the end user, confirm why orders declined, and prepare a recovery follow-up before the next reporting period.';
+        }
+
+        function renderOverviewClientDriversMorph() {
+            const holder = document.getElementById('overviewMorphDriverTables');
+            const recommendationsHolder = document.getElementById('overviewMorphDriverRecommendations');
+            if (!holder) return;
+            const tierData = latestOverviewAnalytics?.overviewTierData || buildOverviewTierData(latestOverviewAnalytics || {});
+            const clients = latestClientAnalytics?.clients || [];
+            const clientMap = clients.reduce((map, client) => {
+                const name = String(client.store_name || client.label || client.company_name || '').trim().toUpperCase();
+                if (name) map[name] = client;
+                return map;
+            }, {});
+            const renderTable = (title, rows, direction) => {
+                const isDown = direction === 'down';
+                return `
+                    <section class="overview-tier-panel" style="min-width: 0;">
+                        <h4>${escapeHtml(title)}</h4>
+                        <div class="client-table-scroll" style="max-height: 190px !important; margin: 0; padding: 0; border: 0; border-radius: 0; overflow-y: auto;">
+                            <table class="client-table overview-driver-table ${isDown ? 'overview-driver-table-decrease' : 'overview-driver-table-increase'}" style="width: 100% !important; min-width: 0 !important; margin: 0 !important; border: 0 !important; border-spacing: 0 !important; border-collapse: collapse !important; table-layout: fixed; font-size: 10px !important; line-height: 1.1 !important; -webkit-text-size-adjust: none; text-size-adjust: none;">
+                                <thead>
+                                    <tr style="height: 14px !important;">
+                                        <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Category</th>
+                                        <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Client</th>
+                                        <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: right; background: transparent; color: var(--text-main);">Revenue</th>
+                                        <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 600; line-height: 1.1 !important; text-align: right; background: ${isDown ? '#fecaca; color: #7f1d1d' : '#d1fae5; color: #065f46'};">&Delta; Revenue</th>
+                                    </tr>
+                                </thead>
+                                <tbody style="font-size: 10px !important; line-height: 1.1 !important;">
+                                    ${overviewVelocityRows(rows, direction)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                `;
+            };
+            holder.innerHTML = [
+                renderTable('Top 5 clients driving revenue increase', tierData.topClientsByGain || [], 'up'),
+                renderTable('Top 5 clients driving revenue decrease', tierData.bottomClientsByGain || [], 'down')
+            ].join('');
+            if (recommendationsHolder) {
+                const combinedRows = [
+                    ...(tierData.topClientsByGain || []).map(row => ({ ...row, direction: 'up' })),
+                    ...(tierData.bottomClientsByGain || []).map(row => ({ ...row, direction: 'down' }))
+                ];
+                recommendationsHolder.innerHTML = combinedRows.length
+                    ? combinedRows.map(row => `
+                        <div class="overview-driver-recommendation">
+                            <strong>${escapeHtml(row.client || row.product || 'Client')}</strong>
+                            <span>${escapeHtml(overviewClientRecommendation(row, row.direction, clientMap))}</span>
+                        </div>
+                    `).join('')
+                    : '<div class="overview-driver-recommendation">No client movement recommendations are available for this period.</div>';
+            }
+        }
+
+        function measureOverviewCard(card) {
+            return card.getBoundingClientRect();
+        }
+
+        function createOverviewGhost(card, rect) {
+            const ghost = document.createElement('div');
+            ghost.className = 'overview-morph-ghost';
+            ghost.style.width = `${rect.width}px`;
+            ghost.style.height = `${rect.height}px`;
+            card.parentNode.insertBefore(ghost, card);
+            return ghost;
+        }
+
+        function overviewMorphContainerElement(card) {
+            return card?.closest('.overview-morph-grid') || document.querySelector('.overview-morph-grid');
+        }
+
+        function overviewViewportRectToMorphRect(card, rect) {
+            const containerRect = overviewMorphContainerRect(card);
+            if (!containerRect) return rect;
+            return {
+                top: rect.top - containerRect.top,
+                left: rect.left - containerRect.left,
+                width: rect.width,
+                height: rect.height
+            };
+        }
+
+        function setOverviewCardRect(card, rect) {
+            const hasContainer = Boolean(overviewMorphContainerElement(card));
+            const appliedRect = hasContainer ? overviewViewportRectToMorphRect(card, rect) : rect;
+            card.style.position = hasContainer ? 'absolute' : 'fixed';
+            card.style.top = `${appliedRect.top}px`;
+            card.style.left = `${appliedRect.left}px`;
+            card.style.width = `${rect.width}px`;
+            card.style.height = `${rect.height}px`;
+            card.style.margin = '0';
+        }
+
+        function overviewMorphContainerRect(card) {
+            const container = overviewMorphContainerElement(card);
+            return container?.getBoundingClientRect() || null;
+        }
+
+        function overviewMorphTargetRect(card = activeOverviewMorph?.card) {
+            const containerRect = overviewMorphContainerRect(card);
+            if (containerRect) {
+                return {
+                    top: 0,
+                    left: 0,
+                    width: containerRect.width,
+                    height: containerRect.height
+                };
+            }
+            const margin = 20;
+            return {
+                top: margin,
+                left: margin,
+                width: Math.max(window.innerWidth - margin * 2, 280),
+                height: Math.max(window.innerHeight - margin * 2, 320)
+            };
+        }
+
+        function syncOverviewMorphToContainer() {
+            if (!activeOverviewMorph?.card) return;
+            const target = overviewMorphTargetRect(activeOverviewMorph.card);
+            const card = activeOverviewMorph.card;
+            card.style.top = `${target.top}px`;
+            card.style.left = `${target.left}px`;
+            card.style.width = `${target.width}px`;
+            card.style.height = `${target.height}px`;
+            overviewMorphCharts.forEach(chart => chart.resize?.());
+        }
+
+        function openOverviewMorph(card) {
+            if (!card || activeOverviewMorph || card.classList.contains('is-expanded')) return;
+            const cardKey = card.dataset.overviewCard;
+            const startRect = measureOverviewCard(card);
+            const ghost = createOverviewGhost(card, startRect);
+            activeOverviewMorph = {
+                card,
+                ghost,
+                returnFocus: document.activeElement instanceof HTMLElement ? document.activeElement : card
+            };
+            document.body.classList.add('overview-morph-active');
+            card.classList.add('is-morphing');
+            card.setAttribute('aria-expanded', 'true');
+            card.setAttribute('tabindex', '-1');
+            setOverviewCardRect(card, startRect);
+            card.style.borderRadius = '12px';
+            requestAnimationFrame(() => {
+                const target = overviewMorphTargetRect(card);
+                card.style.transition = 'top 500ms cubic-bezier(0.16, 1, 0.3, 1), left 500ms cubic-bezier(0.16, 1, 0.3, 1), width 500ms cubic-bezier(0.16, 1, 0.3, 1), height 500ms cubic-bezier(0.16, 1, 0.3, 1), border-radius 500ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 500ms cubic-bezier(0.16, 1, 0.3, 1)';
+                card.style.top = `${target.top}px`;
+                card.style.left = `${target.left}px`;
+                card.style.width = `${target.width}px`;
+                card.style.height = `${target.height}px`;
+                card.style.borderRadius = '16px';
+            });
+            window.setTimeout(() => {
+                if (!activeOverviewMorph || activeOverviewMorph.card !== card) return;
+                card.classList.add('is-expanded');
+                card.classList.remove('is-morphing');
+                card.querySelector('.overview-morph-back')?.focus();
+                hydrateOverviewMorphCanvas(cardKey);
+            }, 150);
+        }
+
+        function closeOverviewMorph() {
+            if (!activeOverviewMorph) return;
+            const { card, ghost, returnFocus } = activeOverviewMorph;
+            destroyOverviewMorphCharts();
+            const targetRect = ghost.getBoundingClientRect();
+            card.classList.add('is-morphing');
+            card.classList.remove('is-expanded');
+            setOverviewCardRect(card, targetRect);
+            card.style.borderRadius = '12px';
+            window.setTimeout(() => {
+                card.classList.remove('is-morphing');
+                card.removeAttribute('style');
+                card.setAttribute('aria-expanded', 'false');
+                card.setAttribute('tabindex', '0');
+                ghost.remove();
+                document.body.classList.remove('overview-morph-active');
+                activeOverviewMorph = null;
+                if (returnFocus && typeof returnFocus.focus === 'function') returnFocus.focus();
+                currentCharts.forEach(chart => chart.resize?.());
+            }, 500);
+        }
+
+        function handleOverviewMorphKeydown(event) {
+            const card = event.currentTarget;
+            if ((event.key === 'Enter' || event.key === ' ') && !activeOverviewMorph) {
+                event.preventDefault();
+                openOverviewMorph(card);
+            }
+        }
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && activeOverviewMorph) {
+                event.preventDefault();
+                closeOverviewMorph();
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            if (!activeOverviewMorph) return;
+            window.requestAnimationFrame(syncOverviewMorphToContainer);
+        });
+
         async function loadOverview() {
             try {
                 // --- GET OVERVIEW DATA ---
@@ -2503,7 +4100,27 @@
 
                 // --- BASE ACTIVE DASHBOARD STATE ---
                 latestOverviewAnalytics = data;
-                const preliminaryOverviewData = buildOverviewTierData(data);
+                const overviewYear = Number(data.selected_year || overviewSelectedYear || document.getElementById('analyticsYear')?.value || new Date().getFullYear());
+                const [currentSalesResult, previousSalesResult] = await Promise.allSettled([
+                    cachedAnalyticsJson(baseURL + '/sales', currentAnalyticsFilterParams({
+                        year: overviewYear,
+                        period: 'year',
+                        mape_threshold: salesMapeThreshold,
+                        forecast_scope: 'filter'
+                    })),
+                    cachedAnalyticsJson(baseURL + '/sales', currentAnalyticsFilterParams({
+                        year: overviewYear - 1,
+                        period: 'year',
+                        mape_threshold: salesMapeThreshold,
+                        forecast_scope: 'filter'
+                    }))
+                ]);
+                const currentSalesData = currentSalesResult.status === 'fulfilled' && currentSalesResult.value?.success ? currentSalesResult.value : {};
+                const previousSalesData = previousSalesResult.status === 'fulfilled' && previousSalesResult.value?.success ? previousSalesResult.value : {};
+                if (currentSalesData?.success) latestSalesAnalytics = currentSalesData;
+                latestOverviewAnalytics.sales_order_trend = buildOverviewSalesOrderTrend(currentSalesData, previousSalesData, overviewYear);
+
+                const preliminaryOverviewData = buildOverviewTierData(latestOverviewAnalytics);
                 const latestMonthParams = overviewMonthParamsFromLabel(preliminaryOverviewData.latestLabel);
                 const previousMonthParams = previousOverviewMonthParams(preliminaryOverviewData.latestLabel);
                 const [currentClientsResult, previousClientsResult] = await Promise.allSettled([
@@ -2516,121 +4133,137 @@
                 ]);
                 const currentClientsData = currentClientsResult.status === 'fulfilled' && currentClientsResult.value?.success ? currentClientsResult.value : {};
                 const previousClientsData = previousClientsResult.status === 'fulfilled' && previousClientsResult.value?.success ? previousClientsResult.value : {};
-                latestOverviewAnalytics.overviewTierData = buildOverviewTierData(data, currentClientsData, previousClientsData);
+                latestOverviewAnalytics.overviewTierData = buildOverviewTierData(latestOverviewAnalytics, currentClientsData, previousClientsData);
                 const overviewTierData = latestOverviewAnalytics.overviewTierData;
                 const overviewStoryMap = analyticsBusinessGoalMap([
-                    { goal: 'Summarize latest performance', metric: 'Total Monthly Revenue', detail: 'Latest available month from API timeline', visualization: 'Large KPI block' },
-                    { goal: 'Detect short-term movement', metric: 'MoM Revenue % Change', detail: 'Latest month versus previous month', visualization: 'KPI badge' },
-                    { goal: 'Compare annual performance', metric: 'YoY Revenue % Change', detail: 'Latest month versus previous-year same month', visualization: 'KPI badge' },
-                    { goal: 'Explain revenue trend', metric: 'Total Revenue by Date', detail: 'Month level, current year vs previous year', visualization: 'Line chart' },
-                    { goal: 'Compare client value momentum', metric: 'Revenue and MoM % by client value category', detail: 'Client value category level', visualization: 'Paired horizontal bar charts' },
-                    { goal: 'Rank client movement', metric: 'Revenue delta', detail: 'Client level', visualization: 'Top and bottom 5 tables' }
+                    { goal: 'Summarize latest performance', metric: 'Total Monthly Sales Order Revenue', detail: 'Latest available Sales Order month by order date', visualization: 'Large KPI block' },
+                    { goal: 'Detect short-term movement', metric: 'MoM Sales Order Revenue % Change', detail: 'Latest Sales Order month versus previous month', visualization: 'KPI badge' },
+                    { goal: 'Compare annual performance', metric: 'YoY Sales Order Revenue % Change', detail: 'Latest Sales Order month versus previous-year same month', visualization: 'KPI badge' },
+                    { goal: 'Explain revenue trend', metric: 'Sales Order value by order date', detail: 'Month level, current year vs previous year', visualization: 'Line chart' },
+                    { goal: 'Compare client value momentum', metric: 'Sales Order value and MoM % by client value category', detail: 'Client value category level', visualization: 'Paired horizontal bar charts' },
+                    { goal: 'Rank client movement', metric: 'Sales Order revenue delta', detail: 'Client level', visualization: 'Top and bottom 5 tables' }
                 ]);
 
                 return `
     <div class="analytics-section overview">
         ${analyticsStoryHeader(
-                    'Managers use this view to understand the latest available month, compare it with prior periods, and identify client value movement that needs attention.',
-                    'Latest-month revenue is the anchor; the rest of the dashboard explains trend, client value momentum, and client-level movement.'
+                    'Managers use this view to understand the latest Sales Order month, compare it with prior periods, and identify client value movement that needs attention.',
+                    'Latest-month Sales Order revenue is the anchor; the rest of the dashboard explains trend, client value momentum, and client-level movement.'
                 )}
         ${overviewStoryMap}
         <div class="toolbar-surface" style="margin-bottom: 2rem; padding: 0.75rem 1rem; color: var(--text-muted); font-weight: 600;">
             Reporting Period: ${data.filter?.label || activeAnalyticsFilterLabel || data.selected_year} · Latest Available Month: ${escapeHtml(shortOverviewMonthLabel(overviewTierData.latestLabel))}
         </div>
 
-        <section class="overview-asymmetric-layout" aria-label="Overview revenue dashboard">
+        <section class="overview-asymmetric-layout overview-morph-grid" aria-label="Overview revenue dashboard">
             <aside class="overview-left-column" aria-label="Core Revenue Trends" style="border-right: 2px solid #c4c4c4 !important; padding-right: 1.5rem !important;">
-            <div class="overview-tier-panel overview-revenue-kpi-block">
-                <h3>This is the <span class="overview-highlight">Revenue</span> generated...</h3>
-                <div class="overview-revenue-kpi-grid">
-                    <div style="display: flex !important; flex-direction: column !important; justify-content: center !important;">
-                        <span class="overview-kpi-label">Total Monthly Revenue</span>
-                        <span class="overview-revenue-number">${formatCurrency(overviewTierData.latestRevenue, { maximumFractionDigits: 0 })}</span>
-                        <span class="overview-kpi-label">Revenue for ${escapeHtml(shortOverviewMonthLabel(overviewTierData.latestLabel))}</span>
-                    </div>
-                    <div class="overview-change-stack">
-                        <div class="overview-change-badge">
-                            <b class="${trendClass(overviewTierData.momChange)}">${formatPercentChange(overviewTierData.momChange)}</b>
-                            <span>Month-on-Month Revenue % Change</span>
+            <div class="overview-tier-panel overview-revenue-kpi-block overview-morph-card" data-overview-card="overview-revenue-summary" role="button" tabindex="0" aria-expanded="false" onclick="openOverviewMorph(this)" onkeydown="handleOverviewMorphKeydown(event)">
+                <div class="overview-layer-summary">
+                    <h3>This is the <span class="overview-highlight">Sales Order Revenue</span> generated...</h3>
+                    <div class="overview-revenue-kpi-grid">
+                        <div style="display: flex !important; flex-direction: column !important; justify-content: center !important;">
+                            <span class="overview-kpi-label">Total Monthly Sales Order Revenue</span>
+                            <span class="overview-revenue-number">${formatCurrency(overviewTierData.latestRevenue, { maximumFractionDigits: 0 })}</span>
+                            <span class="overview-kpi-label">Sales Order Revenue for ${escapeHtml(shortOverviewMonthLabel(overviewTierData.latestLabel))}</span>
                         </div>
-                        <div class="overview-change-badge">
-                            <b class="${trendClass(overviewTierData.yoyChange)}">${formatPercentChange(overviewTierData.yoyChange)}</b>
-                            <span>Year-on-Year Revenue % Change</span>
+                        <div class="overview-change-stack">
+                            <div class="overview-change-badge">
+                                <b class="${trendClass(overviewTierData.momChange)}">${formatPercentChange(overviewTierData.momChange)}</b>
+                                <span>Month-on-Month Sales Order Revenue % Change</span>
+                            </div>
+                            <div class="overview-change-badge">
+                                <b class="${trendClass(overviewTierData.yoyChange)}">${formatPercentChange(overviewTierData.yoyChange)}</b>
+                                <span>Year-on-Year Sales Order Revenue % Change</span>
+                            </div>
                         </div>
                     </div>
+                    <span class="overview-morph-hint">Click to Morph Component ↗</span>
                 </div>
+                <div class="overview-layer-canvas">${renderOverviewPlaceholderCanvas('overview-revenue-summary')}</div>
             </div>
-            <div class="overview-tier-panel">
-                <h3>... and the trend of <span class="overview-highlight">${escapeHtml(String(overviewTierData.latestYear || data.selected_year))}</span> vs <span style="color: color-mix(in srgb, var(--brand-orange, #F97316) 42%, var(--text-muted));">${escapeHtml(String(overviewTierData.previousYear || Number(data.selected_year || overviewSelectedYear) - 1))}</span></h3>
-                <div style="position: relative; height: 200px; width: 100%;">
-                    <canvas id="trendChart" aria-label="Total revenue by date current versus previous year chart"></canvas>
+            <div class="overview-tier-panel overview-morph-card" data-overview-card="overview-year-trend" role="button" tabindex="0" aria-expanded="false" onclick="openOverviewMorph(this)" onkeydown="handleOverviewMorphKeydown(event)">
+                <div class="overview-layer-summary">
+                    <h3>... and the trend of <span class="overview-highlight">${escapeHtml(String(overviewTierData.latestYear || data.selected_year))}</span> vs <span style="color: color-mix(in srgb, var(--brand-orange, #F97316) 42%, var(--text-muted));">${escapeHtml(String(overviewTierData.previousYear || Number(data.selected_year || overviewSelectedYear) - 1))}</span></h3>
+                    <div style="position: relative; height: 200px; width: 100%;">
+                        <canvas id="trendChart" aria-label="Sales Order revenue by order date current versus previous year chart"></canvas>
+                    </div>
+                    <span class="overview-morph-hint">Click to Morph Component ↗</span>
                 </div>
+                <div class="overview-layer-canvas">${renderOverviewPlaceholderCanvas('overview-year-trend')}</div>
             </div>
             </aside>
 
             <section class="overview-main-panel" aria-label="Performance breakdown">
-                <div class="overview-tier-panel overview-unified-panel">
-                    <h3>This is the Revenue split by <span class="overview-highlight">Client Value Category</span> this ${escapeHtml(shortOverviewMonthLabel(overviewTierData.latestLabel))}...</h3>
-                    <div class="overview-paired-charts">
-                        <div>
-                            <div style="position: relative; height: 165px; width: 100%;">
-                                <canvas id="overviewCategoryRevenueChart" aria-label="Total revenue by client value category chart"></canvas>
+                <div class="overview-tier-panel overview-unified-panel overview-morph-card" data-overview-card="overview-client-category" role="button" tabindex="0" aria-expanded="false" onclick="openOverviewMorph(this)" onkeydown="handleOverviewMorphKeydown(event)">
+                    <div class="overview-layer-summary">
+                        <h3>This is the Revenue split by <span class="overview-highlight">Client Value Category</span> this ${escapeHtml(shortOverviewMonthLabel(overviewTierData.latestLabel))}...</h3>
+                        <div class="overview-paired-charts">
+                            <div>
+                                <div style="position: relative; height: 165px; width: 100%;">
+                                    <canvas id="overviewCategoryRevenueChart" aria-label="Total revenue by client value category chart"></canvas>
+                                </div>
+                                <p class="overview-chart-caption">Monthly Revenue</p>
                             </div>
-                            <p class="overview-chart-caption">Monthly Revenue</p>
-                        </div>
-                        <div>
-                            <div style="position: relative; height: 165px; width: 100%;">
-                                <canvas id="overviewCategoryMomentumChart" aria-label="Month-over-month revenue change by client value category chart"></canvas>
+                            <div>
+                                <div style="position: relative; height: 165px; width: 100%;">
+                                    <canvas id="overviewCategoryMomentumChart" aria-label="Month-over-month revenue change by client value category chart"></canvas>
+                                </div>
+                                <p class="overview-chart-caption">M-o-M revenue % Change</p>
                             </div>
-                            <p class="overview-chart-caption">M-o-M revenue % Change</p>
                         </div>
+                        <span class="overview-morph-hint">Click to Morph Component ↗</span>
                     </div>
+                    <div class="overview-layer-canvas">${renderOverviewPlaceholderCanvas('overview-client-category')}</div>
                 </div>
 
-                <div class="overview-tier-panel">
-                    <h3 class="overview-driver-title" style="margin-bottom: 4px !important;">
-                        ...where these 5 clients drive the <span class="overview-delta-increase">increase</span> and <span class="overview-delta-decrease">decrease</span> in revenue.
-                    </h3>
+                <div class="overview-tier-panel overview-morph-card" data-overview-card="overview-client-drivers" role="button" tabindex="0" aria-expanded="false" onclick="openOverviewMorph(this)" onkeydown="handleOverviewMorphKeydown(event)">
+                    <div class="overview-layer-summary">
+                        <h3 class="overview-driver-title" style="margin-bottom: 4px !important;">
+                            ...where these 5 clients drive the <span class="overview-delta-increase">increase</span> and <span class="overview-delta-decrease">decrease</span> in revenue.
+                        </h3>
 
-                    <div class="overview-main-row" style="display: flex; gap: 8px; width: 100%;">
+                        <div class="overview-main-row" style="display: flex; gap: 8px; width: 100%;">
 
-                        <div class="overview-tier-panel" style="flex: 1; min-width: 0;">
-                            <div class="client-table-scroll" style="max-height: 140px !important; margin: 0; padding: 0; border: 0; border-radius: 0; overflow-y: auto;">
-                                <table class="client-table overview-driver-table overview-driver-table-increase" style="width: 100% !important; min-width: 0 !important; margin: 0 !important; border: 0 !important; border-spacing: 0 !important; border-collapse: collapse !important; table-layout: fixed; font-size: 10px !important; line-height: 1.1 !important; -webkit-text-size-adjust: none; text-size-adjust: none;">
-                                    <thead>
-                                        <tr style="height: 14px !important;">
-                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Category</th>
-                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Client</th>
-                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: right; background: transparent; color: var(--text-main);">Revenue</th>
-                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 600; line-height: 1.1 !important; text-align: right; background: #d1fae5; color: #065f46;">&Delta; Revenue</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody style="font-size: 10px !important; line-height: 1.1 !important;">
-                                        ${overviewVelocityRows(overviewTierData.topClientsByGain, 'up')}
-                                    </tbody>
-                                </table>
+                            <div class="overview-tier-panel" style="flex: 1; min-width: 0;">
+                                <div class="client-table-scroll" style="max-height: 140px !important; margin: 0; padding: 0; border: 0; border-radius: 0; overflow-y: auto;">
+                                    <table class="client-table overview-driver-table overview-driver-table-increase" style="width: 100% !important; min-width: 0 !important; margin: 0 !important; border: 0 !important; border-spacing: 0 !important; border-collapse: collapse !important; table-layout: fixed; font-size: 10px !important; line-height: 1.1 !important; -webkit-text-size-adjust: none; text-size-adjust: none;">
+                                        <thead>
+                                            <tr style="height: 14px !important;">
+                                                <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Category</th>
+                                                <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Client</th>
+                                                <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: right; background: transparent; color: var(--text-main);">Revenue</th>
+                                                <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 600; line-height: 1.1 !important; text-align: right; background: #d1fae5; color: #065f46;">&Delta; Revenue</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody style="font-size: 10px !important; line-height: 1.1 !important;">
+                                            ${overviewVelocityRows(overviewTierData.topClientsByGain, 'up')}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="overview-tier-panel" style="flex: 1; min-width: 0;">
-                            <div class="client-table-scroll" style="max-height: 140px !important; margin: 0; padding: 0; border: 0; border-radius: 0; overflow-y: auto;">
-                                <table class="client-table overview-driver-table overview-driver-table-decrease" style="width: 100% !important; min-width: 0 !important; margin: 0 !important; border: 0 !important; border-spacing: 0 !important; border-collapse: collapse !important; table-layout: fixed; font-size: 10px !important; line-height: 1.1 !important; -webkit-text-size-adjust: none; text-size-adjust: none;">
-                                    <thead>
-                                        <tr style="height: 14px !important;">
-                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Category</th>
-                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Client</th>
-                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: right; background: transparent; color: var(--text-main);">Revenue</th>
-                                            <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 600; line-height: 1.1 !important; text-align: right; background: #fecaca; color: #7f1d1d;">&Delta; Revenue</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody style="font-size: 10px !important; line-height: 1.1 !important;">
-                                        ${overviewVelocityRows(overviewTierData.bottomClientsByGain, 'down')}
-                                    </tbody>
-                                </table>
+                            <div class="overview-tier-panel" style="flex: 1; min-width: 0;">
+                                <div class="client-table-scroll" style="max-height: 140px !important; margin: 0; padding: 0; border: 0; border-radius: 0; overflow-y: auto;">
+                                    <table class="client-table overview-driver-table overview-driver-table-decrease" style="width: 100% !important; min-width: 0 !important; margin: 0 !important; border: 0 !important; border-spacing: 0 !important; border-collapse: collapse !important; table-layout: fixed; font-size: 10px !important; line-height: 1.1 !important; -webkit-text-size-adjust: none; text-size-adjust: none;">
+                                        <thead>
+                                            <tr style="height: 14px !important;">
+                                                <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Category</th>
+                                                <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: left; background: transparent; color: var(--text-main);">Client</th>
+                                                <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 500; line-height: 1.1 !important; text-align: right; background: transparent; color: var(--text-main);">Revenue</th>
+                                                <th style="padding: 2px 3px !important; margin: 0 !important; border: 0 !important; border-bottom: 1px solid #c4c4c4 !important; font-size: 10px !important; font-weight: 600; line-height: 1.1 !important; text-align: right; background: #fecaca; color: #7f1d1d;">&Delta; Revenue</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody style="font-size: 10px !important; line-height: 1.1 !important;">
+                                            ${overviewVelocityRows(overviewTierData.bottomClientsByGain, 'down')}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
 
+                        </div>
+                        <span class="overview-morph-hint">Click to Morph Component ↗</span>
                     </div>
+                    <div class="overview-layer-canvas">${renderOverviewPlaceholderCanvas('overview-client-drivers')}</div>
                 </div>
             </section>
         </section>
@@ -3327,7 +4960,7 @@
                         labels: labels,
                         datasets: [
                             {
-                                label: `${tierData.previousYear || 'Previous Year'} Revenue`,
+                                label: `${tierData.previousYear || 'Previous Year'} Sales Order Revenue`,
                                 data: previousYearValues,
                                 borderColor: mutedAccentColor,
                                 backgroundColor: mutedAccentColor,
@@ -3338,7 +4971,7 @@
                                 pointHoverRadius: 3
                             },
                             {
-                                label: `${tierData.latestYear || 'Selected Year'} Revenue`,
+                                label: `${tierData.latestYear || 'Selected Year'} Sales Order Revenue`,
                                 data: revenueValues,
                                 borderColor: accentColor,
                                 backgroundColor: accentColor,
@@ -3866,6 +5499,12 @@
             return `${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
         }
 
+        function analyticsMonthDisplay(value) {
+            const parsed = parseForecastPeriod(value) || parseOverviewMonthLabel(value);
+            if (!parsed) return String(value || 'Not available');
+            return parsed.toLocaleDateString('en-PH', { month: 'short' });
+        }
+
         function itemForecastSummary(forecastRows) {
             const sortedRows = [...forecastRows].sort((a, b) => Number(b.predicted_revenue || 0) - Number(a.predicted_revenue || 0));
             const topRow = sortedRows[0] || {};
@@ -3906,7 +5545,7 @@
                     { label: 'MAPE', value: formatMapeLabel(accuracy) },
                     { label: 'Trend', value: trendDirection }
                 ],
-                explanation: `This graph uses predictive analytics using Holt-Winters forecasting to extend historical Sales Order value from ${revenueForecast.latest_historical_month || 'the latest month'} into the next forecast period. The current sales trend is ${trendDirection}.`,
+                explanation: `This graph uses predictive analytics using Holt-Winters forecasting to extend historical Sales Order value from ${revenueForecast.latest_historical_month ? analyticsMonthDisplay(revenueForecast.latest_historical_month) : 'the latest month'} into the next forecast period. The current sales trend is ${trendDirection}.`,
                 action: `${forecastManagerAction(statusLabel)} Treat the forecast as expected booked Sales Order activity, not actual collected cash. ${confidence}`
             });
         }
@@ -3955,7 +5594,7 @@
                 });
             }
             const monthText = topMonth
-                ? `${topMonth.period_label || topMonth.period}: ${Number(topMonth.average_quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} item(s) per active sales day`
+                ? `${topMonth.period_label || analyticsMonthDisplay(topMonth.period)}: ${Number(topMonth.average_quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} item(s) per active sales day`
                 : 'No monthly peak available';
             const weekdayText = topWeekday
                 ? `${topWeekday.weekday}: ${Number(topWeekday.average_quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} item(s) per active sales day`
@@ -4020,10 +5659,10 @@
             const trendMeta = revenueTrendMeta(descriptive.trend_direction);
             const qualityClass = revenueQualityClass(accuracy);
             const qualityText = revenueQualityText(accuracy);
-            const peakMonthText = peakMonth ? `Peak Month: ${peakMonth.period_label || peakMonth.period} averages ${peakLiftText(peakMonth, descriptive.peak_periods?.months || [])}` : 'Peak Month: Not available yet.';
+            const peakMonthText = peakMonth ? `Peak Month: ${peakMonth.period_label || analyticsMonthDisplay(peakMonth.period)} averages ${peakLiftText(peakMonth, descriptive.peak_periods?.months || [])}` : 'Peak Month: Not available yet.';
             const peakDayText = peakWeekday ? `Peak Day: ${peakWeekday.weekday} averages ${peakLiftText(peakWeekday, descriptive.peak_periods?.weekdays || [])}` : 'Peak Day: Not available yet.';
             const peakSummary = peakMonth
-                ? `${peakMonth.period_label || peakMonth.period} recorded the highest average sales activity with ${Number(peakMonth.average_quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} item(s) sold per active sales day.`
+                ? `${peakMonth.period_label || analyticsMonthDisplay(peakMonth.period)} recorded the highest average sales activity with ${Number(peakMonth.average_quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} item(s) sold per active sales day.`
                 : 'No peak sales period is available yet.';
             const itemIncrease = forecastRows.filter(row => Number(row.predicted_qty || 0) > 0 && row.confidence !== 'Insufficient Data').slice(0, 2).map(row => row.item);
             const itemReview = forecastRows.filter(row => row.confidence !== 'High').slice(0, 2).map(row => row.item);
@@ -4191,7 +5830,7 @@
             const month = date.getMonth();
             if (grouping === 'yearly') return String(year);
             if (grouping === 'quarterly') return `Q${Math.floor(month / 3) + 1} ${year}`;
-            return date.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
+            return date.toLocaleDateString('en-PH', { month: 'short' });
         }
 
         function addForecastMonths(period, offset) {
@@ -4464,7 +6103,7 @@
                 replaceChartForCanvas(peakCanvas, {
                     type: 'bar',
                     data: {
-                        labels: [...peakMonths].reverse().map(item => item.period_label || item.period),
+                        labels: [...peakMonths].reverse().map(item => item.period_label || analyticsMonthDisplay(item.period)),
                         datasets: [{
                             label: 'Average quantity sold per active sales day',
                             data: [...peakMonths].reverse().map(item => item.average_quantity),

@@ -548,6 +548,22 @@ def evaluation_required(f):
 def utc_now():
     return datetime.now(UTC)
 
+def normalize_username(value):
+    return (value or '').strip().casefold()
+
+def find_user_by_username(username):
+    normalized = normalize_username(username)
+    if not normalized:
+        return None
+    user = User.query.filter(func.lower(func.trim(User.username)) == normalized).first()
+    if user:
+        return user
+    return next((candidate for candidate in User.query.all() if normalize_username(candidate.username) == normalized), None)
+
+def username_exists(username, exclude_user_id=None):
+    existing = find_user_by_username(username)
+    return bool(existing and (exclude_user_id is None or existing.id != exclude_user_id))
+
 def session_timestamp(value):
     if not value:
         return None
@@ -2049,7 +2065,7 @@ def parse_report_date_filter():
     elif period == 'month':
         start_date = date(selected_year, month, 1)
         end_date = date(selected_year + 1, 1, 1) if month == 12 else date(selected_year, month + 1, 1)
-        label = start_date.strftime('%B %Y')
+        label = start_date.strftime('%b %Y')
     else:
         start_date = date(selected_year, 1, 1)
         end_date = date(selected_year + 1, 1, 1)
@@ -3892,7 +3908,7 @@ def init_db():
                 print(f"Skipped default {user_info['role_name']} user. Set DEFAULT_{user_info['role_name'].upper()}_PASSWORD to seed it.")
                 continue
             # Check if the user already exists
-            if not User.query.filter_by(username=user_info["username"]).first():
+            if not username_exists(user_info["username"]):
                 # Find the matching role record
                 role = Role.query.filter_by(role_name=user_info["role_name"]).first()
                 
@@ -3961,7 +3977,7 @@ def login():
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password')
         
-        user = User.query.filter(func.lower(User.username) == username.lower()).first()
+        user = find_user_by_username(username)
         
         if user and check_password_hash(user.password_hash, password):
             if not is_user_approved(user):
@@ -4035,7 +4051,7 @@ def login():
 def forgot_password():
     if request.method == 'POST':
         username = (request.form.get('username') or '').strip()
-        user = User.query.filter(func.lower(User.username) == username.lower()).first()
+        user = find_user_by_username(username)
         if user and is_user_approved(user):
             existing = PasswordReset.query.filter_by(user_id=user.id, status='PENDING').first()
             if not existing:
@@ -4073,7 +4089,7 @@ def register():
             return render_template('register.html')
         
         # Check if username already exists
-        if User.query.filter_by(username=username).first():
+        if username_exists(username):
             flash('An account with those details already exists or cannot be created.', 'error')
             return render_template('register.html')
 
@@ -4125,7 +4141,7 @@ def profile():
         if not username:
             flash('Username is required.', 'error')
             return render_template('profile.html', user=user)
-        if User.query.filter(func.lower(User.username) == username.lower(), User.id != user.id).first():
+        if username_exists(username, exclude_user_id=user.id):
             flash('Username already exists.', 'error')
             return render_template('profile.html', user=user)
         if email and User.query.filter(func.lower(User.email) == email.lower(), User.id != user.id).first():
@@ -5921,10 +5937,14 @@ def normalize_expense_payload(data):
     for field in ('ar_cr_or_number', 'po_number', 'lf_no', 'tin_number'):
         normalized[field] = str(data.get(field) or '').strip()
 
-    try:
-        cash_amount = float(data.get('cash_amount'))
-    except (TypeError, ValueError):
-        raise ValueError('Cash amount is required.')
+    raw_cash_amount = data.get('cash_amount')
+    if raw_cash_amount in (None, ''):
+        cash_amount = 0.0
+    else:
+        try:
+            cash_amount = float(raw_cash_amount)
+        except (TypeError, ValueError):
+            raise ValueError('Cash amount must be a valid amount.')
     if cash_amount < 0:
         raise ValueError('Cash amount cannot be negative.')
     normalized['cash_amount'] = round(cash_amount, 2)
@@ -6348,7 +6368,7 @@ def create_user():
 
         if not username or not data.get('password') or not data.get('role_id'):
             return jsonify({'success': False, 'error': 'Username, password, and role are required'}), 400
-        if User.query.filter(func.lower(User.username) == username.lower()).first():
+        if username_exists(username):
             return jsonify({'success': False, 'error': 'Username already exists'}), 409
         if email and User.query.filter_by(email=email).first():
             return jsonify({'success': False, 'error': 'Email already exists'}), 409
@@ -6395,7 +6415,7 @@ def update_user(user_id):
         username = (data.get('username') or '').strip()
         if not username:
             return jsonify({'success': False, 'error': 'Username is required'}), 400
-        if User.query.filter(func.lower(User.username) == username.lower(), User.id != user_id).first():
+        if username_exists(username, exclude_user_id=user_id):
             return jsonify({'success': False, 'error': 'Username already exists'}), 409
         email = data.get('email', '').strip() or None
         if email:
@@ -8197,13 +8217,26 @@ def api_analytics_sales():
     try:
         threshold = request.args.get('mape_threshold', default=20.0, type=float)
         filters = parse_report_date_filter()
+        forecast_scope = request.args.get('forecast_scope')
+        analysis_start_date = None if forecast_scope == 'all' else filters['start_date']
+        analysis_end_date = None if forecast_scope == 'all' else filters['end_date']
+        forecast_start_date = filters['start_date'] if forecast_scope == 'filter' else None
+        forecast_end_date = filters['end_date'] if forecast_scope == 'filter' else None
         return jsonify({'success': True, 'filter': {
             'selected_year': filters['selected_year'],
             'period': filters['period'],
             'quarter': filters['quarter'],
             'month': filters['month'],
             'label': filters['label'],
-        }, **get_sales_analysis(db, app_models(), threshold, filters['start_date'], filters['end_date'])})
+        }, **get_sales_analysis(
+            db,
+            app_models(),
+            threshold,
+            analysis_start_date,
+            analysis_end_date,
+            forecast_start_date,
+            forecast_end_date,
+        )})
     except Exception as e:
         return jsonify({'success': False, 'error': public_error_message(e, 'Sales analytics could not be loaded.')}), 400
 
@@ -8246,8 +8279,11 @@ def evaluation_access():
 def evaluation_questions():
     seed_evaluation_questions()
     questions = EvaluationQuestion.query.filter_by(is_active=True).order_by(EvaluationQuestion.display_order.asc()).all()
+    current_user_id = session.get('user_id')
+    already_submitted = bool(current_user_id and EvaluationSession.query.filter_by(user_id=current_user_id).first())
     return jsonify({
         'success': True,
+        'already_submitted': already_submitted,
         'scale': [
             {'value': 1, 'label': 'Strongly Disagree'},
             {'value': 2, 'label': 'Disagree'},
@@ -8267,12 +8303,15 @@ def evaluation_questions():
 def evaluation_responses():
     payload = request.get_json() or {}
     responses = payload.get('responses') or []
+    current_user_id = session.get('user_id')
+    if current_user_id and EvaluationSession.query.filter_by(user_id=current_user_id).first():
+        return jsonify({'success': False, 'error': 'You have already submitted your system evaluation.'}), 409
     active_questions = EvaluationQuestion.query.filter_by(is_active=True).order_by(EvaluationQuestion.display_order.asc()).all()
     if len(responses) != len(active_questions):
         return jsonify({'success': False, 'error': 'A rating is required for every evaluation question.'}), 400
     ratings = []
     session_record = EvaluationSession(
-        user_id=session.get('user_id'),
+        user_id=current_user_id,
         evaluator_name=clean_text(payload.get('evaluator_name')) or session.get('username', 'Evaluator'),
         evaluator_role=clean_text(payload.get('evaluator_role')) or session.get('role', ''),
         overall_comment=clean_text(payload.get('overall_comment'), keep_period=True, keep_ampersand=True),
@@ -8400,11 +8439,11 @@ def evaluation_results():
             all_response_count += count
     rating_distribution_query = (
         db.session.query(
+            EvaluationResponse.session_id,
             EvaluationQuestion.category,
             EvaluationResponse.rating,
-            func.count(EvaluationResponse.id).label('response_count'),
         )
-        .join(EvaluationResponse, EvaluationQuestion.id == EvaluationResponse.question_id)
+        .join(EvaluationQuestion, EvaluationQuestion.id == EvaluationResponse.question_id)
         .filter(EvaluationQuestion.is_active == True)
     )
     if start_date and end_date:
@@ -8412,14 +8451,17 @@ def evaluation_results():
             EvaluationResponse.created_at >= datetime.combine(start_date, datetime.min.time()),
             EvaluationResponse.created_at < datetime.combine(end_date, datetime.min.time()),
         )
-    for category, rating, response_count in (
-        rating_distribution_query
-        .group_by(EvaluationQuestion.category, EvaluationResponse.rating)
-        .all()
-    ):
+    session_category_ratings = {}
+    for session_id, category, rating in rating_distribution_query.all():
         if int(rating or 0) in range(1, 6):
-            category_rating_counts.setdefault(category, {rating_value: 0 for rating_value in range(1, 6)})
-            category_rating_counts[category][int(rating)] = int(response_count or 0)
+            session_category_ratings.setdefault((session_id, category), []).append(int(rating))
+    for (_session_id, category), ratings_for_category in session_category_ratings.items():
+        if not ratings_for_category:
+            continue
+        category_average = sum(ratings_for_category) / len(ratings_for_category)
+        rounded_rating = min(5, max(1, int(category_average + 0.5)))
+        category_rating_counts.setdefault(category, {rating_value: 0 for rating_value in range(1, 6)})
+        category_rating_counts[category][rounded_rating] += 1
     categories = [
         {
             'category': category,

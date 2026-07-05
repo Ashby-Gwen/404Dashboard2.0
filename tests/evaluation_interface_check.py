@@ -114,6 +114,8 @@ def main():
 
             login(client, users['staff'])
             questions_payload = client.get('/api/evaluation/questions').get_json()
+            assert questions_payload['success'] is True
+            assert questions_payload['already_submitted'] is False
             assert len(questions_payload['questions']) == 37
             assert [item['value'] for item in questions_payload['scale']] == [1, 2, 3, 4, 5]
             assert questions_payload['scale'][2]['label'] == 'Moderately Agree'
@@ -158,6 +160,20 @@ def main():
             assert valid.status_code == 200, valid.get_json()
             assert valid.get_json()['overall_mean'] == 5
             assert valid.get_json()['interpretation'] == 'Strongly Agree'
+            assert EvaluationSession.query.count() == 1
+            assert EvaluationResponse.query.count() == 37
+            submitted_questions_payload = client.get('/api/evaluation/questions').get_json()
+            assert submitted_questions_payload['already_submitted'] is True
+
+            duplicate_submission = client.post('/api/evaluation/responses', json={
+                'overall_comment': 'Second attempt should be blocked.',
+                'responses': [
+                    {'question_id': question['id'], 'rating': 4}
+                    for question in questions
+                ],
+            })
+            assert duplicate_submission.status_code == 409
+            assert duplicate_submission.get_json()['success'] is False
             assert EvaluationSession.query.count() == 1
             assert EvaluationResponse.query.count() == 37
 
@@ -212,12 +228,9 @@ def main():
             assert results_payload['category_tables'][0]['total_weighted_mean'] == 4
             first_category = results_payload['category_tables'][0]
             assert [item['rating'] for item in first_category['rating_distribution']] == [1, 2, 3, 4, 5]
-            assert sum(item['response_count'] for item in first_category['rating_distribution']) == sum(
-                question['response_count']
-                for question in first_category['questions']
-            )
-            assert first_category['rating_distribution'][2]['response_count'] > 0
-            assert first_category['rating_distribution'][4]['response_count'] > 0
+            assert sum(item['response_count'] for item in first_category['rating_distribution']) == results_payload['response_count']
+            assert first_category['rating_distribution'][2]['response_count'] == 1
+            assert first_category['rating_distribution'][4]['response_count'] == 1
             assert results_payload['respondent_mix'] == [
                 {'label': 'IT Professional', 'count': 1, 'percentage': 50.0},
                 {'label': 'End User', 'count': 1, 'percentage': 50.0},
