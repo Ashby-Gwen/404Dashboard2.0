@@ -422,9 +422,9 @@ def main():
     assert 'Questionnaire Results' in evaluation
     assert 'id="testCasesPanel"' in evaluation
     assert 'font-family: "Times New Roman", Times, serif' in evaluation
-    assert 'font-size: 12px' in evaluation
+    assert 'font-size: 14px' in evaluation
     assert 'line-height: 1.15' in evaluation
-    assert 'min-width: 720px' in evaluation
+    assert 'max-width: 8in' in evaluation
     assert 'class="evaluation-result-view-toggle"' in evaluation
     assert 'aria-pressed="true" data-results-view="table"' in evaluation
     assert 'aria-pressed="false" data-results-view="graph"' in evaluation
@@ -432,12 +432,25 @@ def main():
     assert 'renderEvaluationCategoryGraph' in evaluation
     assert 'category.rating_distribution' in evaluation
     assert 'class="evaluation-category-graph"' in evaluation
-    assert 'class="evaluation-category-bar-fill"' in evaluation
     assert '.evaluation-category-graph {' in evaluation
-    assert '.evaluation-category-bar-count' in evaluation
-    assert '.evaluation-category-bar-label' in evaluation
-    assert 'Number of Responses' in evaluation
-    assert 'Rating (1-5)' in evaluation
+    assert 'evaluation-likert-landscape' in evaluation
+    assert 'evaluation-likert-track' in evaluation
+    assert 'evaluation-likert-segment' in evaluation
+    assert 'max-width: 8in' in evaluation
+    assert 'min-height: 46px' in evaluation
+    assert 'grid-template-columns: repeat(5, minmax(0, 1fr))' in evaluation
+    assert "1: { label: 'Strongly Disagree', color: '#ef4444' }" in evaluation
+    assert "5: { label: 'Strongly Agree', color: '#15803d' }" in evaluation
+    assert '.evaluation-category-bars' not in evaluation
+    assert '.evaluation-category-bar-fill' not in evaluation
+    assert 'Strongly Disagree' in evaluation
+    assert 'Strongly Agree' in evaluation
+    assert 'Total responses represented in this category' in evaluation
+    assert 'Copy Table as Image' in evaluation
+    assert 'Copy Graph as Image' in evaluation
+    assert 'copyEvaluationElementAsImage' in evaluation
+    assert 'ClipboardItem' in evaluation
+    assert 'image/png' in evaluation
     assert 'toggleEvaluationCategoryView' not in evaluation
     assert '.evaluation-category-table {' in evaluation
     assert 'background: #fff;' in evaluation
@@ -450,7 +463,17 @@ def main():
     assert '.evaluation-category-table tfoot td:last-child' in evaluation
     assert 'font-weight: 700;' in evaluation
     assert '/* as dasd' not in evaluation
-    assert '<td colspan="2">Total Weighted Mean</td>' in evaluation
+    assert '<td colspan="2" style=' in evaluation
+    assert 'Total Weighted Mean</td>' in evaluation
+    assert "font-family:'Times New Roman', Times, serif" in evaluation
+    assert 'font-size: 14px' in evaluation
+    assert 'font-size:14px !important' in evaluation
+    assert 'line-height:1.12' in evaluation
+    assert 'background:#ffffff !important; color:#000000 !important' in evaluation
+    assert 'border-top:1px solid #000000 !important; border-bottom:1px solid #000000 !important' in evaluation
+    assert 'border:0 !important' in evaluation
+    assert 'font-weight:400 !important;">Total Weighted Mean</td>' in evaluation
+    assert 'font-weight:700 !important;">${Number(category.total_weighted_mean || 0).toFixed(2)}</td>' in evaluation
     assert 'renderCategoryPieChart' not in evaluation
     assert '.evaluation-category-pie' not in evaluation
     assert 'qa-summary-dashboard' in evaluation
