@@ -8305,12 +8305,58 @@ def evaluation_responses():
 @login_required
 @role_required('admin')
 def evaluation_results():
-    filters = parse_report_date_filter()
+    evaluation_year_rows = (
+        db.session.query(db_year(EvaluationSession.created_at).label('year'))
+        .filter(EvaluationSession.created_at.isnot(None))
+        .union(
+            db.session.query(db_year(EvaluationResponse.created_at).label('year'))
+            .filter(EvaluationResponse.created_at.isnot(None))
+        )
+        .all()
+    )
+    available_years = sorted(
+        {datetime.now().year, *(int(row.year) for row in evaluation_year_rows if row.year)},
+        reverse=True
+    )
+    selected_year = request.args.get('year', type=int)
+    period = request.args.get('period', default='all', type=str)
+    quarter = request.args.get('quarter', default=1, type=int)
+    month = request.args.get('month', default=1, type=int)
+    start_date = None
+    end_date = None
+    label = 'All responses'
+    if selected_year:
+        if quarter not in (1, 2, 3, 4):
+            quarter = 1
+        if month < 1 or month > 12:
+            month = 1
+        if period == 'quarter':
+            start_month = ((quarter - 1) * 3) + 1
+            start_date = date(selected_year, start_month, 1)
+            end_date = date(selected_year + 1, 1, 1) if quarter == 4 else date(selected_year, start_month + 3, 1)
+            label = f'Q{quarter} {selected_year}'
+        elif period == 'month':
+            start_date = date(selected_year, month, 1)
+            end_date = date(selected_year + 1, 1, 1) if month == 12 else date(selected_year, month + 1, 1)
+            label = start_date.strftime('%B %Y')
+        else:
+            period = 'year'
+            start_date = date(selected_year, 1, 1)
+            end_date = date(selected_year + 1, 1, 1)
+            label = str(selected_year)
+    else:
+        period = 'all'
     response_join_conditions = [EvaluationQuestion.id == EvaluationResponse.question_id]
-    response_join_conditions.append(EvaluationResponse.created_at >= datetime.combine(filters['start_date'], datetime.min.time()))
-    response_join_conditions.append(EvaluationResponse.created_at < datetime.combine(filters['end_date'], datetime.min.time()))
+    if start_date and end_date:
+        response_join_conditions.append(EvaluationResponse.created_at >= datetime.combine(start_date, datetime.min.time()))
+        response_join_conditions.append(EvaluationResponse.created_at < datetime.combine(end_date, datetime.min.time()))
     rows = (
-        db.session.query(EvaluationQuestion, func.avg(EvaluationResponse.rating).label('avg_rating'), func.count(EvaluationResponse.id).label('response_count'))
+        db.session.query(
+            EvaluationQuestion,
+            func.avg(EvaluationResponse.rating).label('avg_rating'),
+            func.count(EvaluationResponse.id).label('response_count'),
+            func.coalesce(func.sum(EvaluationResponse.rating), 0).label('rating_total'),
+        )
         .outerjoin(EvaluationResponse, and_(*response_join_conditions))
         .filter(EvaluationQuestion.is_active == True)
         .group_by(EvaluationQuestion.id)
@@ -8320,55 +8366,94 @@ def evaluation_results():
     question_results = []
     category_totals = {}
     category_tables = {}
-    all_scores = []
-    for question, avg_rating, response_count in rows:
+    category_rating_counts = {}
+    all_rating_total = 0.0
+    all_response_count = 0
+    for question, avg_rating, response_count, rating_total in rows:
         average = round(float(avg_rating or 0), 2)
+        count = int(response_count or 0)
+        total = float(rating_total or 0)
         interpretation = likert_interpretation(average) if response_count else 'No responses'
         question_results.append({
             'question_id': question.id,
             'category': question.category,
             'question_text': question.question_text,
             'average': average,
-            'response_count': int(response_count or 0),
+            'response_count': count,
+            'rating_total': round(total, 2),
             'interpretation': interpretation,
         })
         category_tables.setdefault(question.category, []).append({
             'question_id': question.id,
             'question_text': question.question_text,
             'mean': average,
-            'response_count': int(response_count or 0),
+            'response_count': count,
+            'rating_total': round(total, 2),
             'interpretation': interpretation,
         })
-        if response_count:
-            category_totals.setdefault(question.category, []).append(average)
-            all_scores.append(average)
+        category_rating_counts.setdefault(question.category, {rating: 0 for rating in range(1, 6)})
+        if count:
+            category_bucket = category_totals.setdefault(question.category, {'rating_total': 0.0, 'response_count': 0})
+            category_bucket['rating_total'] += total
+            category_bucket['response_count'] += count
+            all_rating_total += total
+            all_response_count += count
+    rating_distribution_query = (
+        db.session.query(
+            EvaluationQuestion.category,
+            EvaluationResponse.rating,
+            func.count(EvaluationResponse.id).label('response_count'),
+        )
+        .join(EvaluationResponse, EvaluationQuestion.id == EvaluationResponse.question_id)
+        .filter(EvaluationQuestion.is_active == True)
+    )
+    if start_date and end_date:
+        rating_distribution_query = rating_distribution_query.filter(
+            EvaluationResponse.created_at >= datetime.combine(start_date, datetime.min.time()),
+            EvaluationResponse.created_at < datetime.combine(end_date, datetime.min.time()),
+        )
+    for category, rating, response_count in (
+        rating_distribution_query
+        .group_by(EvaluationQuestion.category, EvaluationResponse.rating)
+        .all()
+    ):
+        if int(rating or 0) in range(1, 6):
+            category_rating_counts.setdefault(category, {rating_value: 0 for rating_value in range(1, 6)})
+            category_rating_counts[category][int(rating)] = int(response_count or 0)
     categories = [
         {
             'category': category,
-            'average': round(sum(scores) / len(scores), 2),
-            'interpretation': likert_interpretation(sum(scores) / len(scores)),
+            'average': round(values['rating_total'] / values['response_count'], 2),
+            'interpretation': likert_interpretation(values['rating_total'] / values['response_count']),
         }
-        for category, scores in category_totals.items()
+        for category, values in category_totals.items()
+        if values['response_count']
     ]
     category_table_payload = []
     for category, questions in category_tables.items():
-        scored_questions = [item for item in questions if item['response_count']]
+        category_stats = category_totals.get(category, {'rating_total': 0.0, 'response_count': 0})
         total_weighted_mean = round(
-            sum(item['mean'] for item in scored_questions) / len(scored_questions),
+            category_stats['rating_total'] / category_stats['response_count'],
             2,
-        ) if scored_questions else 0
+        ) if category_stats['response_count'] else 0
         category_table_payload.append({
             'category': category,
             'category_label': category,
             'total_weighted_mean': total_weighted_mean,
-            'interpretation': likert_interpretation(total_weighted_mean) if scored_questions else 'No responses',
+            'interpretation': likert_interpretation(total_weighted_mean) if category_stats['response_count'] else 'No responses',
+            'rating_distribution': [
+                {'rating': rating, 'response_count': category_rating_counts.get(category, {}).get(rating, 0)}
+                for rating in range(1, 6)
+            ],
             'questions': questions,
         })
-    overall_mean = round(sum(all_scores) / len(all_scores), 2) if all_scores else 0
-    session_query = EvaluationSession.query.filter(
-        EvaluationSession.created_at >= datetime.combine(filters['start_date'], datetime.min.time()),
-        EvaluationSession.created_at < datetime.combine(filters['end_date'], datetime.min.time()),
-    )
+    overall_mean = round(all_rating_total / all_response_count, 2) if all_response_count else 0
+    session_query = EvaluationSession.query
+    if start_date and end_date:
+        session_query = session_query.filter(
+            EvaluationSession.created_at >= datetime.combine(start_date, datetime.min.time()),
+            EvaluationSession.created_at < datetime.combine(end_date, datetime.min.time()),
+        )
     all_sessions = session_query.all()
     respondent_counts = {'IT Professional': 0, 'End User': 0}
     respondent_role_counts = {}
@@ -8396,14 +8481,15 @@ def evaluation_results():
     return jsonify({
         'success': True,
         'filter': {
-            'selected_year': filters['selected_year'],
-            'period': filters['period'],
-            'quarter': filters['quarter'],
-            'month': filters['month'],
-            'label': filters['label'],
+            'available_years': available_years,
+            'selected_year': selected_year,
+            'period': period,
+            'quarter': quarter,
+            'month': month,
+            'label': label,
         },
         'overall_mean': overall_mean,
-        'interpretation': likert_interpretation(overall_mean) if all_scores else 'No responses',
+        'interpretation': likert_interpretation(overall_mean) if all_response_count else 'No responses',
         'categories': categories,
         'category_tables': category_table_payload,
         'questions': question_results,

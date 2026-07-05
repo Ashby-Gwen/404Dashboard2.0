@@ -183,6 +183,18 @@ def main():
             assert db.session.get(EvaluationQuestion, legacy_question.id).is_active is False
             assert EvaluationQuestion.query.filter_by(is_active=True).count() == 37
 
+            login(client, users['IT Evaluator'])
+            it_valid = client.post('/api/evaluation/responses', json={
+                'overall_comment': 'Needs more review.',
+                'responses': [
+                    {'question_id': question['id'], 'rating': 3}
+                    for question in questions
+                ],
+            })
+            assert it_valid.status_code == 200, it_valid.get_json()
+            assert EvaluationSession.query.count() == 2
+            assert EvaluationResponse.query.count() == 75
+
             assert client.get('/api/evaluation/results').status_code == 403
             login(client, users['manager'])
             assert client.get('/api/evaluation/results').status_code == 403
@@ -191,14 +203,24 @@ def main():
             results = client.get('/api/evaluation/results')
             assert results.status_code == 200
             results_payload = results.get_json()
-            assert results_payload['overall_mean'] == 5
-            assert results_payload['response_count'] == 1
+            assert results_payload['filter']['period'] == 'all'
+            assert results_payload['filter']['label'] == 'All responses'
+            assert results_payload['overall_mean'] == 4
+            assert results_payload['response_count'] == 2
             assert len(results_payload['category_tables']) == 9
             assert results_payload['category_tables'][0]['questions']
-            assert results_payload['category_tables'][0]['total_weighted_mean'] == 5
+            assert results_payload['category_tables'][0]['total_weighted_mean'] == 4
+            first_category = results_payload['category_tables'][0]
+            assert [item['rating'] for item in first_category['rating_distribution']] == [1, 2, 3, 4, 5]
+            assert sum(item['response_count'] for item in first_category['rating_distribution']) == sum(
+                question['response_count']
+                for question in first_category['questions']
+            )
+            assert first_category['rating_distribution'][2]['response_count'] > 0
+            assert first_category['rating_distribution'][4]['response_count'] > 0
             assert results_payload['respondent_mix'] == [
-                {'label': 'IT Professional', 'count': 0, 'percentage': 0},
-                {'label': 'End User', 'count': 1, 'percentage': 100.0},
+                {'label': 'IT Professional', 'count': 1, 'percentage': 50.0},
+                {'label': 'End User', 'count': 1, 'percentage': 50.0},
             ]
 
     print('Evaluation interface checks passed.')

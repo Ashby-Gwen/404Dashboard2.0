@@ -274,6 +274,20 @@ def main():
     assert 'font-size: 12px' in evaluation
     assert 'line-height: 1.15' in evaluation
     assert 'min-width: 720px' in evaluation
+    assert 'class="evaluation-result-view-toggle"' in evaluation
+    assert 'aria-pressed="true" data-results-view="table"' in evaluation
+    assert 'aria-pressed="false" data-results-view="graph"' in evaluation
+    assert 'toggleEvaluationResultsView' in evaluation
+    assert 'renderEvaluationCategoryGraph' in evaluation
+    assert 'category.rating_distribution' in evaluation
+    assert 'class="evaluation-category-graph"' in evaluation
+    assert 'class="evaluation-category-bar-fill"' in evaluation
+    assert '.evaluation-category-graph { display: grid; gap: 0.9rem; padding: 1rem; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-card, #fff); font-family: "Times New Roman", Times, serif; font-size: 12px; line-height: 1.15; }' in evaluation
+    assert '.evaluation-category-bar-count { color: #6b7280; font-size: 11px; font-weight: 400; }' in evaluation
+    assert '.evaluation-category-bar-label { display: grid; place-items: end center; border-top: 1px solid #111; color: #111; font-size: 12px; font-weight: 400; }' in evaluation
+    assert 'Number of Responses' in evaluation
+    assert 'Rating (1-5)' in evaluation
+    assert 'toggleEvaluationCategoryView' not in evaluation
     assert '.evaluation-category-table thead th { border-top: 1px solid #111; border-bottom: 1px solid #111; }' in evaluation
     assert '.evaluation-category-table tfoot td { border-top: 1px solid #111; border-bottom: 1px solid #111; background: transparent; font-weight: 400; }' in evaluation
     assert '.evaluation-category-table tfoot td:last-child { font-weight: 700; text-align: center; }' in evaluation
