@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import datetime
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -10,6 +11,7 @@ os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 from app import (  # noqa: E402
     Client,
     Role,
+    SessionRecord,
     User,
     app,
     db,
@@ -48,6 +50,13 @@ def main():
             Client(client_name='EPSILON MARKET', contact_info='East region'),
             Client(client_name='ZETA OUTLET', contact_info='West region'),
         ])
+        db.session.add(SessionRecord(
+            user_id=admin.id,
+            username=admin.username,
+            role_name='admin',
+            login_at=datetime(2026, 7, 6, 0, 3, 5),
+            status='ACTIVE',
+        ))
         db.session.commit()
 
         with app.test_client() as client:
@@ -101,6 +110,10 @@ def main():
             assert unsafe['grid']['total'] == 2
             assert unsafe['grid']['sort'] == 'id'
             assert 'unknown' not in unsafe['grid']['filters']
+
+            sessions = client.get('/admin/data-grid?table=session_records&page=1&page_size=5').get_json()
+            assert sessions['success'] is True
+            assert sessions['grid']['rows'][0]['login_at'] == '2026-07-06T00:03:05Z'
 
             with client.session_transaction() as session:
                 session['user_id'] = manager.id

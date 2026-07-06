@@ -1220,6 +1220,32 @@
         });
         setInterval(() => document.getElementById('datetime').textContent = new Date().toLocaleString(), 1000);
 
+        function formatAdminDateTime(value) {
+            if (!value) return '-';
+            const normalizedValue = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && !/[zZ]|[+-]\d{2}:\d{2}$/.test(value)
+                ? `${value}Z`
+                : value;
+            const parsed = new Date(normalizedValue);
+            if (Number.isNaN(parsed.getTime())) return value;
+            return parsed.toLocaleString('en-PH', {
+                timeZone: 'Asia/Manila',
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit',
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        function formatAdminGridCell(column, value) {
+            if (value == null || value === '') return '-';
+            if (/(^|_)(created|updated|login|logout|requested|resolved|approved)_at$/.test(column)) {
+                return formatAdminDateTime(value);
+            }
+            return value;
+        }
+
         function activateInitialAdminTab() {
             const tabParam = new URLSearchParams(window.location.search).get('tab');
             const tabConfig = {
@@ -1318,7 +1344,7 @@
                             onclick="openEditUser(${row.id}, this)">Edit User</button></td>`
                         : '';
                     const recordId = row.id ?? row.analytics_id;
-                    return '<tr><td><input class="row-check" aria-label="Select record ' + escapeHtml(recordId) + '" type="checkbox" value="' + recordId + '"></td>' + visibleColumns.map(col => `<td>${escapeHtml(row[col] ?? '-')}</td>`).join('') + action + '</tr>';
+                    return '<tr><td><input class="row-check" aria-label="Select record ' + escapeHtml(recordId) + '" type="checkbox" value="' + recordId + '"></td>' + visibleColumns.map(col => `<td>${escapeHtml(formatAdminGridCell(col, row[col]))}</td>`).join('') + action + '</tr>';
                 }).join('')
                 : `<tr><td colspan="${emptyColspan}" class="text-center text-muted">No records found</td></tr>`;
             dataGridTable.innerHTML = head + '<tbody>' + body + '</tbody>';
@@ -2003,7 +2029,7 @@
             fetch('/admin/audit-logs?' + params.toString()).then(r => r.json()).then(data => {
                 if (!data.success) throw new Error(data.error);
                 auditTable.innerHTML = '<thead><tr><th>User</th><th>Role</th><th>Action</th><th>Table</th><th>Record</th><th>Timestamp</th><th>Old</th><th>New</th></tr></thead><tbody>' +
-                    data.logs.map(log => `<tr><td>${escapeHtml(log.username)}</td><td>${escapeHtml(log.role_name || '-')}</td><td>${escapeHtml(log.action)}</td><td>${escapeHtml(log.table_name)}</td><td>${escapeHtml(log.record_id || '-')}</td><td>${new Date(log.created_at).toLocaleString()}</td><td class="audit-diff">${escapeHtml(log.old_value || '')}</td><td class="audit-diff">${escapeHtml(log.new_value || '')}</td></tr>`).join('') +
+                    data.logs.map(log => `<tr><td>${escapeHtml(log.username)}</td><td>${escapeHtml(log.role_name || '-')}</td><td>${escapeHtml(log.action)}</td><td>${escapeHtml(log.table_name)}</td><td>${escapeHtml(log.record_id || '-')}</td><td>${formatAdminDateTime(log.created_at)}</td><td class="audit-diff">${escapeHtml(log.old_value || '')}</td><td class="audit-diff">${escapeHtml(log.new_value || '')}</td></tr>`).join('') +
                     '</tbody>';
             }).catch(error => showToast(error.message, 'error'));
         }
@@ -2204,10 +2230,10 @@
             fetch('/admin/notifications').then(r => r.json()).then(data => {
                 if (!data.success) throw new Error(data.error);
                 accountApprovalsTable.innerHTML = '<thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Registered</th><th>Action</th></tr></thead><tbody>' +
-                    (data.account_approvals.length ? data.account_approvals.map(item => `<tr><td>${escapeHtml(item.username)}</td><td>${escapeHtml(item.email || '-')}</td><td>${escapeHtml(item.role_name || '-')}</td><td>${item.created_at ? new Date(item.created_at).toLocaleString() : '-'}</td><td><button class="btn btn-outline-primary btn-sm" onclick="reviewAccount(${item.id})">Edit User</button></td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">No pending account approvals</td></tr>') +
+                    (data.account_approvals.length ? data.account_approvals.map(item => `<tr><td>${escapeHtml(item.username)}</td><td>${escapeHtml(item.email || '-')}</td><td>${escapeHtml(item.role_name || '-')}</td><td>${formatAdminDateTime(item.created_at)}</td><td><button class="btn btn-outline-primary btn-sm" onclick="reviewAccount(${item.id})">Edit User</button></td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">No pending account approvals</td></tr>') +
                     '</tbody>';
                 notificationsTable.innerHTML = '<thead><tr><th>Username</th><th>Requested</th><th>Status</th><th>Resolved By</th><th>Action</th></tr></thead><tbody>' +
-                    (data.password_resets.length ? data.password_resets.map(item => `<tr><td>${escapeHtml(item.username)}</td><td>${item.requested_at ? new Date(item.requested_at).toLocaleString() : '-'}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.resolved_by || '-')}</td><td>${item.status === 'PENDING' ? `<button class="btn btn-primary btn-sm" onclick="resolvePasswordReset(${item.id})">Reset</button>` : '-'}</td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">No password reset requests</td></tr>') +
+                    (data.password_resets.length ? data.password_resets.map(item => `<tr><td>${escapeHtml(item.username)}</td><td>${formatAdminDateTime(item.requested_at)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.resolved_by || '-')}</td><td>${item.status === 'PENDING' ? `<button class="btn btn-primary btn-sm" onclick="resolvePasswordReset(${item.id})">Reset</button>` : '-'}</td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">No password reset requests</td></tr>') +
                     '</tbody>';
                 updateNotificationBadges(data.pending_count);
             }).catch(error => showToast(error.message, 'error'));

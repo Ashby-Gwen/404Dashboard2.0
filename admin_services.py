@@ -12,7 +12,7 @@ import csv
 import io
 import json
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import String, cast, inspect, or_, text
@@ -30,6 +30,15 @@ TABLE_CONFIG = {
 }
 
 BLOCKED_SQL_KEYWORDS = ("drop", "alter", "attach", "detach", "pragma", "vacuum", "analyze", "reindex")
+
+
+def _json_datetime(value: Any) -> Any:
+    if isinstance(value, datetime):
+        normalized = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        return normalized.isoformat().replace("+00:00", "Z")
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return value
 
 
 def get_data_grid(db: Any, models: dict[str, Any], table: str, args: Any) -> dict[str, Any]:
@@ -237,8 +246,7 @@ def _serialize_model(row: Any, table: str | None = None) -> dict[str, Any]:
     data = {}
     for column in row.__table__.columns:
         value = getattr(row, column.name)
-        if hasattr(value, "isoformat"):
-            value = value.isoformat()
+        value = _json_datetime(value)
         if column.name == "password_hash":
             if table == "users":
                 data["password"] = "********"
@@ -252,6 +260,4 @@ def _serialize_model(row: Any, table: str | None = None) -> dict[str, Any]:
 
 
 def _json_value(value: Any) -> Any:
-    if hasattr(value, "isoformat"):
-        return value.isoformat()
-    return value
+    return _json_datetime(value)

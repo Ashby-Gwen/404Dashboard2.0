@@ -774,6 +774,62 @@
         if (favicon.getAttribute('href') !== faviconSrc) {
             favicon.href = faviconSrc;
         }
+        syncUtilityDock();
+    }
+
+    function ensureUtilityDock() {
+        if (!document.body) return null;
+        let dock = document.getElementById('utilityFloaterDock');
+        if (dock) return dock;
+
+        dock = document.createElement('aside');
+        dock.id = 'utilityFloaterDock';
+        dock.className = 'utility-floater-dock';
+        dock.setAttribute('aria-label', 'Quick tools');
+        dock.innerHTML = `
+            <div class="utility-floater-rail" data-utility-floater-rail></div>
+            <button class="utility-floater-trigger" type="button" aria-label="Show quick tools" title="Show quick tools">
+                <span aria-hidden="true" data-lucide="chevron-left"></span>
+            </button>`;
+        document.body.appendChild(dock);
+
+        const trigger = dock.querySelector('.utility-floater-trigger');
+        trigger.addEventListener('click', () => {
+            dock.classList.toggle('is-pinned-open');
+            trigger.setAttribute(
+                'aria-label',
+                dock.classList.contains('is-pinned-open') ? 'Hide quick tools' : 'Show quick tools'
+            );
+        });
+
+        if (window.lucide?.createIcons) {
+            window.lucide.createIcons();
+        } else {
+            trigger.innerHTML = '<span aria-hidden="true">&lsaquo;</span>';
+        }
+        return dock;
+    }
+
+    function syncUtilityDock() {
+        if (!document.body) return;
+        const dock = ensureUtilityDock();
+        if (!dock) return;
+        const rail = dock.querySelector('[data-utility-floater-rail]');
+        const evaluationRoot = document.getElementById('evaluationModalRoot');
+        const ashbyToggle = document.getElementById('ashbyVerseToggle');
+
+        [evaluationRoot, ashbyToggle].forEach(control => {
+            if (control && control.parentElement !== rail) {
+                rail.appendChild(control);
+            }
+        });
+
+        const visibleControls = Array.from(rail.children).filter(control => {
+            if (control.id === 'ashbyVerseToggle' && !isAshbyMode()) return false;
+            return true;
+        });
+        dock.hidden = visibleControls.length === 0;
+        dock.dataset.utilityCount = String(visibleControls.length);
     }
 
     function isAshbyMode() {
@@ -854,6 +910,7 @@
             document.body.classList.toggle('ashby-sidebar-collapsed');
             updateAshbyToggle();
         });
+        syncUtilityDock();
     }
 
     function updateAshbyToggle() {
@@ -1022,6 +1079,7 @@
                 <span class="evaluation-launcher-label">Evaluate System</span>
             </a>`;
         document.body.appendChild(root);
+        syncUtilityDock();
     }
 
     function showServerWarnings(warnings = []) {

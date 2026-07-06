@@ -1553,6 +1553,143 @@ button.is-loading,
     opacity: 1;
 }
 
+.utility-floater-dock {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 9300;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.55rem;
+    pointer-events: none;
+}
+
+.utility-floater-dock[hidden] {
+    display: none;
+}
+
+.utility-floater-rail {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.55rem;
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateX(16px);
+    pointer-events: none;
+    transition:
+        max-width 220ms ease,
+        opacity 150ms ease,
+        transform 220ms ease;
+}
+
+.utility-floater-dock:hover .utility-floater-rail,
+.utility-floater-dock:focus-within .utility-floater-rail,
+.utility-floater-dock.is-pinned-open .utility-floater-rail {
+    max-width: min(520px, calc(100vw - 5.5rem));
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+}
+
+.utility-floater-trigger {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border: 1px solid color-mix(in srgb, var(--brand-orange) 68%, var(--border-color));
+    border-radius: 999px;
+    background: var(--brand-orange);
+    color: #fff;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
+    cursor: pointer;
+    pointer-events: auto;
+    transition:
+        background-color 180ms ease,
+        border-color 180ms ease,
+        color 180ms ease,
+        transform 180ms ease;
+}
+
+.utility-floater-trigger:hover,
+.utility-floater-trigger:focus-visible,
+.utility-floater-dock:hover .utility-floater-trigger,
+.utility-floater-dock:focus-within .utility-floater-trigger,
+.utility-floater-dock.is-pinned-open .utility-floater-trigger {
+    border-color: var(--brand-orange);
+    background: color-mix(in srgb, var(--brand-orange) 88%, #fff);
+    color: #fff;
+}
+
+.utility-floater-dock:hover .utility-floater-trigger span,
+.utility-floater-dock:focus-within .utility-floater-trigger span,
+.utility-floater-dock.is-pinned-open .utility-floater-trigger span {
+    transform: rotate(180deg);
+}
+
+.utility-floater-trigger span,
+.utility-floater-trigger svg {
+    width: 22px;
+    height: 22px;
+    transition: transform 180ms ease;
+}
+
+.utility-floater-dock #evaluationModalRoot {
+    display: contents;
+}
+
+.utility-floater-dock .evaluation-launcher.btn-outline,
+.utility-floater-dock .ashby-verse-toggle {
+    position: static;
+    right: auto;
+    bottom: auto;
+    z-index: auto;
+    flex: 0 0 auto;
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    min-height: 48px;
+    padding: 7px;
+    border-color: color-mix(in srgb, var(--brand-orange) 56%, var(--border-color)) !important;
+    background: var(--card-bg) !important;
+    color: var(--text-main) !important;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+    pointer-events: auto;
+}
+
+.utility-floater-dock .ashby-verse-toggle {
+    display: none;
+    color: var(--text-main);
+    border-color: var(--border-color);
+}
+
+body[data-theme-mode="ashby"] .utility-floater-dock .ashby-verse-toggle {
+    display: inline-flex;
+}
+
+.utility-floater-dock .evaluation-launcher.btn-outline:hover,
+.utility-floater-dock .evaluation-launcher.btn-outline:focus-visible,
+.utility-floater-dock .ashby-verse-toggle:hover,
+.utility-floater-dock .ashby-verse-toggle:focus-visible {
+    width: 154px;
+}
+
+@media (max-width: 640px) {
+    .utility-floater-dock {
+        right: max(0.75rem, env(safe-area-inset-right));
+        bottom: max(0.75rem, env(safe-area-inset-bottom));
+    }
+
+    .utility-floater-dock:hover .utility-floater-rail,
+    .utility-floater-dock:focus-within .utility-floater-rail,
+    .utility-floater-dock.is-pinned-open .utility-floater-rail {
+        max-width: calc(100vw - 5rem);
+    }
+}
+
 .evaluation-modal {
     width: min(760px, 100%);
     max-height: min(860px, calc(100vh - 2rem));

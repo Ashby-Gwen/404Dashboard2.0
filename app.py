@@ -548,6 +548,14 @@ def evaluation_required(f):
 def utc_now():
     return datetime.now(UTC)
 
+def isoformat_utc(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        normalized = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        return normalized.isoformat().replace('+00:00', 'Z')
+    return value.isoformat() if hasattr(value, 'isoformat') else value
+
 def normalize_username(value):
     return (value or '').strip().casefold()
 
@@ -6215,8 +6223,8 @@ def get_session_records():
                     'id': item.id,
                     'username': item.username,
                     'role_name': item.role_name,
-                    'login_at': item.login_at.isoformat() if item.login_at else None,
-                    'logout_at': item.logout_at.isoformat() if item.logout_at else None,
+                    'login_at': isoformat_utc(item.login_at),
+                    'logout_at': isoformat_utc(item.logout_at),
                     'status': item.status,
                     'device_id': item.device_id,
                     'device_label': item.device_label,
@@ -6977,7 +6985,7 @@ def admin_notifications():
                 'email': item.email,
                 'role_name': item.role.role_name if item.role else 'staff',
                 'status': normalize_user_status(item.status),
-                'created_at': item.created_at.isoformat() if item.created_at else None,
+                'created_at': isoformat_utc(item.created_at),
             }
             for item in approval_requests
         ],
@@ -6986,8 +6994,8 @@ def admin_notifications():
                 'id': item.id,
                 'username': item.username,
                 'status': item.status,
-                'requested_at': item.requested_at.isoformat() if item.requested_at else None,
-                'resolved_at': item.resolved_at.isoformat() if item.resolved_at else None,
+                'requested_at': isoformat_utc(item.requested_at),
+                'resolved_at': isoformat_utc(item.resolved_at),
                 'resolved_by': item.resolved_by.username if item.resolved_by else None,
             }
             for item in reset_requests
@@ -7064,7 +7072,7 @@ def admin_audit_logs():
                     'record_id': log.record_id,
                     'old_value': log.old_value,
                     'new_value': log.new_value,
-                    'created_at': log.created_at.isoformat() if log.created_at else None,
+                    'created_at': isoformat_utc(log.created_at),
                 } for log in logs
             ]
         })
