@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import datetime
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -41,6 +42,8 @@ def main():
                 session['role'] = 'sales staff'
 
             create_response = client.post('/create-sales-order', json={
+                'so_number': 'SO-STAFF-77',
+                'so_generation_year': 2025,
                 'company_name': 'Manual Company Inc',
                 'store_name': 'Manual Store',
                 'store_branch': 'Main Branch',
@@ -71,6 +74,8 @@ def main():
 
             order = db.session.get(SalesOrder, order_id)
             assert order is not None
+            assert order.so_number == 'SO-2025-0001'
+            assert order.source_so_number == 'SO-STAFF-77'
             assert order.company_name == 'MANUAL COMPANY INC'
             assert order.store_name == 'MANUAL STORE'
             assert order.store_branch == 'MAIN BRANCH'
@@ -81,8 +86,83 @@ def main():
             assert history_payload['success'] is True
             history_row = next(row for row in history_payload['sales_orders'] if row['id'] == order_id)
             assert history_row['so_number'] == order.so_number
+            assert history_row['source_so_number'] == 'SO-STAFF-77'
             assert history_row['store_name'] == 'MANUAL STORE'
             assert history_row['total_amount'] == 825
+
+            duplicate_response = client.post('/create-sales-order', json={
+                'source_so_number': 'SO-STAFF-77',
+                'company_name': 'Manual Company Inc',
+                'store_name': 'Manual Store',
+                'store_branch': 'Main Branch',
+                'order_date': '2026-06-17',
+                'sales_staff': 'Manual Sales',
+                'items': [{
+                    'particular': 'Duplicate POS',
+                    'quantity': 1,
+                    'unit_cost': 100,
+                    'selling_price': 350,
+                }],
+            })
+            assert duplicate_response.status_code == 409
+            assert 'source SO Number, Sales Staff, and Order Date' in duplicate_response.get_json()['error']
+
+            different_date_response = client.post('/create-sales-order', json={
+                'source_so_number': 'SO-STAFF-77',
+                'so_generation_year': 2025,
+                'company_name': 'Manual Company Inc',
+                'store_name': 'Manual Store',
+                'store_branch': 'Main Branch',
+                'order_date': '2026-06-18',
+                'sales_staff': 'Manual Sales',
+                'items': [{
+                    'particular': 'Next Day POS',
+                    'quantity': 1,
+                    'unit_cost': 100,
+                    'selling_price': 350,
+                }],
+            })
+            assert different_date_response.status_code == 200, different_date_response.get_json()
+            different_date_order = db.session.get(SalesOrder, different_date_response.get_json()['sales_order']['id'])
+            assert different_date_order.so_number == 'SO-2025-0002'
+            assert different_date_order.source_so_number == 'SO-STAFF-77'
+
+            next_year_response = client.post('/create-sales-order', json={
+                'source_so_number': 'SO-STAFF-78',
+                'so_generation_year': 2026,
+                'company_name': 'Manual Company Inc',
+                'store_name': 'Manual Store',
+                'store_branch': 'Main Branch',
+                'order_date': '2026-06-19',
+                'sales_staff': 'Manual Sales',
+                'items': [{
+                    'particular': 'Next Year POS',
+                    'quantity': 1,
+                    'unit_cost': 100,
+                    'selling_price': 350,
+                }],
+            })
+            assert next_year_response.status_code == 200, next_year_response.get_json()
+            next_year_order = db.session.get(SalesOrder, next_year_response.get_json()['sales_order']['id'])
+            assert next_year_order.so_number == 'SO-2026-0001'
+
+            default_year_response = client.post('/create-sales-order', json={
+                'source_so_number': 'SO-STAFF-79',
+                'company_name': 'Manual Company Inc',
+                'store_name': 'Manual Store',
+                'store_branch': 'Main Branch',
+                'order_date': '2026-06-20',
+                'sales_staff': 'Manual Sales',
+                'items': [{
+                    'particular': 'Default Year POS',
+                    'quantity': 1,
+                    'unit_cost': 100,
+                    'selling_price': 350,
+                }],
+            })
+            assert default_year_response.status_code == 200, default_year_response.get_json()
+            default_year_order = db.session.get(SalesOrder, default_year_response.get_json()['sales_order']['id'])
+            assert default_year_order.so_number.startswith(f"SO-{datetime.now().year}-")
 
             print_response = client.get(payload['print_url'])
             assert print_response.status_code == 200

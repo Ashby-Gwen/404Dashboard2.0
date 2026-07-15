@@ -7,7 +7,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 
-from app import AuditLog, Role, SessionRecord, User, app, db, init_db  # noqa: E402
+from app import AuditLog, PasswordReset, Role, SessionRecord, User, app, db, init_db, validate_password_policy  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
 
@@ -53,6 +53,10 @@ def main():
         pending = add_user('action_pending', roles['staff'], status='pending')
         pending_reject = add_user('action_pending_reject', roles['staff'], status='pending')
         rejected = add_user('action_rejected', roles['staff'], status='rejected')
+        bulk_staff = add_user('bulk_eval_staff', roles['staff'])
+        bulk_manager = add_user('bulk_eval_manager', roles['manager'])
+        bulk_pending = add_user('bulk_eval_pending', roles['staff'], status='pending')
+        bulk_disabled = add_user('bulk_eval_disabled', roles['staff'], status='disabled')
         db.session.add(SessionRecord(
             user_id=staff.id,
             username=staff.username,
@@ -62,6 +66,18 @@ def main():
         db.session.add(SessionRecord(
             user_id=manager.id,
             username=manager.username,
+            role_name='manager',
+            status='ACTIVE',
+        ))
+        db.session.add(SessionRecord(
+            user_id=bulk_staff.id,
+            username=bulk_staff.username,
+            role_name='staff',
+            status='ACTIVE',
+        ))
+        db.session.add(SessionRecord(
+            user_id=bulk_manager.id,
+            username=bulk_manager.username,
             role_name='manager',
             status='ACTIVE',
         ))
@@ -161,6 +177,34 @@ def main():
             protected = post_action(client, admin, 'disable', reason='Not allowed')
             assert protected.status_code == 409
 
+            created_response = client.post('/create-user', json={
+                'username': 'generated_staff',
+                'email': 'generated.staff@example.com',
+                'role_id': roles['staff'].id,
+            })
+            assert created_response.status_code == 200, created_response.get_json()
+            created_payload = created_response.get_json()
+            generated_credentials = created_payload['credentials']
+            assert validate_password_policy(generated_credentials['temporary_password'])
+            generated_staff = User.query.filter_by(username='generated_staff').first()
+            assert generated_staff is not None
+            assert generated_staff.password_change_required is True
+            assert generated_staff.password_updated_at is None
+
+            reset_request = PasswordReset(user_id=staff.id, username=staff.username)
+            db.session.add(reset_request)
+            db.session.commit()
+            reset_response = client.post(
+                f'/admin/password-resets/{reset_request.id}/resolve',
+                json={'admin_password': 'admin123'},
+            )
+            assert reset_response.status_code == 200, reset_response.get_json()
+            reset_payload = reset_response.get_json()
+            assert validate_password_policy(reset_payload['credentials']['temporary_password'])
+            db.session.refresh(staff)
+            assert staff.password_change_required is True
+            assert staff.password_updated_at is None
+
             bypass_update = client.post(
                 f'/update-user/{staff.id}',
                 json={
@@ -177,6 +221,54 @@ def main():
                 'status': 'disabled',
             })
             assert bypass_bulk.status_code == 409
+
+            bulk_wrong_password = client.post('/admin/users/bulk-evaluation-access', json={
+                'ids': [bulk_staff.id],
+                'enabled': True,
+                'admin_password': 'wrong',
+            })
+            assert bulk_wrong_password.status_code == 403
+            db.session.refresh(bulk_staff)
+            assert bulk_staff.evaluation_enabled is False
+
+            bulk_enable = client.post('/admin/users/bulk-evaluation-access', json={
+                'ids': [bulk_staff.id, bulk_manager.id, bulk_pending.id, bulk_disabled.id, admin.id],
+                'enabled': True,
+                'admin_password': 'admin123',
+            })
+            assert bulk_enable.status_code == 200, bulk_enable.get_json()
+            bulk_enable_payload = bulk_enable.get_json()
+            assert bulk_enable_payload['updated'] == 3
+            assert len(bulk_enable_payload['skipped']) == 2
+            for account in (bulk_staff, bulk_manager, admin):
+                db.session.refresh(account)
+                assert account.evaluation_enabled is True
+                if account.id in {bulk_staff.id, bulk_manager.id}:
+                    assert SessionRecord.query.filter_by(user_id=account.id).first().status == 'FORCED_LOGOUT'
+                assert AuditLog.query.filter_by(
+                    action='BULK_ENABLE_EVALUATION_ACCESS',
+                    record_id=str(account.id),
+                ).first() is not None
+            for account in (bulk_pending, bulk_disabled):
+                db.session.refresh(account)
+                assert account.evaluation_enabled is False
+
+            bulk_disable = client.post('/admin/users/bulk-evaluation-access', json={
+                'ids': [bulk_staff.id, bulk_manager.id, admin.id],
+                'enabled': False,
+                'admin_password': 'admin123',
+            })
+            assert bulk_disable.status_code == 200, bulk_disable.get_json()
+            bulk_disable_payload = bulk_disable.get_json()
+            assert bulk_disable_payload['updated'] == 3
+            assert len(bulk_disable_payload['skipped']) == 0
+            for account in (bulk_staff, bulk_manager, admin):
+                db.session.refresh(account)
+                assert account.evaluation_enabled is False
+                assert AuditLog.query.filter_by(
+                    action='BULK_DISABLE_EVALUATION_ACCESS',
+                    record_id=str(account.id),
+                ).first() is not None
 
             bypass_delete = client.delete(f'/delete-user/{staff.id}')
             assert bypass_delete.status_code == 409
@@ -199,11 +291,19 @@ def main():
     assert 'background-image: url("data:image/svg+xml' in admin_html
     assert 'id="editUserModal"' in admin_html
     assert '>Edit User</button>' in admin_html
+    assert 'newUserCredentialsPanel' in admin_html
+    assert 'copyGeneratedCredentials' in admin_html
     assert 'editUserAdminPassword' in admin_html
     assert 'editUserReason' in admin_html
     assert "action: selectedUserAction" in admin_html
     assert 'Enable evaluation access' in admin_html
     assert 'disable_evaluation' in admin_html
+    assert 'id="bulkEvaluationActions"' in admin_html
+    assert 'Evaluation access' in admin_html
+    assert 'Enable selected' in admin_html
+    assert 'Disable selected' in admin_html
+    assert 'syncBulkActionVisibility' in admin_html
+    assert 'bulkEvaluationAccess' in admin_html
     assert 'deactivateUser(' not in admin_html
 
     print('Admin user management check passed.')

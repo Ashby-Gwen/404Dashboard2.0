@@ -141,9 +141,9 @@ The theme editor and audit/evaluation capabilities support the manuscript. The S
 ### Current schema findings
 
 - The models define 17 runtime tables, including `system_settings`.
-- `SYSTEM_ERD.md` states there are 16 tables but also describes `system_settings`; its table count is outdated.
+- `docs/architecture/SYSTEM_ERD.md` states there are 16 tables but also describes `system_settings`; its table count is outdated.
 - Older local databases may be missing `users.profile_photo_data`, `users.profile_photo_mime`, and `evaluation_sessions.user_id`; `defense_migrations.py` now backs up and migrates SQLite automatically.
-- `docs/supabase_defense_readiness_migration.sql` supplies the equivalent idempotent production migration.
+- `docs/database/supabase_defense_readiness_migration.sql` supplies the equivalent idempotent production migration.
 - `sales_orders.so_number` is not unique at database level.
 - Client names are not unique; application-level matching reduces duplicates but cannot guarantee integrity under concurrent writes.
 - Most status fields have no database check constraints.

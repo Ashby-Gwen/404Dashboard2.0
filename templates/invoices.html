@@ -127,6 +127,28 @@
             box-shadow: none;
         }
 
+        .field-feedback {
+            min-height: 1rem;
+            margin-top: 0.35rem;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+
+        .field-feedback.error {
+            color: #B91C1C;
+            font-weight: 600;
+        }
+
+        .reference-conflict {
+            border-color: #B91C1C !important;
+            background: #FEF2F2 !important;
+        }
+
+        .readonly-payment-field {
+            background-color: #f5f5f5 !important;
+            cursor: not-allowed;
+        }
+
         .readonly-field {
             display: flex;
             flex-direction: column;
@@ -1054,6 +1076,7 @@
                         <div class="form-group">
                             <label for="invoiceNumber">Invoice Number</label>
                             <input type="text" id="invoiceNumber">
+                            <div class="field-feedback" id="invoiceNumberFeedback" aria-live="polite"></div>
                         </div>
                         <div class="form-group">
                             <label for="invoiceDate">Invoice Date</label>
@@ -1077,11 +1100,14 @@
                     <div class="form-grid-2col">
                         <div class="form-group">
                             <label for="paymentType">Payment Type</label>
-                            <select id="paymentType">
+                            <select id="paymentType" onchange="updateCalculations()">
                                 <option value="">-- Select Payment Type --</option>
-                                <option value="DOWNPAYMENT">Downpayment</option>
                                 <option value="FULL">Full Payment</option>
+                                <option value="DOWNPAYMENT">Downpayment</option>
+                                <option value="INSTALLMENT" disabled>Installment</option>
+                                <option value="FINAL" disabled>Final Payment</option>
                             </select>
+                            <div class="field-feedback" id="paymentTypeFeedback" aria-live="polite">Full Payment or Downpayment is available before any payment is recorded.</div>
                         </div>
                         <div class="form-group">
                             <label for="receiptDate">Collection Receipt Date</label>
@@ -1090,10 +1116,11 @@
                         <div class="form-group">
                             <label for="crNumber">Collection Receipt Number</label>
                             <input type="text" id="crNumber" placeholder="CR-0001" onchange="updateCalculations()">
+                            <div class="field-feedback" id="crNumberFeedback" aria-live="polite"></div>
                         </div>
                         <div class="form-group">
                             <label for="paymentAmount">CR Amount (₱)</label>
-                            <input type="number" id="paymentAmount" step="0.01" min="0" onchange="updateCalculations()">
+                            <input type="number" id="paymentAmount" step="0.01" min="0" oninput="updateCalculations()" onchange="updateCalculations()">
                         </div>
                     </div>
                 </div>
@@ -1171,7 +1198,7 @@
                 <!-- Form Actions -->
                 <div class="form-actions">
                     <button class="btn btn-outline" onclick="resetInvoiceForm()">Clear</button>
-                    <button class="btn btn-primary" onclick="confirmInvoice()">Confirm Invoice</button>
+                    <button class="btn btn-primary" id="createInvoiceButton" onclick="confirmInvoice()">Confirm Invoice</button>
                 </div>
             </div>
         </div>
@@ -1220,11 +1247,15 @@
                             <option value="">-- Select Payment Type --</option>
                             <option value="DOWNPAYMENT">Downpayment</option>
                             <option value="FULL">Full Payment</option>
+                            <option value="INSTALLMENT">Installment</option>
+                            <option value="FINAL">Final Payment</option>
                         </select>
+                        <div class="field-feedback" id="editPaymentTypeFeedback" aria-live="polite"></div>
                     </div>
                     <div class="form-group">
                         <label for="editCrNumber">Collection Receipt Number</label>
                         <input type="text" id="editCrNumber" placeholder="CR-0001" oninput="updateEditWarning()">
+                        <div class="field-feedback" id="editCrNumberFeedback" aria-live="polite"></div>
                     </div>
                     <div class="form-group">
                         <label for="editPaymentAmount">CR Amount (₱)</label>
@@ -1244,7 +1275,7 @@
                 </div>
                 <div class="modal-actions">
                     <button class="modal-cancel" onclick="closePaymentModal()">Cancel</button>
-                    <button class="modal-confirm" onclick="submitPaymentUpdate()">Add Receipt</button>
+                    <button class="modal-confirm" id="addReceiptButton" onclick="submitPaymentUpdate()">Add Receipt</button>
                 </div>
             </div>
         </div>
@@ -1261,7 +1292,15 @@
         let salesOrderSearchResults = [];
         let invoicePage = 1;
         let invoiceTotalPages = 1;
+        let currentReceiptSchedule = null;
         const invoicePageSize = 50;
+        const referenceValidationUrl = `{{ url_for("validate_invoice_reference") }}`;
+        const referenceValidationState = {
+            invoiceNumber: { status: 'idle', duplicate: false, message: '', token: 0 },
+            crNumber: { status: 'idle', duplicate: false, message: '', token: 0 },
+            editCrNumber: { status: 'idle', duplicate: false, message: '', token: 0 },
+        };
+        const referenceValidationTimers = {};
 
         // Update date/time
         function updateDateTime() {
@@ -1280,7 +1319,14 @@
             loadInvoices();
             loadPendingSalesOrders();
             document.getElementById('salesOrderSearch').addEventListener('input', onSalesOrderSearchInput);
+            document.getElementById('invoiceNumber').addEventListener('input', () => scheduleReferenceValidation('invoiceNumber'));
+            document.getElementById('invoiceNumber').addEventListener('blur', () => validateReferenceField('invoiceNumber'));
+            document.getElementById('crNumber').addEventListener('input', () => scheduleReferenceValidation('crNumber'));
+            document.getElementById('crNumber').addEventListener('blur', () => validateReferenceField('crNumber'));
+            document.getElementById('editCrNumber').addEventListener('input', () => scheduleReferenceValidation('editCrNumber'));
+            document.getElementById('editCrNumber').addEventListener('blur', () => validateReferenceField('editCrNumber'));
             generateInvoiceNumber();
+            applyInitialPaymentState();
             displayNoSalesOrder();
         });
 
@@ -1315,6 +1361,292 @@
                 message,
                 showOverlay: true
             }, () => fetch(url)).then(result => result.cancelled ? Promise.reject(new Error('Request cancelled.')) : result);
+        }
+
+        function referenceFieldConfig(fieldKey) {
+            return {
+                invoiceNumber: {
+                    inputId: 'invoiceNumber',
+                    feedbackId: 'invoiceNumberFeedback',
+                    queryKey: 'invoice_number',
+                    label: 'Invoice number',
+                },
+                crNumber: {
+                    inputId: 'crNumber',
+                    feedbackId: 'crNumberFeedback',
+                    queryKey: 'cr_number',
+                    label: 'Collection Receipt number',
+                },
+                editCrNumber: {
+                    inputId: 'editCrNumber',
+                    feedbackId: 'editCrNumberFeedback',
+                    queryKey: 'cr_number',
+                    label: 'Collection Receipt number',
+                },
+            }[fieldKey];
+        }
+
+        function setReferenceFeedback(fieldKey, message = '', isError = false) {
+            const config = referenceFieldConfig(fieldKey);
+            const input = document.getElementById(config.inputId);
+            const feedback = document.getElementById(config.feedbackId);
+            if (feedback) {
+                feedback.textContent = message;
+                feedback.classList.toggle('error', Boolean(isError));
+            }
+            if (input) {
+                input.classList.toggle('reference-conflict', Boolean(isError));
+                input.setAttribute('aria-invalid', isError ? 'true' : 'false');
+            }
+        }
+
+        function updateReferenceActionButtons() {
+            const createButton = document.getElementById('createInvoiceButton');
+            const addReceiptButton = document.getElementById('addReceiptButton');
+            const createBlocked = ['invoiceNumber', 'crNumber'].some(key =>
+                referenceValidationState[key].duplicate || referenceValidationState[key].status === 'checking'
+            );
+            const receiptBlocked = referenceValidationState.editCrNumber.duplicate
+                || referenceValidationState.editCrNumber.status === 'checking';
+            if (createButton) createButton.disabled = createBlocked;
+            if (addReceiptButton) addReceiptButton.disabled = receiptBlocked;
+        }
+
+        function clearReferenceState(fieldKey) {
+            const state = referenceValidationState[fieldKey];
+            state.status = 'idle';
+            state.duplicate = false;
+            state.message = '';
+            setReferenceFeedback(fieldKey);
+            updateReferenceActionButtons();
+        }
+
+        function scheduleReferenceValidation(fieldKey) {
+            clearTimeout(referenceValidationTimers[fieldKey]);
+            const config = referenceFieldConfig(fieldKey);
+            const value = document.getElementById(config.inputId)?.value.trim();
+            if (!value) {
+                clearReferenceState(fieldKey);
+                return;
+            }
+            referenceValidationTimers[fieldKey] = setTimeout(() => {
+                validateReferenceField(fieldKey, { quiet: true });
+            }, 350);
+        }
+
+        async function validateReferenceField(fieldKey, options = {}) {
+            const config = referenceFieldConfig(fieldKey);
+            const input = document.getElementById(config.inputId);
+            const value = input?.value.trim() || '';
+            if (!value) {
+                clearReferenceState(fieldKey);
+                return true;
+            }
+
+            const state = referenceValidationState[fieldKey];
+            const token = state.token + 1;
+            state.token = token;
+            state.status = 'checking';
+            state.duplicate = false;
+            state.message = '';
+            setReferenceFeedback(fieldKey, `Checking ${config.label.toLowerCase()}...`);
+            updateReferenceActionButtons();
+
+            const params = new URLSearchParams({ [config.queryKey]: value });
+            try {
+                const response = await fetch(`${referenceValidationUrl}?${params.toString()}`);
+                const data = await response.json();
+                if (state.token !== token) return !state.duplicate;
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Validation failed.');
+                }
+                const result = data[config.queryKey] || {};
+                state.status = 'done';
+                state.duplicate = Boolean(result.exists);
+                state.message = result.message || '';
+                setReferenceFeedback(fieldKey, state.message, state.duplicate);
+                if (state.duplicate && !options.quiet) {
+                    showToast(state.message || `${config.label} already exists.`, 'error');
+                }
+                updateReferenceActionButtons();
+                return !state.duplicate;
+            } catch (error) {
+                if (state.token !== token) return !state.duplicate;
+                state.status = 'idle';
+                state.duplicate = false;
+                state.message = '';
+                setReferenceFeedback(fieldKey);
+                updateReferenceActionButtons();
+                if (!options.quiet) {
+                    showToast(error.message || 'Could not validate this reference. The server will check again on save.', 'info');
+                }
+                return true;
+            }
+        }
+
+        async function validateInvoiceReferencesBeforeSubmit() {
+            const invoiceValid = await validateReferenceField('invoiceNumber');
+            const receiptValid = await validateReferenceField('crNumber');
+            return invoiceValid && receiptValid;
+        }
+
+        function moneyValue(value) {
+            return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+        }
+
+        function collectedAmount(paymentAmount, taxAmount, isTaxChecked) {
+            return moneyValue((Number(paymentAmount) || 0) + (isTaxChecked ? (Number(taxAmount) || 0) : 0));
+        }
+
+        function setPaymentOptionState(select, allowedValues, labels = {}) {
+            if (!select) return;
+            const defaultLabels = {
+                FULL: 'Full Payment',
+                DOWNPAYMENT: 'Downpayment',
+                INSTALLMENT: 'Installment',
+                FINAL: 'Final Payment',
+            };
+            Array.from(select.options).forEach(option => {
+                if (!option.value) {
+                    option.disabled = false;
+                    return;
+                }
+                option.textContent = labels[option.value] || defaultLabels[option.value] || option.textContent;
+                option.disabled = !allowedValues.includes(option.value);
+            });
+            if (select.value && !allowedValues.includes(select.value)) {
+                select.value = allowedValues[0] || '';
+            } else if (!select.value && allowedValues.length === 1) {
+                select.value = allowedValues[0];
+            }
+        }
+
+        function setFieldLock(input, locked, value = null) {
+            if (!input) return;
+            input.readOnly = Boolean(locked);
+            input.classList.toggle('readonly-payment-field', Boolean(locked));
+            if (value !== null && value !== undefined && Number.isFinite(Number(value))) {
+                input.value = moneyValue(value).toFixed(2);
+            }
+        }
+
+        function updatePaymentFeedback(id, message, isError = false) {
+            const element = document.getElementById(id);
+            if (!element) return;
+            element.textContent = message || '';
+            element.classList.toggle('error', Boolean(isError));
+        }
+
+        function calculateTaxForDue(dueAmount, isTaxChecked) {
+            if (!isTaxChecked) return 0;
+            return moneyValue((Number(dueAmount || 0) / 1.12) * 0.01);
+        }
+
+        function paymentScheduleFromReceipts(invoice, receipts) {
+            const totalAmount = moneyValue(invoice?.total_amount || 0);
+            const remainingBalance = moneyValue(invoice?.balance || 0);
+            const paidReceipts = (receipts || []).filter(item => Number(item.collected_total || 0) > 0.01);
+            const firstDownpayment = paidReceipts.find(item => item.payment_type === 'DOWNPAYMENT');
+            const basePayment = moneyValue(firstDownpayment?.collected_total || 0);
+            const expectedPaymentCount = basePayment > 0 ? Math.ceil(totalAmount / basePayment) : 0;
+            const nextPaymentNumber = paidReceipts.length + 1;
+            const finalDue = Boolean(firstDownpayment) && expectedPaymentCount > 0 && (
+                nextPaymentNumber >= expectedPaymentCount || remainingBalance <= basePayment + 0.01
+            );
+            return {
+                totalAmount,
+                remainingBalance,
+                paidReceipts,
+                firstDownpayment,
+                basePayment,
+                expectedPaymentCount,
+                nextPaymentNumber,
+                finalDue,
+            };
+        }
+
+        function applyInitialPaymentState() {
+            const select = document.getElementById('paymentType');
+            setPaymentOptionState(select, ['FULL', 'DOWNPAYMENT']);
+            updatePaymentFeedback('paymentTypeFeedback', 'Full Payment or Downpayment is available before any payment is recorded.');
+        }
+
+        function lockCreatePaymentAmountIfNeeded() {
+            if (!selectedSalesOrder) return;
+            const paymentType = document.getElementById('paymentType').value;
+            const paymentInput = document.getElementById('paymentAmount');
+            const taxInput = document.getElementById('taxAmount');
+            const isTaxChecked = document.getElementById('tax2307Checked').checked;
+            const currentBalance = moneyValue(selectedSalesOrder.current_balance ?? selectedSalesOrder.total_amount);
+
+            if (paymentType === 'FULL') {
+                const taxAmount = calculateTaxForDue(currentBalance, isTaxChecked);
+                taxInput.value = taxAmount.toFixed(2);
+                setFieldLock(paymentInput, true, Math.max(currentBalance - taxAmount, 0));
+                return;
+            }
+            setFieldLock(paymentInput, false);
+        }
+
+        function applyReceiptPaymentState(invoice, receipts) {
+            const select = document.getElementById('editPaymentType');
+            const schedule = paymentScheduleFromReceipts(invoice, receipts);
+            currentReceiptSchedule = schedule;
+
+            if (schedule.remainingBalance <= 0.01) {
+                setPaymentOptionState(select, []);
+                updatePaymentFeedback('editPaymentTypeFeedback', 'This invoice is already fully paid.');
+                return schedule;
+            }
+
+            if (!schedule.paidReceipts.length) {
+                setPaymentOptionState(select, ['FULL', 'DOWNPAYMENT']);
+                updatePaymentFeedback('editPaymentTypeFeedback', 'No payments have been recorded yet. Choose Full Payment or Downpayment.');
+                return schedule;
+            }
+
+            if (!schedule.firstDownpayment) {
+                setPaymentOptionState(select, ['FINAL']);
+                updatePaymentFeedback('editPaymentTypeFeedback', 'Existing payments do not include a Downpayment. Use Final Payment to close the balance.');
+                return schedule;
+            }
+
+            if (schedule.finalDue) {
+                setPaymentOptionState(select, ['FINAL']);
+                updatePaymentFeedback('editPaymentTypeFeedback', `Final Payment is due for the remaining PHP ${formatCurrency(schedule.remainingBalance)}.`);
+                return schedule;
+            }
+
+            setPaymentOptionState(select, ['INSTALLMENT'], {
+                INSTALLMENT: `Installment ${schedule.nextPaymentNumber}`,
+            });
+            updatePaymentFeedback(
+                'editPaymentTypeFeedback',
+                `Installment ${schedule.nextPaymentNumber} of ${schedule.expectedPaymentCount} is due for PHP ${formatCurrency(schedule.basePayment)}.`
+            );
+            return schedule;
+        }
+
+        function lockReceiptPaymentAmountIfNeeded() {
+            if (!invoiceBeingEdited || !currentReceiptSchedule) return;
+            const paymentType = document.getElementById('editPaymentType').value;
+            const paymentInput = document.getElementById('editPaymentAmount');
+            const taxInput = document.getElementById('editTaxAmount');
+            const isTaxChecked = document.getElementById('editTax2307Checked').checked;
+            let dueAmount = null;
+
+            if (paymentType === 'FULL' || paymentType === 'FINAL') {
+                dueAmount = currentReceiptSchedule.remainingBalance;
+            } else if (paymentType === 'INSTALLMENT') {
+                dueAmount = Math.min(currentReceiptSchedule.basePayment, currentReceiptSchedule.remainingBalance);
+            }
+
+            if (dueAmount !== null) {
+                const taxAmount = isTaxChecked ? Number(taxInput.value || 0) : 0;
+                setFieldLock(paymentInput, true, Math.max(dueAmount - taxAmount, 0));
+            } else {
+                setFieldLock(paymentInput, false);
+            }
         }
 
         // Load one invoice page at a time; full financial tables stay server-side.
@@ -1419,6 +1751,10 @@
                 const data = await response.json();
                 if (!response.ok || !data.success) throw new Error(data.error || 'Could not load Collection Receipts.');
                 const receipts = data.collection_receipts || [];
+                const invoiceRecord = allInvoices.find(inv => inv.id === invoiceId);
+                if (invoiceRecord) {
+                    Object.assign(invoiceRecord, data.invoice, { collection_receipts: receipts });
+                }
                 container.innerHTML = `
                     <div class="receipt-history-header">
                         <div>
@@ -1666,6 +2002,7 @@
                 .then(data => {
                     if (data.success) {
                         document.getElementById('invoiceNumber').value = data.invoice_number;
+                        validateReferenceField('invoiceNumber', { quiet: true });
                     }
                 })
                 .catch(error => console.error('Error:', error));
@@ -1729,10 +2066,66 @@
             discrepancyWarning.style.display = hasDiscrepancy ? 'block' : 'none';
         }
 
+        function updateCalculations() {
+            if (!selectedSalesOrder) return;
+
+            const soTotal = parseFloat(selectedSalesOrder.total_amount) || 0;
+            const currentBalance = parseFloat(selectedSalesOrder.current_balance ?? selectedSalesOrder.total_amount) || 0;
+            const crNumber = document.getElementById('crNumber').value.trim();
+            const paymentType = document.getElementById('paymentType').value;
+            const isTaxChecked = document.getElementById('tax2307Checked').checked;
+            let taxAmount = 0;
+
+            lockCreatePaymentAmountIfNeeded();
+            if (paymentType === 'FULL') {
+                taxAmount = calculateTaxForDue(currentBalance, isTaxChecked);
+                document.getElementById('taxAmount').value = taxAmount.toFixed(2);
+                document.getElementById('paymentAmount').value = Math.max(currentBalance - taxAmount, 0).toFixed(2);
+            } else if (selectedSalesOrder) {
+                taxAmount = (soTotal / 1.12) * 0.01;
+                document.getElementById('taxAmount').value = taxAmount.toFixed(2);
+            } else {
+                document.getElementById('taxAmount').value = '0.00';
+            }
+            const paymentAmount = parseFloat(document.getElementById('paymentAmount').value) || 0;
+
+            document.getElementById('displayCurrentBalance').textContent = `₱${formatCurrency(currentBalance)}`;
+            document.getElementById('displaySOTotal').textContent = `₱${formatCurrency(soTotal)}`;
+            document.getElementById('displayPaymentAmount').textContent = `₱${formatCurrency(paymentAmount)}`;
+
+            if (isTaxChecked) {
+                document.getElementById('displayTaxAmount').textContent = `₱${formatCurrency(taxAmount)}`;
+                document.getElementById('taxRow').style.display = 'flex';
+                document.getElementById('taxRow').style.opacity = '1';
+            } else {
+                document.getElementById('displayTaxAmount').textContent = `₱${formatCurrency(0)}`;
+                document.getElementById('taxRow').style.opacity = '0.5';
+            }
+
+            const totalPaid = crNumber ? collectedAmount(paymentAmount, taxAmount, isTaxChecked) : 0;
+            document.getElementById('displayTotalPaid').textContent = `₱${formatCurrency(totalPaid)}`;
+
+            const remainingBalance = Math.max(currentBalance - totalPaid, 0);
+            document.getElementById('displayRemainingBalance').textContent = `₱${formatCurrency(remainingBalance)}`;
+            document.getElementById('displayInvoiceStatus').textContent = totalPaid <= 0.01 ? 'UNPAID' : (remainingBalance <= 0.01 ? 'PAID' : 'PARTIAL');
+
+            const discrepancyWarning = document.getElementById('discrepancyWarning');
+            const comparisonTotal = collectedAmount(paymentAmount, taxAmount, isTaxChecked);
+            const hasDiscrepancy = (
+                (paymentType === 'FULL' && crNumber && Math.abs(comparisonTotal - currentBalance) > 0.01)
+                || (paymentType === 'DOWNPAYMENT' && crNumber && comparisonTotal >= currentBalance - 0.01)
+            );
+            discrepancyWarning.style.display = hasDiscrepancy ? 'block' : 'none';
+        }
+
         // Confirm invoice (show modal)
-        function confirmInvoice() {
+        async function confirmInvoice() {
             if (!selectedSalesOrderId) {
                 showToast('Please select a sales order', 'error');
+                return;
+            }
+            if (!(await validateInvoiceReferencesBeforeSubmit())) {
+                showToast('Resolve the duplicate invoice or Collection Receipt number before confirming.', 'error');
                 return;
             }
 
@@ -1775,8 +2168,13 @@
         }
 
         // Submit invoice
-        function submitInvoice() {
+        async function submitInvoice() {
             if (!selectedSalesOrderId) return;
+            if (!(await validateInvoiceReferencesBeforeSubmit())) {
+                cancelConfirmation();
+                showToast('Resolve the duplicate invoice or Collection Receipt number before saving.', 'error');
+                return;
+            }
 
             const paymentAmount = parseFloat(document.getElementById('paymentAmount').value) || 0;
             const taxAmount = parseFloat(document.getElementById('taxAmount').value) || 0;
@@ -1842,6 +2240,8 @@
             document.getElementById('taxAmount').value = '';
             document.getElementById('tax2307Checked').checked = false;
             document.getElementById('duplicateNextCheck').checked = false;
+            clearReferenceState('invoiceNumber');
+            clearReferenceState('crNumber');
 
             selectedSalesOrderId = null;
             selectedSalesOrder = null;
@@ -1854,6 +2254,7 @@
             generateInvoiceNumber();
             loadPendingSalesOrders();
             updateCalculations();
+            updateReferenceActionButtons();
         }
 
         // Restore duplicated data
@@ -1870,11 +2271,22 @@
             document.getElementById('invoiceSummary').value = duplicatedFormData.invoiceSummary;
 
             generateInvoiceNumber();
+            validateReferenceField('crNumber', { quiet: true });
         }
 
-        function openPaymentModal(invoiceId) {
+        async function openPaymentModal(invoiceId) {
             invoiceBeingEdited = allInvoices.find(inv => inv.id === invoiceId);
             if (!invoiceBeingEdited) return;
+
+            try {
+                const response = await fetch(`/invoices/${invoiceId}/collection-receipts`);
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.error || 'Could not load Collection Receipts.');
+                Object.assign(invoiceBeingEdited, data.invoice, { collection_receipts: data.collection_receipts || [] });
+            } catch (error) {
+                showToast(error.message || 'Could not load Collection Receipts.', 'error');
+                return;
+            }
 
             document.getElementById('displayInvoiceId').textContent = invoiceBeingEdited.invoice_number;
             document.getElementById('receiptTotalPaid').textContent = `₱${formatCurrency(invoiceBeingEdited.amount_paid)}`;
@@ -1886,33 +2298,46 @@
             document.getElementById('editPaymentAmount').value = '';
             document.getElementById('editTaxAmount').value = '';
             document.getElementById('editTax2307Checked').checked = false;
+            clearReferenceState('editCrNumber');
             document.getElementById('paymentModal').classList.remove('hidden');
+            applyReceiptPaymentState(invoiceBeingEdited, invoiceBeingEdited.collection_receipts || []);
             updateEditWarning();
         }
 
         function closePaymentModal() {
             invoiceBeingEdited = null;
+            currentReceiptSchedule = null;
+            clearReferenceState('editCrNumber');
             document.getElementById('paymentModal').classList.add('hidden');
         }
 
         function updateEditWarning() {
             if (!invoiceBeingEdited) return;
             const crNumber = document.getElementById('editCrNumber').value.trim();
+            lockReceiptPaymentAmountIfNeeded();
             const paymentAmount = parseFloat(document.getElementById('editPaymentAmount').value) || 0;
             const taxAmount = parseFloat(document.getElementById('editTaxAmount').value) || 0;
             const isTaxChecked = document.getElementById('editTax2307Checked').checked;
-            const comparisonTotal = paymentAmount + (isTaxChecked ? taxAmount : 0);
+            const comparisonTotal = collectedAmount(paymentAmount, taxAmount, isTaxChecked);
             const paymentType = document.getElementById('editPaymentType').value;
             const remainingBalance = parseFloat(invoiceBeingEdited.balance) || 0;
+            const installmentDue = currentReceiptSchedule
+                ? Math.min(currentReceiptSchedule.basePayment, currentReceiptSchedule.remainingBalance)
+                : remainingBalance;
             const hasDiscrepancy = Boolean(crNumber) && (
                 comparisonTotal > remainingBalance + 0.01
-                || (paymentType === 'FULL' && Math.abs(comparisonTotal - remainingBalance) > 0.01)
+                || (['FULL', 'FINAL'].includes(paymentType) && Math.abs(comparisonTotal - remainingBalance) > 0.01)
+                || (paymentType === 'INSTALLMENT' && Math.abs(comparisonTotal - installmentDue) > 0.01)
             );
             document.getElementById('editDiscrepancyWarning').style.display = hasDiscrepancy ? 'block' : 'none';
         }
 
-        function submitPaymentUpdate() {
+        async function submitPaymentUpdate() {
             if (!invoiceBeingEdited) return;
+            if (!(await validateReferenceField('editCrNumber'))) {
+                showToast('Resolve the duplicate Collection Receipt number before adding the receipt.', 'error');
+                return;
+            }
 
             const paymentData = {
                 receipt_date: document.getElementById('editReceiptDate').value,

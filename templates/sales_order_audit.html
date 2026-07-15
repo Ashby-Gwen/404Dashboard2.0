@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 Dashboard - Sales Order Supervisor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        body {
+            margin: 0;
+            background: #f8fafc;
+            color: var(--text-color, #0f172a);
+            font-family: Arial, sans-serif;
+        }
+        .supervisor-shell {
+            display: grid;
+            grid-template-columns: minmax(320px, 420px) 1fr;
+            min-height: 100vh;
+        }
+        .supervisor-sidebar {
+            background: white;
+            border-right: 1px solid var(--border-color, #e2e8f0);
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            overflow-y: auto;
+        }
+        .supervisor-sidebar h1 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+        .supervisor-sidebar p, .supervisor-sidebar li {
+            color: var(--text-muted, #64748b);
+            line-height: 1.45;
+        }
+        .supervisor-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .supervisor-stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+        .stat-card {
+            background: #f8fafc;
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: 10px;
+            padding: 0.75rem;
+        }
+        .stat-card strong {
+            display: block;
+            font-size: 1.15rem;
+            margin-top: 0.25rem;
+        }
+        .stat-card[onclick] {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .stat-card[onclick]:hover {
+            border-color: #F97316;
+            background: #FFF8F5;
+            box-shadow: 0 2px 8px rgba(249, 115, 22, 0.1);
+        }
+        .supervisor-feed {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .audit-event {
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: 10px;
+            padding: 0.75rem;
+            background: #fcfdff;
+        }
+        .audit-event-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            margin-bottom: 0.4rem;
+            color: var(--text-muted, #64748b);
+        }
+        .audit-event strong {
+            text-transform: capitalize;
+        }
+        .audit-meta {
+            font-size: 0.9rem;
+            margin-top: 0.3rem;
+            color: var(--text-muted, #64748b);
+        }
+        .audit-list {
+            display: grid;
+            gap: 0.5rem;
+            margin-top: 0.35rem;
+        }
+        .audit-list-item {
+            padding: 0.4rem 0.5rem;
+            background: #f8fafc;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            word-break: break-word;
+        }
+        .supervisor-frame {
+            width: 100%;
+            height: 100vh;
+            border: 0;
+            background: white;
+        }
+        .discarded-row-item {
+            cursor: pointer;
+            padding: 0.5rem;
+            margin: 0.25rem 0;
+            background: #FEE8E0;
+            border: 1px solid #FDA29B;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+        .discarded-row-item:hover {
+            background: #FECCC0;
+            border-color: #F97316;
+        }
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        .modal-backdrop.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .discarded-row-modal {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            width: 95%;
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border-color, #e2e8f0);
+            background: #F8FAFC;
+        }
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.15rem;
+            color: #0f172a;
+        }
+        .modal-close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #64748b;
+            padding: 0;
+            width: 2rem;
+            height: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-close-btn:hover {
+            color: #0f172a;
+        }
+        .modal-content {
+            padding: 1.25rem;
+        }
+        .row-detail-section {
+            margin-bottom: 1.25rem;
+        }
+        .row-detail-section h3 {
+            margin: 0 0 0.75rem 0;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .row-detail-item {
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: #F8FAFC;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            align-items: center;
+        }
+        .row-detail-label {
+            font-weight: 600;
+            color: #475569;
+            font-size: 0.9rem;
+        }
+        .row-detail-value {
+            color: #0f172a;
+            font-size: 0.9rem;
+            word-break: break-word;
+        }
+        .row-detail-input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+        .row-detail-input:focus {
+            outline: none;
+            border-color: #F97316;
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+        }
+        .reason-alert {
+            background: #FEE8E0;
+            border-left: 4px solid #F97316;
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            color: #7C2D12;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color, #e2e8f0);
+        }
+        .btn-modal {
+            padding: 0.6rem 1rem;
+            border: 1px solid var(--border-color, #e2e8f0);
+            background: white;
+            color: #0f172a;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+        .btn-modal:hover {
+            background: #F8FAFC;
+            border-color: #cbd5e1;
+        }
+        .btn-modal.primary {
+            background: #F97316;
+            color: white;
+            border-color: #F97316;
+        }
+        .btn-modal.primary:hover {
+            background: #EA580C;
+            border-color: #EA580C;
+        }
+        .all-discarded-rows-modal {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            max-height: 90vh;
+            overflow: hidden;
+            width: 95%;
+            display: flex;
+            flex-direction: column;
+            animation: slideUp 0.3s ease;
+        }
+        .modal-body-scrollable {
+            overflow-y: auto;
+            flex: 1;
+        }
+        .discarded-rows-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        .discarded-rows-table thead {
+            background: #F8FAFC;
+            border-bottom: 2px solid #E2E8F0;
+            position: sticky;
+            top: 0;
+        }
+        .discarded-rows-table th {
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            color: #475569;
+            border-right: 1px solid #E2E8F0;
+        }
+        .discarded-rows-table th:last-child {
+            border-right: none;
+        }
+        .discarded-rows-table tbody tr {
+            border-bottom: 1px solid #E2E8F0;
+        }
+        .discarded-rows-table tbody tr:hover {
+            background: #F8FAFC;
+        }
+        .discarded-rows-table td {
+            padding: 0.75rem;
+            border-right: 1px solid #E2E8F0;
+        }
+        .discarded-rows-table td:last-child {
+            border-right: none;
+        }
+        .discarded-cell-input {
+            width: 100%;
+            padding: 0.4rem;
+            border: 1px solid #E2E8F0;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-family: inherit;
+        }
+        .discarded-cell-input:focus {
+            outline: none;
+            border-color: #F97316;
+            box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.1);
+        }
+        .discard-reason-badge {
+            background: #FEE8E0;
+            color: #7C2D12;
+            padding: 0.3rem 0.6rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .source-info-badge {
+            background: #E0F2FE;
+            color: #0C4A6E;
+            padding: 0.3rem 0.6rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+        }
+        .problem-column-badge {
+            background: #FED7AA;
+            color: #92400E;
+            padding: 0.3rem 0.6rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .discarded-cell-input.problem-cell {
+            background-color: #FEF3C7;
+            border-color: #FCD34D;
+        }
+        .discarded-cell-input.problem-cell:focus {
+            border-color: #F59E0B;
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+        }
+        @media (max-width: 900px) {
+            .supervisor-shell {
+                grid-template-columns: 1fr;
+            }
+            .supervisor-sidebar {
+                border-right: 0;
+                border-bottom: 1px solid var(--border-color, #e2e8f0);
+            }
+            .supervisor-frame {
+                height: 80vh;
+            }
+            .all-discarded-rows-modal {
+                max-width: 100%;
+                max-height: 100%;
+                border-radius: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="supervisor-shell">
+        <aside class="supervisor-sidebar">
+            <h1>Sales Order Supervisor</h1>
+            <p>This view mirrors the live parsing decisions from the embedded Sales Order workflow. It shows the rows the uploader is reading and the rows it is discarding while the upload is still running.</p>
+            <div class="supervisor-actions">
+                <a class="btn btn-outline" href="{{ url_for('sales_order') }}" target="_blank">Open full Sales Order page</a>
+            </div>
+            <div class="supervisor-stats">
+                <div class="stat-card">
+                    <span>Orders ready</span>
+                    <strong id="auditReadyCount">0</strong>
+                </div>
+                <div class="stat-card" style="cursor: pointer;" onclick="showAllDiscardedRows()">
+                    <span>Discarded rows</span>
+                    <strong id="auditDiscardCount">0</strong>
+                </div>
+            </div>
+            <div class="supervisor-feed" id="auditFeed"></div>
+        </aside>
+        <iframe class="supervisor-frame" src="{{ url_for('sales_order') }}" title="Sales Order workflow"></iframe>
+    </div>
+
+    <!-- Discarded Row Detail Modal -->
+    <div class="modal-backdrop" id="discardedRowModal">
+        <div class="discarded-row-modal">
+            <div class="modal-header">
+                <h2>Discarded Row Details</h2>
+                <button class="modal-close-btn" onclick="closeDiscardedRowModal()">×</button>
+            </div>
+            <div class="modal-content">
+                <div id="modalContent"></div>
+                <div class="modal-actions">
+                    <button class="btn-modal" onclick="closeDiscardedRowModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- All Discarded Rows Modal -->
+    <div class="modal-backdrop" id="allDiscardedRowsModal">
+        <div class="all-discarded-rows-modal">
+            <div class="modal-header">
+                <h2>All Discarded Rows</h2>
+                <button class="modal-close-btn" onclick="closeAllDiscardedRowsModal()">×</button>
+            </div>
+            <div class="modal-body-scrollable">
+                <table class="discarded-rows-table">
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Sheet Name</th>
+                            <th>SO Number</th>
+                            <th>Date</th>
+                            <th>Row #</th>
+                            <th>Reason</th>
+                            <th>Problem Column(s)</th>
+                            <th>Column 1</th>
+                            <th>Column 2</th>
+                            <th>Column 3</th>
+                            <th>Column 4</th>
+                            <th>Column 5</th>
+                            <th>Column 6</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allDiscardedRowsBody">
+                        <tr><td colspan="13" style="text-align: center; padding: 2rem; color: #94a3b8;">No discarded rows yet</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal" onclick="closeAllDiscardedRowsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const auditState = {
+            events: [],
+            currentDiscardedRow: null
+        };
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatTime(value) {
+            try {
+                return new Date(value).toLocaleTimeString();
+            } catch (error) {
+                return '';
+            }
+        }
+
+        function openDiscardedRowModal(eventIndex, discardedIndex) {
+            const event = auditState.events[eventIndex];
+            if (!event || !Array.isArray(event.discarded_items) || !event.discarded_items[discardedIndex]) {
+                return;
+            }
+
+            const discardedRow = event.discarded_items[discardedIndex];
+            const rowValues = discardedRow.rowValues || [];
+            
+            auditState.currentDiscardedRow = {
+                event,
+                discardedRow,
+                rowValues,
+                eventIndex,
+                discardedIndex
+            };
+
+            let modalHTML = `
+                <div class="reason-alert">
+                    <strong>Reason for discard:</strong> ${escapeHtml(discardedRow.reason || 'Unknown')}
+                </div>
+                
+                <div class="row-detail-section">
+                    <h3>Source Information</h3>
+                    <div class="row-detail-item">
+                        <div class="row-detail-label">Source File</div>
+                        <div class="row-detail-value">${escapeHtml(event.source_file || 'Unknown')}</div>
+                    </div>
+                    <div class="row-detail-item">
+                        <div class="row-detail-label">Sheet Name</div>
+                        <div class="row-detail-value">${escapeHtml(event.sheet_name || 'Unknown')}</div>
+                    </div>
+                    <div class="row-detail-item">
+                        <div class="row-detail-label">SO Number</div>
+                        <div class="row-detail-value">${escapeHtml(event.so_number || 'Not specified')}</div>
+                    </div>
+                    ${event.company_name ? `
+                    <div class="row-detail-item">
+                        <div class="row-detail-label">Company</div>
+                        <div class="row-detail-value">${escapeHtml(event.company_name)}</div>
+                    </div>
+                    ` : ''}
+                    ${event.order_date ? `
+                    <div class="row-detail-item">
+                        <div class="row-detail-label">Order Date</div>
+                        <div class="row-detail-value">${escapeHtml(event.order_date)}</div>
+                    </div>
+                    ` : ''}
+                </div>
+
+                <div class="row-detail-section">
+                    <h3>Row Data (Row #${discardedRow.rowIndex || 'N/A'})</h3>
+                    ${rowValues && rowValues.length > 0 ? rowValues.map((val, idx) => `
+                        <div class="row-detail-item">
+                            <div class="row-detail-label">Column ${idx + 1}</div>
+                            <input type="text" class="row-detail-input" value="${escapeHtml(val || '')}" 
+                                   data-field-index="${idx}" placeholder="Enter value" />
+                        </div>
+                    `).join('') : `
+                        <div class="row-detail-item">
+                            <div class="row-detail-label">No data</div>
+                            <div class="row-detail-value">No row data available</div>
+                        </div>
+                    `}
+                </div>
+            `;
+
+            document.getElementById('modalContent').innerHTML = modalHTML;
+            document.getElementById('discardedRowModal').classList.add('active');
+        }
+
+        function closeDiscardedRowModal() {
+            document.getElementById('discardedRowModal').classList.remove('active');
+            auditState.currentDiscardedRow = null;
+        }
+
+        function showAllDiscardedRows() {
+            const tbody = document.getElementById('allDiscardedRowsBody');
+            const allDiscarded = [];
+
+            // Collect all discarded rows from all events
+            auditState.events.forEach((event, eventIdx) => {
+                if (Array.isArray(event.discarded_items)) {
+                    event.discarded_items.forEach((discardedRow, discardedIdx) => {
+                        allDiscarded.push({
+                            event,
+                            discardedRow,
+                            eventIdx,
+                            discardedIdx
+                        });
+                    });
+                }
+            });
+
+            if (allDiscarded.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="13" style="text-align: center; padding: 2rem; color: #94a3b8;">No discarded rows</td></tr>';
+            } else {
+                tbody.innerHTML = allDiscarded.map((item, idx) => {
+                    const { event, discardedRow } = item;
+                    const rowValues = discardedRow.rowValues || [];
+                    const problemColumns = getProblemColumns(discardedRow.reason, rowValues);
+                    
+                    return `
+                        <tr>
+                            <td><span class="source-info-badge">${escapeHtml(event.source_file || 'N/A')}</span></td>
+                            <td><span class="source-info-badge">${escapeHtml(event.sheet_name || 'N/A')}</span></td>
+                            <td><span class="source-info-badge">${escapeHtml(event.so_number || 'N/A')}</span></td>
+                            <td><span class="source-info-badge">${escapeHtml(event.order_date || 'N/A')}</span></td>
+                            <td><strong>${discardedRow.rowIndex || 'N/A'}</strong></td>
+                            <td><span class="discard-reason-badge" title="${escapeHtml(discardedRow.reason || '')}">${escapeHtml(discardedRow.reason || 'Unknown')}</span></td>
+                            <td><span class="problem-column-badge">${problemColumns.map(p => escapeHtml(p)).join(', ')}</span></td>
+                            ${[0, 1, 2, 3, 4, 5].map(colIdx => {
+                                const isProblem = problemColumns.some(p => 
+                                    p.includes(`${colIdx + 1}`) || 
+                                    p.includes('All') ||
+                                    (p.includes('Cols:') && p.includes(`${colIdx + 1}`))
+                                );
+                                const problemClass = isProblem ? 'problem-cell' : '';
+                                return `
+                                    <td>
+                                        <input type="text" class="discarded-cell-input ${problemClass}" 
+                                               value="${escapeHtml(rowValues[colIdx] || '')}" 
+                                               data-all-index="${idx}" 
+                                               data-col="${colIdx}" 
+                                               placeholder="..." 
+                                               title="${isProblem ? 'This column may be the cause of discard' : ''}" />
+                                    </td>
+                                `;
+                            }).join('')}
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            document.getElementById('allDiscardedRowsModal').classList.add('active');
+        }
+
+        function closeAllDiscardedRowsModal() {
+            document.getElementById('allDiscardedRowsModal').classList.remove('active');
+        }
+
+        function getProblemColumns(reason, rowValues) {
+            const problems = [];
+            
+            // Analyze the reason to identify problematic columns
+            if (!rowValues || rowValues.length === 0) {
+                return ['All'];
+            }
+
+            // Check for missing/empty columns
+            const emptyColumns = [];
+            rowValues.forEach((val, idx) => {
+                if (!val || String(val).trim() === '') {
+                    emptyColumns.push(idx + 1);
+                }
+            });
+
+            // Based on discard reason, infer which columns are problematic
+            const reasonLower = String(reason || '').toLowerCase();
+            
+            if (reasonLower.includes('missing particular')) {
+                problems.push('Particular (usually Col 1)');
+            } else if (reasonLower.includes('quantity') || reasonLower.includes('usable quantity')) {
+                problems.push('Quantity');
+            } else if (reasonLower.includes('price') || reasonLower.includes('selling')) {
+                problems.push('Price');
+            } else if (reasonLower.includes('total')) {
+                problems.push('Total');
+            } else if (reasonLower.includes('cost')) {
+                problems.push('Cost');
+            }
+
+            // If we identified specific problems, use those; otherwise list empty columns
+            if (problems.length > 0) {
+                return problems;
+            } else if (emptyColumns.length > 0) {
+                return [`Cols: ${emptyColumns.join(', ')}`];
+            } else {
+                return ['Unknown'];
+            }
+        }
+
+        function formatRows(rows, eventIndex, isDiscarded = false) {
+            if (!Array.isArray(rows) || rows.length === 0) return '<div class="audit-list-item">No rows recorded.</div>';
+            return rows.slice(0, 6).map((item, idx) => {
+                const detail = item.rowValues && item.rowValues.length
+                    ? item.rowValues.filter(value => value !== '').slice(0, 6).join(' | ')
+                    : (item.particular || JSON.stringify(item).substring(0, 50));
+                
+                const clickHandler = isDiscarded ? ` onclick="openDiscardedRowModal(${eventIndex}, ${idx})"` : '';
+                const rowClass = isDiscarded ? 'discarded-row-item' : 'audit-list-item';
+                
+                return `<div class="${rowClass}"${clickHandler}>${escapeHtml(detail)}</div>`;
+            }).join('');
+        }
+
+        function renderAudit() {
+            const feed = document.getElementById('auditFeed');
+            if (!feed) return;
+            const readyCount = auditState.events.filter(event => event.phase === 'order-ready').length;
+            const discardedCount = auditState.events.reduce((sum, event) => sum + (Array.isArray(event.discarded_items) ? event.discarded_items.length : 0), 0);
+            document.getElementById('auditReadyCount').textContent = String(readyCount);
+            document.getElementById('auditDiscardCount').textContent = String(discardedCount);
+
+            const rendered = auditState.events.slice(0, 40).map((event, eventIdx) => {
+                const eventTitle = String(event.phase || 'update').replace(/-/g, ' ');
+                const source = [event.source_file, event.sheet_name].filter(Boolean).join(' / ');
+                const meta = [];
+                if (event.source_file) meta.push(`File ${escapeHtml(event.source_file)}`);
+                if (event.so_number) meta.push(`SO ${escapeHtml(event.so_number)}`);
+                if (event.order_date) meta.push(`Date ${escapeHtml(event.order_date)}`);
+                if (event.company_name) meta.push(`Company ${escapeHtml(event.company_name)}`);
+                if (event.items_count !== undefined) meta.push(`Items ${event.items_count}`);
+                if (event.total_amount !== undefined) meta.push(`Total ${Number(event.total_amount).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`);
+                const detailHtml = [];
+                if (Array.isArray(event.retained_items) && event.retained_items.length) {
+                    detailHtml.push(`<div class="audit-meta">Retained rows</div>${formatRows(event.retained_items, eventIdx, false)}`);
+                }
+                if (Array.isArray(event.discarded_items) && event.discarded_items.length) {
+                    detailHtml.push(`<div class="audit-meta">Discarded rows (click to view details)</div>${formatRows(event.discarded_items, eventIdx, true)}`);
+                }
+                if (event.reason) {
+                    detailHtml.push(`<div class="audit-meta">Reason</div><div class="audit-list-item">${escapeHtml(event.reason)}</div>`);
+                }
+                return `
+                    <div class="audit-event">
+                        <div class="audit-event-header">
+                            <strong>${escapeHtml(eventTitle)}</strong>
+                            <span>${formatTime(event.timestamp)}</span>
+                        </div>
+                        <div class="audit-meta">${escapeHtml(source || 'Upload event')}</div>
+                        ${meta.length ? `<div class="audit-meta">${meta.join(' • ')}</div>` : ''}
+                        ${detailHtml.join('')}
+                    </div>
+                `;
+            }).join('');
+            feed.innerHTML = rendered || '<div class="audit-meta">Waiting for the embedded upload page to start parsing.</div>';
+        }
+
+        window.addEventListener('message', event => {
+            if (!event.data || event.data.type !== 'sales_order_audit_update') return;
+            auditState.events.unshift(event.data);
+            renderAudit();
+        });
+
+        document.addEventListener('DOMContentLoaded', renderAudit);
+
+        // Close modal when clicking outside
+        document.getElementById('discardedRowModal').addEventListener('click', (e) => {
+            if (e.target.id === 'discardedRowModal') {
+                closeDiscardedRowModal();
+            }
+        });
+
+        // Close all discarded rows modal when clicking outside
+        document.getElementById('allDiscardedRowsModal').addEventListener('click', (e) => {
+            if (e.target.id === 'allDiscardedRowsModal') {
+                closeAllDiscardedRowsModal();
+            }
+        });
+    </script>
+</body>
+</html>

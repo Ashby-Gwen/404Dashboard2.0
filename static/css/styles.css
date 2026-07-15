@@ -212,6 +212,113 @@ body {
     outline-offset: 3px;
 }
 
+.password-strength-panel {
+    margin-top: 0.75rem;
+    padding: 0.85rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--card-bg) 78%, white);
+}
+
+.password-strength-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.55rem;
+    color: var(--text-main);
+    font-size: 0.86rem;
+    font-weight: 800;
+}
+
+.password-strength-track {
+    height: 0.55rem;
+    overflow: hidden;
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--border-color) 70%, white);
+}
+
+.password-strength-track span {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--text-muted);
+    transition: width var(--motion-standard) var(--motion-ease), background-color var(--motion-standard) var(--motion-ease);
+}
+
+.password-strength-status {
+    margin: 0.55rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    line-height: 1.35;
+}
+
+.password-strength-checks {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem 0.75rem;
+    margin: 0.7rem 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.3;
+}
+
+.password-strength-checks li {
+    position: relative;
+    padding-left: 1.15rem;
+}
+
+.password-strength-checks li::before {
+    content: "";
+    position: absolute;
+    top: 0.43rem;
+    left: 0;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--border-color);
+}
+
+.password-strength-checks li.is-met {
+    color: #166534;
+}
+
+.password-strength-checks li.is-met::before {
+    background: #22C55E;
+}
+
+form[data-password-strength][data-password-strength="is-weak"] .password-strength-track span {
+    background: #DC2626;
+}
+
+form[data-password-strength][data-password-strength="is-fair"] .password-strength-track span {
+    background: #F59E0B;
+}
+
+form[data-password-strength][data-password-strength="is-good"] .password-strength-track span {
+    background: #2563EB;
+}
+
+form[data-password-strength][data-password-strength="is-strong"] .password-strength-track span {
+    background: #16A34A;
+}
+
+@media (max-width: 520px) {
+    .password-strength-summary,
+    .password-strength-checks {
+        grid-template-columns: 1fr;
+    }
+
+    .password-strength-summary {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+}
+
 body::before {
     content: "";
     position: fixed;
@@ -1474,85 +1581,6 @@ button.is-loading,
     white-space: pre-wrap;
 }
 
-.evaluation-launcher.btn-outline {
-    position: fixed;
-    right: 1rem;
-    bottom: 1rem;
-    z-index: 9000;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0;
-    width: 48px;
-    height: 48px;
-    min-width: 48px;
-    min-height: 48px;
-    overflow: hidden;
-    padding: 7px;
-    border-radius: 999px;
-    text-decoration: none;
-    background: var(--card-bg) !important;
-    border: var(--border-width, 1px) solid var(--border-color) !important;
-    color: var(--text-main) !important;
-    white-space: nowrap;
-    box-shadow: none;
-    transition:
-        width 180ms ease,
-        gap 180ms ease,
-        background-color 180ms ease,
-        border-color 180ms ease,
-        color 180ms ease,
-        box-shadow 180ms ease !important;
-}
-
-.evaluation-launcher.btn-outline:hover,
-.evaluation-launcher.btn-outline:focus-visible {
-    width: 168px;
-    justify-content: flex-start;
-    gap: 9px;
-    background: var(--accent-muted) !important;
-    border-color: var(--accent-main) !important;
-    color: var(--accent-main) !important;
-}
-
-.evaluation-launcher.btn-outline:focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--orange) 38%, transparent);
-    outline-offset: 3px;
-}
-
-.evaluation-launcher-icon {
-    flex: 0 0 auto;
-    display: block;
-    width: 32px;
-    height: 32px;
-    object-fit: contain;
-}
-
-@media (max-width: 640px) {
-    .evaluation-launcher.btn-outline {
-        right: max(0.75rem, env(safe-area-inset-right));
-        bottom: max(0.75rem, env(safe-area-inset-bottom));
-    }
-}
-
-.evaluation-launcher-label {
-    max-width: 0;
-    overflow: hidden;
-    opacity: 0;
-    font-size: 0.82rem;
-    font-weight: 750;
-    line-height: 1;
-    transition:
-        max-width 180ms ease,
-        opacity 120ms ease;
-}
-
-.evaluation-launcher:hover .evaluation-launcher-label,
-.evaluation-launcher:focus-visible .evaluation-launcher-label {
-    max-width: 105px;
-    opacity: 1;
-}
-
 .utility-floater-dock {
     position: fixed;
     right: 1rem;
@@ -1574,74 +1602,9 @@ button.is-loading,
     align-items: center;
     justify-content: flex-end;
     gap: 0.55rem;
-    max-width: 0;
-    overflow: hidden;
-    opacity: 0;
-    transform: translateX(16px);
-    pointer-events: none;
-    transition:
-        max-width 220ms ease,
-        opacity 150ms ease,
-        transform 220ms ease;
-}
-
-.utility-floater-dock:hover .utility-floater-rail,
-.utility-floater-dock:focus-within .utility-floater-rail,
-.utility-floater-dock.is-pinned-open .utility-floater-rail {
-    max-width: min(520px, calc(100vw - 5.5rem));
-    opacity: 1;
-    transform: translateX(0);
     pointer-events: auto;
 }
 
-.utility-floater-trigger {
-    flex: 0 0 auto;
-    display: grid;
-    place-items: center;
-    width: 48px;
-    height: 48px;
-    border: 1px solid color-mix(in srgb, var(--brand-orange) 68%, var(--border-color));
-    border-radius: 999px;
-    background: var(--brand-orange);
-    color: #fff;
-    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
-    cursor: pointer;
-    pointer-events: auto;
-    transition:
-        background-color 180ms ease,
-        border-color 180ms ease,
-        color 180ms ease,
-        transform 180ms ease;
-}
-
-.utility-floater-trigger:hover,
-.utility-floater-trigger:focus-visible,
-.utility-floater-dock:hover .utility-floater-trigger,
-.utility-floater-dock:focus-within .utility-floater-trigger,
-.utility-floater-dock.is-pinned-open .utility-floater-trigger {
-    border-color: var(--brand-orange);
-    background: color-mix(in srgb, var(--brand-orange) 88%, #fff);
-    color: #fff;
-}
-
-.utility-floater-dock:hover .utility-floater-trigger span,
-.utility-floater-dock:focus-within .utility-floater-trigger span,
-.utility-floater-dock.is-pinned-open .utility-floater-trigger span {
-    transform: rotate(180deg);
-}
-
-.utility-floater-trigger span,
-.utility-floater-trigger svg {
-    width: 22px;
-    height: 22px;
-    transition: transform 180ms ease;
-}
-
-.utility-floater-dock #evaluationModalRoot {
-    display: contents;
-}
-
-.utility-floater-dock .evaluation-launcher.btn-outline,
 .utility-floater-dock .ashby-verse-toggle {
     position: static;
     right: auto;
@@ -1670,8 +1633,6 @@ body[data-theme-mode="ashby"] .utility-floater-dock .ashby-verse-toggle {
     display: inline-flex;
 }
 
-.utility-floater-dock .evaluation-launcher.btn-outline:hover,
-.utility-floater-dock .evaluation-launcher.btn-outline:focus-visible,
 .utility-floater-dock .ashby-verse-toggle:hover,
 .utility-floater-dock .ashby-verse-toggle:focus-visible {
     width: 154px;
@@ -1683,11 +1644,6 @@ body[data-theme-mode="ashby"] .utility-floater-dock .ashby-verse-toggle {
         bottom: max(0.75rem, env(safe-area-inset-bottom));
     }
 
-    .utility-floater-dock:hover .utility-floater-rail,
-    .utility-floater-dock:focus-within .utility-floater-rail,
-    .utility-floater-dock.is-pinned-open .utility-floater-rail {
-        max-width: calc(100vw - 5rem);
-    }
 }
 
 .evaluation-modal {
@@ -4531,7 +4487,7 @@ body[data-theme-mode="contrast"] [style*="background:#F8FAFC"] {
     }
 }
 
-/* dashboard_themes.html adaptation: solid operational surfaces. */
+/* docs/design-reference/dashboard_themes.html adaptation: solid operational surfaces. */
 :root {
     --bg-base: var(--bg);
     --bg-canvas: var(--bg-base);
@@ -4889,6 +4845,25 @@ input[type="radio"] {
     margin: 0;
     accent-color: var(--brand-orange, var(--accent-main));
     cursor: pointer;
+}
+
+input[type="checkbox"] {
+    border: 2px solid color-mix(in srgb, var(--brand-orange, var(--accent-main)) 65%, var(--border-color)) !important;
+    background-color: var(--card-bg, #ffffff) !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    background-size: 14px 14px !important;
+}
+
+input[type="checkbox"]:checked {
+    border-color: var(--brand-orange, var(--accent-main)) !important;
+    background-color: var(--brand-orange, var(--accent-main)) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M4.25 10.25 8.15 14 15.75 6' stroke='white' stroke-width='2.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+}
+
+input[type="checkbox"]:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--brand-orange, var(--accent-main)) 35%, transparent) !important;
+    outline-offset: 2px;
 }
 
 .checkbox-group,

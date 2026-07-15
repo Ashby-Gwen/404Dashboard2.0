@@ -76,7 +76,10 @@ def migration_check():
         user_columns = {column['name'] for column in schema.get_columns('users')}
         evaluation_columns = {column['name'] for column in schema.get_columns('evaluation_sessions')}
         collection_columns = {column['name'] for column in schema.get_columns('collection_receipts')}
-        assert {'profile_photo_data', 'profile_photo_mime', 'disabled_reason'} <= user_columns
+        assert {
+            'profile_photo_data', 'profile_photo_mime', 'disabled_reason',
+            'password_updated_at', 'password_change_required',
+        } <= user_columns
         assert 'user_id' in evaluation_columns
         assert {'invoice_id', 'receipt_date', 'normalized_cr_number', 'collected_total'} <= collection_columns
         assert first['backup_path'] and Path(first['backup_path']).exists()
@@ -119,7 +122,7 @@ def create_order(client_record, suffix, total=1000):
     return order
 
 
-def invoice_payload(order, number, payment, cr='CR-1'):
+def invoice_payload(order, number, payment, cr='CR-1', payment_type='DOWNPAYMENT'):
     return {
         'sales_order_id': order.id,
         'invoice_number': number,
@@ -127,7 +130,7 @@ def invoice_payload(order, number, payment, cr='CR-1'):
         'invoice_date': date.today().isoformat(),
         'receipt_date': date.today().isoformat(),
         'summary': 'Defense payment test',
-        'payment_type': 'DOWNPAYMENT',
+        'payment_type': payment_type,
         'cr_number': cr,
         'payment_amount': payment,
         'tax_amount_paid': 0,
@@ -161,6 +164,7 @@ def accounting_and_analytics_check():
 
         order = create_order(client_record, 'PARTIAL')
         zero_order = create_order(client_record, 'ZERO', 500)
+        duplicate_cr_order = create_order(client_record, 'DUP-CR', 500)
 
         with app.test_client() as web:
             login_session(web, user)
@@ -184,8 +188,14 @@ def accounting_and_analytics_check():
             ))
             assert duplicate.status_code == 409
 
+            duplicate_cr_create = web.post('/create-invoice', json=invoice_payload(
+                duplicate_cr_order, 'SI-DEF-DUP-CR', 100, cr='cr-1'
+            ))
+            assert duplicate_cr_create.status_code == 400
+            assert 'already recorded for invoice SI-DEF-1' in duplicate_cr_create.get_json()['error']
+
             full = web.post('/create-invoice', json=invoice_payload(
-                order, 'SI-DEF-2', 700, cr='CR-2'
+                order, 'SI-DEF-2', 700, cr='CR-2', payment_type='FULL'
             ))
             assert full.status_code == 200, full.get_json()
             assert full.get_json()['invoice_status'] == 'PAID'
@@ -206,6 +216,16 @@ def accounting_and_analytics_check():
                 },
             )
             assert missing_receipt_date.status_code == 400
+            installment_before_downpayment = web.post(f'/invoices/{zero_invoice.id}/collection-receipts', json={
+                'receipt_date': date.today().isoformat(),
+                'payment_type': 'INSTALLMENT',
+                'cr_number': 'CR-NO-DOWN',
+                'payment_amount': 100,
+                'tax_amount_paid': 0,
+                'is_2307_checked': False,
+            })
+            assert installment_before_downpayment.status_code == 400
+
             first_receipt = web.post(f'/invoices/{zero_invoice.id}/collection-receipts', json={
                 'receipt_date': date.today().isoformat(),
                 'payment_type': 'DOWNPAYMENT',
@@ -238,11 +258,43 @@ def accounting_and_analytics_check():
             })
             assert wrong_full.status_code == 400
 
-            final_receipt = web.post(f'/invoices/{zero_invoice.id}/collection-receipts', json={
+            early_final = web.post(f'/invoices/{zero_invoice.id}/collection-receipts', json={
                 'receipt_date': date.today().isoformat(),
-                'payment_type': 'FULL',
+                'payment_type': 'FINAL',
                 'cr_number': 'CR-ZERO-2',
                 'payment_amount': 300,
+                'tax_amount_paid': 0,
+                'is_2307_checked': False,
+            })
+            assert early_final.status_code == 400
+
+            wrong_installment = web.post(f'/invoices/{zero_invoice.id}/collection-receipts', json={
+                'receipt_date': date.today().isoformat(),
+                'payment_type': 'INSTALLMENT',
+                'cr_number': 'CR-ZERO-2',
+                'payment_amount': 150,
+                'tax_amount_paid': 0,
+                'is_2307_checked': False,
+            })
+            assert wrong_installment.status_code == 400
+
+            installment = web.post(f'/invoices/{zero_invoice.id}/collection-receipts', json={
+                'receipt_date': date.today().isoformat(),
+                'payment_type': 'INSTALLMENT',
+                'cr_number': 'CR-ZERO-2',
+                'payment_amount': 200,
+                'tax_amount_paid': 0,
+                'is_2307_checked': False,
+            })
+            assert installment.status_code == 200, installment.get_json()
+            assert installment.get_json()['invoice_status'] == 'PARTIAL'
+            assert installment.get_json()['balance'] == 100
+
+            final_receipt = web.post(f'/invoices/{zero_invoice.id}/collection-receipts', json={
+                'receipt_date': date.today().isoformat(),
+                'payment_type': 'FINAL',
+                'cr_number': 'CR-ZERO-3',
+                'payment_amount': 100,
                 'tax_amount_paid': 0,
                 'is_2307_checked': False,
             })
@@ -257,19 +309,19 @@ def accounting_and_analytics_check():
                 'cr_number': refreshed_zero_invoice.cr_number,
                 'payment_amount': refreshed_zero_invoice.payment_amount,
             } == original_details
-            assert CollectionReceipt.query.filter_by(invoice_id=zero_invoice.id).count() == 2
+            assert CollectionReceipt.query.filter_by(invoice_id=zero_invoice.id).count() == 3
 
             receipt_history = web.get(f'/invoices/{zero_invoice.id}/collection-receipts').get_json()
             assert receipt_history['success'] is True
             assert [item['cr_number'] for item in receipt_history['collection_receipts']] == [
-                'CR-ZERO-1', 'CR-ZERO-2'
+                'CR-ZERO-1', 'CR-ZERO-2', 'CR-ZERO-3'
             ]
             report_receipts = [
                 row for row in revenue_report_rows()
                 if row['invoice_number'] == 'SI-DEF-ZERO'
             ]
-            assert [row['cr_number'] for row in report_receipts] == ['CR-ZERO-1', 'CR-ZERO-2']
-            assert [row['amount_paid'] for row in report_receipts] == [200, 300]
+            assert [row['cr_number'] for row in report_receipts] == ['CR-ZERO-1', 'CR-ZERO-2', 'CR-ZERO-3']
+            assert [row['amount_paid'] for row in report_receipts] == [200, 200, 100]
             assert all(row['invoice_date'] == date.today().isoformat() for row in report_receipts)
             combined_search = web.get(
                 '/get-invoices?general_search=SI-DEF-ZERO'
@@ -277,10 +329,39 @@ def accounting_and_analytics_check():
             ).get_json()
             assert combined_search['success'] is True
             assert [item['invoice_number'] for item in combined_search['invoices']] == ['SI-DEF-ZERO']
-            assert combined_search['invoices'][0]['receipt_count'] == 2
+            assert combined_search['invoices'][0]['receipt_count'] == 3
             alias_search = web.get('/get-invoices?client_search=DEFENSE%20ALIAS').get_json()
             assert alias_search['success'] is True
             assert any(item['invoice_number'] == 'SI-DEF-ZERO' for item in alias_search['invoices'])
+
+            validation = web.get('/api/invoices/validate-reference?invoice_number=si-def-1&cr_number=cr-1').get_json()
+            assert validation['success'] is True
+            assert validation['invoice_number']['exists'] is True
+            assert validation['invoice_number']['invoice']['invoice_number'] == 'SI-DEF-1'
+            assert validation['cr_number']['exists'] is True
+            assert validation['cr_number']['reference']['invoice']['invoice_number'] == 'SI-DEF-1'
+
+            target_invoice = web.post('/create-invoice', json=invoice_payload(
+                duplicate_cr_order, 'SI-DEF-DUP-TARGET', 0, cr=''
+            ))
+            assert target_invoice.status_code == 200, target_invoice.get_json()
+            target_invoice_id = target_invoice.get_json()['invoice_id']
+            duplicate_cr_receipt = web.post(
+                f'/invoices/{target_invoice_id}/collection-receipts',
+                json={
+                    'receipt_date': date.today().isoformat(),
+                    'payment_type': 'DOWNPAYMENT',
+                    'cr_number': 'cr-1',
+                    'payment_amount': 100,
+                    'tax_amount_paid': 0,
+                    'is_2307_checked': False,
+                },
+            )
+            assert duplicate_cr_receipt.status_code == 400
+            assert 'already recorded for invoice SI-DEF-1' in duplicate_cr_receipt.get_json()['error']
+            db.session.delete(db.session.get(Invoice, target_invoice_id))
+            db.session.delete(db.session.get(SalesOrder, duplicate_cr_order.id))
+            db.session.commit()
 
         standalone = Invoice(
             invoice_number='ADMIN-DEF-1',
@@ -339,7 +420,8 @@ def production_guard_source_check():
     assert "previous_year_comparison_filter" in app_source
     assert "filters['start_date']" in app_source
     assert "ranked_particulars" in analytics_services_source
-    assert 'data-section="expenses"' in analytics_template
+    assert 'data-unused-analytics-section="expenses"' in analytics_template
+    assert 'data-section="expenses"' not in analytics_template
     assert "const frequencies = clients.map(client => Number(client.order_count || 0));" in analytics_template
     assert "const salesValues = clients.map(client => Number(client.sales_order_value || client.total_revenue || 0));" in analytics_template
     assert "x: Number(client.frequencyZScore.toFixed(2))" in analytics_template

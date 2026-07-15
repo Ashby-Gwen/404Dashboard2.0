@@ -199,6 +199,40 @@
             margin-bottom: 1rem;
         }
 
+        .compiled-upload-progress {
+            margin-top: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            background: #F8FAFC;
+            padding: 0.8rem 0.95rem;
+        }
+
+        .compiled-upload-progress-copy {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .compiled-upload-progress-track {
+            width: 100%;
+            height: 0.6rem;
+            border-radius: 999px;
+            background: #E2E8F0;
+            overflow: hidden;
+        }
+
+        .compiled-upload-progress-bar {
+            width: 0%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, var(--brand-orange), #FB923C);
+            transition: width 0.2s ease;
+        }
+
         .excel-panel {
             background: white;
             border-radius: var(--radius-xl);
@@ -683,14 +717,18 @@
 
                 <div id="formFields">
                     <div class="form-group">
-                        <label>SO Number</label>
+                        <label>Source SO Number <span style="color:var(--text-muted); font-weight:500;">(optional)</span></label>
                         <div class="field-row">
-                            <input type="text" id="field-orderNumber" placeholder="e.g. SO-12345">
+                            <input type="text" id="field-orderNumber" placeholder="Staff/upload reference; system SO is generated on save">
                             <button onclick="startSelection('orderNumber', 'single')" class="btn btn-outline pick-btn"
                                 data-field="orderNumber">
                                 <i data-lucide="mouse-pointer-2"></i>
                             </button>
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Generated SO Year</label>
+                        <input type="number" id="field-generatedSoYear" min="2000" max="{{ current_year + 1 }}" step="1" value="{{ current_year }}" placeholder="e.g. 2025">
                     </div>
                     <div class="form-group">
                         <label>Company Name</label>
@@ -846,6 +884,15 @@
                     <button class="btn btn-primary btn-sm" onclick="previewAdminUpload()">Preview Mapped Orders</button>
                     <button class="btn btn-outline btn-sm" onclick="commitAdminUpload()">Upload Mapped Orders</button>
                 </div>
+                <div class="compiled-upload-progress" id="adminUploadProgress" hidden>
+                    <div class="compiled-upload-progress-copy">
+                        <span id="adminUploadProgressLabel">Processed 0 of 0 files</span>
+                        <strong id="adminUploadProgressValue">0%</strong>
+                    </div>
+                    <div class="compiled-upload-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <div class="compiled-upload-progress-bar" id="adminUploadProgressBar"></div>
+                    </div>
+                </div>
                 <div id="adminUploadDocs" style="margin-top:1rem; color:var(--text-muted);"></div>
                 <div id="adminUploadOutliers" style="margin-top:1rem;"></div>
                 <div id="adminClientReviewQueue"></div>
@@ -929,12 +976,12 @@
                 <table class="history-table history-fit-table sales-order-history-table">
                     <thead>
                         <tr>
-                            <th>SO Number</th>
-                            <th>Company</th>
+                            <th>Auto-Generated SO No.</th>
+                            <!-- <th>Company</th> -->
                             <th>Store</th>
                             <th>Branch</th>
                             <th>Order Date</th>
-                            <th>Sales Staff</th>
+                            <!-- <th>Sales Staff</th> -->
                             <th>Total</th>
                             <th>Status</th>
                             <th>Action</th>
@@ -2391,6 +2438,7 @@
         // Save the order and its particulars into the database-backed client basket.
         async function saveOrder() {
             const soNumber = document.getElementById('field-orderNumber').value.trim();
+            const generatedSoYear = document.getElementById('field-generatedSoYear')?.value.trim();
             const companyName = document.getElementById('field-companyName').value.trim();
             const storeName = getStoreNameOrCompany(document.getElementById('field-storeName').value, companyName);
             const storeBranch = document.getElementById('field-storeBranch').value.trim() || DEFAULT_BRANCH_NAME;
@@ -2446,7 +2494,8 @@
                     const data = {
                         client_name: clientName,
                         original_entered_client_name: clientName,
-                        so_number: soNumber,
+                        source_so_number: soNumber,
+                        so_generation_year: generatedSoYear,
                         company_name: companyName.toUpperCase(),
                         store_name: storeName.toUpperCase(),
                         store_branch: storeBranch.toUpperCase(),
@@ -2554,11 +2603,11 @@
                 tbody.innerHTML = rows.map(row => `
                     <tr>
                         <td>${escapeHtml(row.so_number || '')}</td>
-                        <td>${escapeHtml(row.company_name || '')}</td>
+                        <!-- <td>${escapeHtml(row.company_name || '')}</td> -->
                         <td>${escapeHtml(row.store_name || '')}</td>
                         <td>${escapeHtml(row.store_branch || '')}</td>
                         <td>${escapeHtml(row.order_date || '')}</td>
-                        <td>${escapeHtml(row.sales_staff || '')}</td>
+                        <!-- <td>${escapeHtml(row.sales_staff || '')}</td> -->
                         <td class="amount">${formatCurrency(row.total_amount)}</td>
                         <td>${escapeHtml(row.status || '')}</td>
                         <td>
@@ -2629,6 +2678,21 @@
             return { headerRowIndex, colIndices };
         }
 
+        function postSalesOrderAuditEvent(payload) {
+            const event = {
+                type: 'sales_order_audit_update',
+                timestamp: new Date().toISOString(),
+                ...payload
+            };
+            const targetOrigin = window.location.origin || '*';
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage(event, targetOrigin);
+            }
+            if (window.top && window.top !== window) {
+                window.top.postMessage(event, targetOrigin);
+            }
+        }
+
         function extractAdminSalesOrder(rows, staffKey, sourceFile, sheetName) {
             const maxCols = Math.min(rows[0]?.length || 0, 11);
             const extracted = {
@@ -2643,7 +2707,14 @@
                 sales_staff: '',
                 terms_days: parseInt(document.getElementById('terms-days')?.value, 10) || 30,
                 notes: '',
-                items: []
+                items: [],
+                audit_trace: {
+                    source_file: sourceFile,
+                    sheet_name: sheetName,
+                    total_rows_seen: rows.length,
+                    retained_items: [],
+                    discarded_items: []
+                }
             };
 
             for (let r = 0; r < Math.min(rows.length, staffKey === 'maritess' ? 15 : 30); r++) {
@@ -2679,7 +2750,14 @@
             }
 
             const { headerRowIndex, colIndices } = findParticularHeaders(rows, maxCols);
-            if (headerRowIndex === -1 || colIndices.desc === -1) return extracted;
+            if (headerRowIndex === -1 || colIndices.desc === -1) {
+                extracted.audit_trace.discarded_items.push({
+                    rowIndex: -1,
+                    reason: 'Could not locate the particulars header row.',
+                    rowValues: []
+                });
+                return extracted;
+            }
 
             if (staffKey === 'maritess' && colIndices.total !== -1) {
                 let dataRowCount = 0;
@@ -2692,19 +2770,34 @@
 
                 for (let r = headerRowIndex + 1; r <= headerRowIndex + dataRowCount && r < rows.length; r++) {
                     const descVal = String(rows[r]?.[colIndices.desc] || '').trim();
-                    if (!descVal) continue;
-                    extracted.items.push({
+                    const rowValues = Array.isArray(rows[r]) ? rows[r].slice(0, maxCols) : [];
+                    if (!descVal) {
+                        extracted.audit_trace.discarded_items.push({
+                            rowIndex: r,
+                            reason: 'Missing particular text.',
+                            rowValues
+                        });
+                        continue;
+                    }
+                    const item = {
                         particular: descVal.toUpperCase(),
                         quantity: toNumber(rows[r]?.[colIndices.qty]),
                         unit_cost: toNumber(rows[r]?.[colIndices.cost]),
                         selling_price: toNumber(rows[r]?.[colIndices.price]),
                         total: toNumber(rows[r]?.[colIndices.total])
+                    };
+                    extracted.audit_trace.retained_items.push({
+                        rowIndex: r,
+                        ...item,
+                        rowValues
                     });
+                    extracted.items.push(item);
                 }
             } else {
                 let currentItem = null;
                 for (let r = headerRowIndex + 1; r < rows.length; r++) {
                     const descVal = String(rows[r]?.[colIndices.desc] || '').trim();
+                    const rowValues = Array.isArray(rows[r]) ? rows[r].slice(0, maxCols) : [];
                     if (!descVal) break;
                     const qtyVal = rows[r]?.[colIndices.qty];
                     const costVal = rows[r]?.[colIndices.cost];
@@ -2716,6 +2809,16 @@
                         (!totalVal || String(totalVal).trim() === '');
                     if (isConnectedRow && currentItem) {
                         currentItem.particular += ` ${descVal.toUpperCase()}`;
+                        extracted.audit_trace.retained_items.push({
+                            rowIndex: r,
+                            particular: currentItem.particular,
+                            quantity: currentItem.quantity,
+                            unit_cost: currentItem.unit_cost,
+                            selling_price: currentItem.selling_price,
+                            total: currentItem.total,
+                            rowValues,
+                            merged_with_previous: true
+                        });
                     } else {
                         currentItem = {
                             particular: descVal.toUpperCase(),
@@ -2724,7 +2827,20 @@
                             selling_price: toNumber(priceVal),
                             total: toNumber(totalVal)
                         };
-                        extracted.items.push(currentItem);
+                        if (currentItem.quantity <= 0 && currentItem.selling_price <= 0 && currentItem.total <= 0) {
+                            extracted.audit_trace.discarded_items.push({
+                                rowIndex: r,
+                                reason: 'No usable quantity or price values.',
+                                rowValues
+                            });
+                        } else {
+                            extracted.audit_trace.retained_items.push({
+                                rowIndex: r,
+                                ...currentItem,
+                                rowValues
+                            });
+                            extracted.items.push(currentItem);
+                        }
                     }
                 }
             }
@@ -2734,7 +2850,17 @@
                     ...item,
                     total: item.total || (item.selling_price * item.quantity)
                 }))
-                .filter(item => item.particular && item.quantity > 0 && item.selling_price > 0);
+                .filter(item => {
+                    const isValid = item.particular && item.quantity > 0 && item.selling_price > 0;
+                    if (!isValid) {
+                        extracted.audit_trace.discarded_items.push({
+                            rowIndex: -1,
+                            reason: 'Item failed the final validity filter.',
+                            rowValues: [item.particular || '', item.quantity, item.unit_cost, item.selling_price, item.total]
+                        });
+                    }
+                    return isValid;
+                });
             extracted.total_amount = extracted.items.reduce((sum, item) => sum + item.total, 0);
             
             // Default branch/store address to head office if missing.
@@ -2807,6 +2933,38 @@
             return outliers.sort((a, b) => Math.abs(parseFloat(b.z_score)) - Math.abs(parseFloat(a.z_score)));
         }
 
+        function setAdminUploadProgress(processed, total) {
+            const box = document.getElementById('adminUploadProgress');
+            const label = document.getElementById('adminUploadProgressLabel');
+            const value = document.getElementById('adminUploadProgressValue');
+            const bar = document.getElementById('adminUploadProgressBar');
+            if (!box || !label || !value || !bar) return;
+            if (!total) {
+                box.hidden = true;
+                return;
+            }
+            const safeProcessed = Math.min(Math.max(processed, 0), total);
+            const percent = Math.round((safeProcessed / total) * 100);
+            label.textContent = `Processed ${safeProcessed} of ${total} file${total === 1 ? '' : 's'}`;
+            value.textContent = `${percent}%`;
+            bar.style.width = `${percent}%`;
+            bar.setAttribute('aria-valuenow', String(percent));
+            box.hidden = false;
+        }
+
+        function resetAdminUploadProgress() {
+            const box = document.getElementById('adminUploadProgress');
+            const label = document.getElementById('adminUploadProgressLabel');
+            const value = document.getElementById('adminUploadProgressValue');
+            const bar = document.getElementById('adminUploadProgressBar');
+            if (!box || !label || !value || !bar) return;
+            label.textContent = 'Processed 0 of 0 files';
+            value.textContent = '0%';
+            bar.style.width = '0%';
+            bar.setAttribute('aria-valuenow', '0');
+            box.hidden = true;
+        }
+
         async function previewAdminUpload() {
             const input = document.getElementById('adminUploadFiles');
             if (!input || input.files.length === 0) {
@@ -2814,11 +2972,13 @@
                 return;
             }
 
+            const files = Array.from(input.files);
             adminCleanRows = [];
             adminClientReviewQueue = [];
             document.getElementById('adminClientReviewQueue').innerHTML = '';
             document.getElementById('adminUploadDocs').innerHTML = 'Mapping workbooks...';
-            for (const file of Array.from(input.files)) {
+            setAdminUploadProgress(0, files.length);
+            for (const [index, file] of files.entries()) {
                 const arrayBuffer = await file.arrayBuffer();
                 const parsed = XLSX.read(new Uint8Array(arrayBuffer), {
                     type: 'array',
@@ -2831,11 +2991,54 @@
                     const rows = XLSX.utils.sheet_to_json(parsed.Sheets[sheetName], { header: 1, defval: '' });
                     const mappedStaff = findSalesStaffInRows(rows);
                     const staffKey = detectStaffKeyFromName(mappedStaff);
-                    if (!staffKey) return;
+                    postSalesOrderAuditEvent({
+                        phase: 'sheet-start',
+                        source_file: file.name,
+                        sheet_name: sheetName,
+                        staff_key: staffKey || null,
+                        rows_seen: rows.length,
+                        mapped_staff: mappedStaff || ''
+                    });
+                    if (!staffKey) {
+                        postSalesOrderAuditEvent({
+                            phase: 'sheet-skipped',
+                            source_file: file.name,
+                            sheet_name: sheetName,
+                            reason: 'No recognizable sales staff mapping was found.'
+                        });
+                        return;
+                    }
                     const mapped = extractAdminSalesOrder(rows, staffKey, file.name, sheetName);
                     mapped.sales_staff = mapped.sales_staff || mappedStaff;
-                    if (mapped.items.length > 0) adminCleanRows.push(mapped);
+                    postSalesOrderAuditEvent({
+                        phase: mapped.items.length > 0 ? 'sheet-parsed' : 'sheet-empty',
+                        source_file: file.name,
+                        sheet_name: sheetName,
+                        so_number: mapped.so_number || '',
+                        company_name: mapped.company_name || '',
+                        store_name: mapped.store_name || '',
+                        store_branch: mapped.store_branch || '',
+                        order_date: mapped.order_date || '',
+                        items_count: mapped.items.length,
+                        total_amount: mapped.total_amount || 0,
+                        retained_items: mapped.audit_trace?.retained_items || [],
+                        discarded_items: mapped.audit_trace?.discarded_items || []
+                    });
+                    if (mapped.items.length > 0) {
+                        adminCleanRows.push(mapped);
+                        postSalesOrderAuditEvent({
+                            phase: 'order-ready',
+                            source_file: file.name,
+                            sheet_name: sheetName,
+                            so_number: mapped.so_number || '',
+                            company_name: mapped.company_name || '',
+                            total_amount: mapped.total_amount || 0,
+                            items_count: mapped.items.length,
+                            retained_items: mapped.audit_trace?.retained_items || []
+                        });
+                    }
                 });
+                setAdminUploadProgress(index + 1, files.length);
             }
 
             document.getElementById('adminUploadDocs').innerHTML = [
@@ -2861,6 +3064,7 @@
                 return;
             }
             showToast(`Mapped ${adminCleanRows.length} sales order(s) from ${input.files.length} file(s).`, 'success');
+            setAdminUploadProgress(files.length, files.length);
         }
 
         async function previewAdminClientMatches() {
@@ -3074,7 +3278,8 @@
                 let skippedCount = 0;
                 const clientResolutions = collectAdminClientResolutions();
                 const uploadWarnings = [];
-                for (const order of adminCleanRows) {
+                setAdminUploadProgress(0, adminCleanRows.length);
+                for (const [index, order] of adminCleanRows.entries()) {
                     if (!order.company_name || !order.store_name || !order.store_branch || !order.order_date || order.items.length === 0) {
                         throw new Error(`Incomplete mapped order from ${order.source_file} / ${order.sheet_name}`);
                     }
@@ -3084,7 +3289,8 @@
                         body: JSON.stringify({
                             client_name: order.client_name,
                             original_entered_client_name: order.client_name,
-                            so_number: order.so_number,
+                            source_so_number: order.so_number,
+                            so_generation_year: document.getElementById('field-generatedSoYear')?.value.trim(),
                             company_name: order.company_name.toUpperCase(),
                             store_name: order.store_name.toUpperCase(),
                             store_branch: order.store_branch.toUpperCase(),
@@ -3101,6 +3307,7 @@
                     if (!result.success) throw new Error(result.error || `Failed to upload ${order.source_file} / ${order.sheet_name}`);
                     if (Array.isArray(result.warnings)) uploadWarnings.push(...result.warnings);
                     uploadedCount++;
+                    setAdminUploadProgress(index + 1, adminCleanRows.length);
                 }
                 showToast(`Uploaded ${uploadedCount} mapped sales order(s).${skippedCount ? ` Skipped ${skippedCount} ignored order(s).` : ''}`, 'success');
                 if (window.SyluxentUI) SyluxentUI.showServerWarnings(uploadWarnings);
@@ -3109,7 +3316,9 @@
                 renderAdminPreview();
                 document.getElementById('adminUploadOutliers').innerHTML = '';
                 document.getElementById('adminClientReviewQueue').innerHTML = '';
+                setAdminUploadProgress(adminCleanRows.length, adminCleanRows.length);
             } catch (error) {
+                resetAdminUploadProgress();
                 showToast(error.message || 'Admin upload failed.', 'error', 6000);
             }
         }

@@ -1,0 +1,4 @@
+git status
+git add templates/admin.html
+git commit -m "Sql Tools Fix"
+git push

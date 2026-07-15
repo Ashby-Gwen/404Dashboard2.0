@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='js/password-strength.js') }}"></script>
     <style>
         .auth-container {
             min-height: 100vh;
@@ -177,6 +178,14 @@
             color: #1E40AF;
             border: 1px solid #BFDBFE;
         }
+
+        .password-policy {
+            display: block;
+            margin-top: 0.5rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
     </style>
 </head>
 <body>
@@ -204,7 +213,7 @@
                 <p class="auth-subtitle">Join 404 Dashboard ERP system</p>
             </div>
 
-            <form method="POST" action="{{ url_for('register') }}">
+            <form method="POST" action="{{ url_for('register') }}" data-password-strength data-password-input="#password" data-confirm-password-input="#confirm_password">
                 <div class="form-group">
                     <label for="email">Email</label>
                     <input type="email" id="email" name="email" required placeholder="Enter your email address">
@@ -216,10 +225,29 @@
                 <div class="form-group">
                     <label for="password">Password</label>
                     <input type="password" id="password" name="password" required placeholder="Create a password">
+                    <small class="password-policy">{{ password_policy_message }}</small>
                 </div>
                 <div class="form-group">
                     <label for="confirm_password">Confirm Password</label>
                     <input type="password" id="confirm_password" name="confirm_password" required placeholder="Confirm your password">
+                    <div class="password-strength-panel" data-strength-panel>
+                        <div class="password-strength-summary">
+                            <span data-strength-label>Password strength: Empty</span>
+                            <span data-strength-score>0/5</span>
+                        </div>
+                        <div class="password-strength-track" role="progressbar" aria-label="Password strength" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0">
+                            <span data-strength-bar></span>
+                        </div>
+                        <p class="password-strength-status" data-strength-status aria-live="polite">Start typing a password.</p>
+                        <ul class="password-strength-checks" aria-label="Password requirements">
+                            <li data-strength-check="length">At least 8 characters</li>
+                            <li data-strength-check="uppercase">Uppercase letter</li>
+                            <li data-strength-check="lowercase">Lowercase letter</li>
+                            <li data-strength-check="number">Number</li>
+                            <li data-strength-check="special">Special character</li>
+                            <li data-strength-check="match">Passwords match</li>
+                        </ul>
+                    </div>
                 </div>
                 <div class="role-info" style="display: block;">
                     New accounts are created with Staff access and require administrator approval before sign in.
@@ -233,18 +261,5 @@
         </div>
     </div>
 
-    <script>
-        // Password confirmation validation
-        document.querySelector('form').addEventListener('submit', function(e) {
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirm_password').value;
-            
-            if (password !== confirmPassword) {
-                e.preventDefault();
-                alert('Passwords do not match. Please confirm your password.');
-                return false;
-            }
-        });
-    </script>
 </body>
 </html>

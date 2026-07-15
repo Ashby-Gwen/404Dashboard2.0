@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -67,6 +68,26 @@
             font: inherit;
             font-weight: 700;
             padding: 0.5rem 0.75rem;
+        }
+
+        .password-update-notice {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            padding: 0.85rem 1rem;
+            border: 1px solid #F59E0B;
+            border-radius: 8px;
+            background: #FFFBEB;
+            color: #92400E;
+            font-weight: 700;
+        }
+
+        .password-update-notice a {
+            color: #92400E;
+            text-decoration: underline;
+            white-space: nowrap;
         }
 
         .home-grid,
@@ -381,6 +402,7 @@
         }
 
         @media (max-width: 700px) {
+
             .home-grid,
             .summary-grid,
             .revenue-kpi-grid,
@@ -392,26 +414,31 @@
         }
     </style>
 </head>
+
 <body>
     <nav class="app-navbar">
         <div class="nav-logo" onclick="window.location.href='{{ url_for('dashboard') }}'">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
             404 Dashboard
         </div>
         {% set nav_links = {
-            'staff': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('expenses', 'Expense')],
-            'sales staff': [('sales_order', 'Sales Order')],
-            'accounting staff': [('invoices', 'Invoice'), ('expenses', 'Expense')],
-            'manager': [('analytics', 'Analytics'), ('reports', 'Reports')],
-            'admin': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('expenses', 'Expense'), ('analytics', 'Analytics'), ('reports', 'Reports'), ('database_interface', 'Admin Center')]
+        'staff': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('expenses', 'Expense')],
+        'sales staff': [('sales_order', 'Sales Order')],
+        'accounting staff': [('invoices', 'Invoice'), ('expenses', 'Expense')],
+        'manager': [('analytics', 'Analytics'), ('reports', 'Reports')],
+        'admin': [('sales_order', 'Sales Order'), ('invoices', 'Invoice'), ('expenses', 'Expense'), ('analytics',
+        'Analytics'), ('reports', 'Reports'), ('database_interface', 'Admin Center')]
         } %}
-        {% set allowed_endpoints = dashboard_data.primary_actions|map(attribute='endpoint')|list + dashboard_data.secondary_actions|map(attribute='endpoint')|list %}
+        {% set allowed_endpoints = dashboard_data.primary_actions|map(attribute='endpoint')|list +
+        dashboard_data.secondary_actions|map(attribute='endpoint')|list %}
         <div class="nav-menu">
-            <a href="{{ url_for('dashboard') }}" class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}">Home</a>
+            <a href="{{ url_for('dashboard') }}"
+                class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}">Home</a>
             {% for endpoint, label in nav_links.get(session.role, []) %}
-            <a href="{{ url_for(endpoint) }}" class="nav-link {{ 'active' if request.endpoint == endpoint }}">{{ label }}</a>
+            <a href="{{ url_for(endpoint) }}" class="nav-link {{ 'active' if request.endpoint == endpoint }}">{{ label
+                }}</a>
             {% endfor %}
         </div>
         <div class="nav-user">
@@ -430,21 +457,30 @@
     </nav>
 
     <main class="page-shell">
+        {% if current_user and not current_user.password_updated_at and not current_user.password_change_required %}
+        <div class="password-update-notice">
+            <span>Please update your password to meet the current security requirements.</span>
+            <a href="{{ url_for('profile') }}">Update password</a>
+        </div>
+        {% endif %}
         <section class="home-hero" aria-labelledby="homeTitle">
             <div class="home-header-row">
                 <div>
                     <div class="home-eyebrow">Home</div>
                     <h1 id="homeTitle">Welcome, {{ session.username }}</h1>
                     <p class="home-subtitle">
-                        You are signed in as {{ session.role|title }}. Choose a task below to continue with the interfaces already available to your role.
+                        You are signed in as {{ session.role|title }}. Choose a task below to continue with the
+                        interfaces already available to your role.
                     </p>
                 </div>
                 <form class="home-date-filter" method="get" action="{{ url_for('dashboard') }}">
                     <label for="homeDateFilter">Date</label>
-                    <select id="homeDateFilter" aria-label="Home date filter" onchange="applyHomeDateFilter(this.value)">
+                    <select id="homeDateFilter" aria-label="Home date filter"
+                        onchange="applyHomeDateFilter(this.value)">
                         <option value="all" {{ 'selected' if dashboard_data.all_dates else '' }}>All</option>
                         {% for year in dashboard_data.available_years %}
-                        <option value="{{ year }}" {{ 'selected' if not dashboard_data.all_dates and year == dashboard_data.selected_year else '' }}>{{ year }}</option>
+                        <option value="{{ year }}" {{ 'selected' if not dashboard_data.all_dates and
+                            year==dashboard_data.selected_year else '' }}>{{ year }}</option>
                         {% endfor %}
                     </select>
                 </form>
@@ -456,7 +492,8 @@
             <h2 id="quickActionsTitle">Quick Actions</h2>
             <div class="home-grid">
                 {% for action in dashboard_data.primary_actions %}
-                <a class="home-action-card" href="{{ action.href if action.href is defined else url_for(action.endpoint) }}">
+                <a class="home-action-card"
+                    href="{{ action.href if action.href is defined else url_for(action.endpoint) }}">
                     <h3 class="home-action-title">{{ action.label }}</h3>
                     <p class="home-action-description">{{ action.description }}</p>
                     <span class="home-action-arrow">Open</span>
@@ -498,7 +535,8 @@
                         </tbody>
                     </table>
                     <div class="summary-card-footer">
-                        <a class="btn btn-outline btn-sm" href="{{ url_for(summary.endpoint) }}">View {{ summary.title }}</a>
+                        <a class="btn btn-outline btn-sm" href="{{ url_for(summary.endpoint) }}">View {{ summary.title
+                            }}</a>
                     </div>
                 </article>
                 {% endif %}
@@ -512,22 +550,30 @@
         <section class="home-section" aria-labelledby="managerRevenueTitle">
             <h2 id="managerRevenueTitle">Revenue Overview for {{ dashboard_data.timeline_label }}</h2>
             <div class="revenue-kpi-grid">
-                <a class="revenue-card" href="{{ revenue.links.revenue_report }}" aria-label="Open revenue report for collected revenue">
-                    <p class="revenue-card-label">Collected Revenue</p>
-                    <div class="revenue-card-value">PHP {{ "{:,.2f}".format(revenue.collected_revenue) }}</div>
-                    <p class="revenue-card-note">Actual collected payments for the selected period.</p>
+                <a class="revenue-card" href="{{ revenue.links.revenue_report }}"
+                    aria-label="Open revenue report for Sales Order revenue">
+                    <p class="revenue-card-label">Sales Order Revenue</p>
+                    <div class="revenue-card-value">PHP {{ "{:,.2f}".format(revenue.sales_order_revenue) }}</div>
+                    <p class="revenue-card-note">Booked Sales Order value for the selected period.</p>
                 </a>
-                <a class="revenue-card" href="{{ revenue.links.client_analytics }}" aria-label="Open client analytics for unpaid receivable revenue">
-                    <p class="revenue-card-label">Unpaid / Receivable Revenue</p>
+                {# Invoice-payment KPI cards are intentionally hidden on Manager Home; Sales Order revenue and Accounts
+                Receivable are the active overview sources. #}
+                <a class="revenue-card" href="{{ revenue.links.client_analytics }}"
+                    aria-label="Open client analytics for accounts receivable">
+                    <p class="revenue-card-label">Accounts Receivable</p>
                     <div class="revenue-card-value">PHP {{ "{:,.2f}".format(revenue.receivable_revenue) }}</div>
-                    <p class="revenue-card-note">Outstanding invoice balance that still needs collection.</p>
+                    <p class="revenue-card-note">Outstanding customer invoice balances that still need collection.</p>
                 </a>
-                <a class="revenue-card" href="{{ revenue.links.revenue_report }}" aria-label="Open revenue report for paid invoice count">
+                <a class="revenue-card" href="{{ revenue.links.revenue_report }}"
+                    aria-label="Open revenue report for paid invoice count" hidden aria-hidden="true"
+                    style="display: none !important;">
                     <p class="revenue-card-label">Paid Invoice Count</p>
                     <div class="revenue-card-value">{{ revenue.paid_invoice_count }}</div>
                     <p class="revenue-card-note">Unique invoices with collected payment.</p>
                 </a>
-                <a class="revenue-card" href="{{ revenue.links.revenue_report }}" aria-label="Open revenue report for average paid invoice">
+                <a class="revenue-card" href="{{ revenue.links.revenue_report }}"
+                    aria-label="Open revenue report for average paid invoice" hidden aria-hidden="true"
+                    style="display: none !important;">
                     <p class="revenue-card-label">Average Paid Invoice</p>
                     <div class="revenue-card-value">PHP {{ "{:,.2f}".format(revenue.average_paid_invoice) }}</div>
                     <p class="revenue-card-note">Collected revenue divided by paid invoice count.</p>
@@ -537,14 +583,20 @@
 
         <section class="home-section" aria-labelledby="managerRevenueTrendTitle">
             <div class="revenue-layout">
-                <a class="revenue-chart-card" href="{{ revenue.links.revenue_analytics }}" aria-label="Open revenue analytics for revenue trend graph">
-                    <h2 id="managerRevenueTrendTitle" class="summary-card-title">Revenue Trend</h2>
-                    <p class="summary-note">Collected revenue movement for {{ dashboard_data.timeline_label }}.</p>
+                <a class="revenue-chart-card" style="min-height: 100px; max-height: 400px;" href="{{ revenue.links.revenue_analytics }}"
+                    aria-label="Open revenue analytics for revenue trend graph" >
+                    <h2 id="managerRevenueTrendTitle" class="summary-card-title"
+                        style="min-height: 40px; max-height: 60px;">Revenue Trend</h2>
+
+                    <p class="summary-note" style="min-height: 35px; max-height: 55px;">Sales Order revenue movement for
+                        {{ dashboard_data.timeline_label }}.</p>
+
                     {% if revenue.has_revenue_data %}
-                    <div class="revenue-chart-bars" aria-hidden="true">
+                    <div class="revenue-chart-bars" aria-hidden="true" style="min-height: 150px; max-height: 300px;">
                         {% for row in revenue.trend_rows %}
                         <div class="revenue-bar-group">
-                            <div class="revenue-bar-track" title="{{ row.label }} - PHP {{ "{:,.2f}".format(row.value) }}">
+                            <div class="revenue-bar-track" title="{{ row.label }} - PHP {{ " {:,.2f}".format(row.value)
+                                }}">
                                 <div class="revenue-bar-fill" style="height: {{ row.percent }}%;"></div>
                             </div>
                             <div class="revenue-bar-label">{{ row.label }}</div>
@@ -554,29 +606,33 @@
                     {% else %}
                     <div class="revenue-empty-state">No revenue data for this period.</div>
                     {% endif %}
+                    <br>
                     <span class="home-action-arrow">Open Revenue Analytics</span>
                 </a>
 
                 <article class="summary-card" aria-labelledby="topRevenueClientsTitle">
                     <h2 id="topRevenueClientsTitle" class="summary-card-title">Top Revenue Clients</h2>
-                    <p class="summary-note">Top 5 clients by collected revenue.</p>
+                    <p class="summary-note">Top 5 clients by Sales Order revenue.</p>
                     <table class="revenue-client-table">
                         <thead>
                             <tr>
                                 <th>Client</th>
-                                <th>Paid</th>
-                                <th>Invoices</th>
+                                <th>Sales Orders</th>
+                                <th>Orders</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for client in revenue.top_clients %}
-                            <tr class="revenue-client-row" tabindex="0" role="link" aria-label="Open client analytics for {{ client.client_name }}" onclick="openManagerRevenueLink('{{ revenue.links.client_analytics }}')" onkeydown="handleRevenueRowKey(event, '{{ revenue.links.client_analytics }}')">
+                            <tr class="revenue-client-row" tabindex="0" role="link"
+                                aria-label="Open client analytics for {{ client.client_name }}"
+                                onclick="openManagerRevenueLink('{{ revenue.links.client_analytics }}')"
+                                onkeydown="handleRevenueRowKey(event, '{{ revenue.links.client_analytics }}')">
                                 <td>
                                     <strong>{{ client.client_name }}</strong>
                                     <div class="activity-meta">Latest: {{ client.latest_date or 'No date' }}</div>
                                 </td>
-                                <td>PHP {{ "{:,.2f}".format(client.paid_amount) }}</td>
-                                <td>{{ client.invoice_count }}</td>
+                                <td>PHP {{ "{:,.2f}".format(client.sales_order_value) }}</td>
+                                <td>{{ client.order_count }}</td>
                             </tr>
                             {% else %}
                             <tr>
@@ -586,7 +642,8 @@
                         </tbody>
                     </table>
                     <div class="summary-card-footer">
-                        <a class="btn btn-outline btn-sm" href="{{ revenue.links.client_analytics }}">Open Client Analytics</a>
+                        <a class="btn btn-outline btn-sm" href="{{ revenue.links.client_analytics }}">Open Client
+                            Analytics</a>
                     </div>
                 </article>
             </div>
@@ -625,8 +682,9 @@
                     </li>
                     {% for activity in group.activities %}
                     <li class="activity-item">
-                        <strong>{{ activity.username }} - {{ activity.action }}</strong>
-                        <span class="activity-meta">{{ activity.table_name }}{% if activity.created_at %} - {{ activity.created_at[:19].replace('T', ' ') }}{% endif %}</span>
+                        <strong>{{ activity.activity_text }}</strong>
+                        <span class="activity-meta" data-activity-time="{{ activity.created_at or '' }}">{{
+                            activity.display_table_name }}</span>
                     </li>
                     {% endfor %}
                     {% else %}
@@ -655,6 +713,30 @@
             const target = document.getElementById('datetime');
             if (target) target.textContent = new Date().toLocaleString();
         }
+        function formatDashboardDateTime(value) {
+            if (!value) return '-';
+            const normalizedValue = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && !/[zZ]|[+-]\d{2}:\d{2}$/.test(value)
+                ? `${value}Z`
+                : value;
+            const parsed = new Date(normalizedValue);
+            if (Number.isNaN(parsed.getTime())) return value;
+            return parsed.toLocaleString('en-PH', {
+                timeZone: 'Asia/Manila',
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit',
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+        function formatRecentActivityTimes() {
+            document.querySelectorAll('[data-activity-time]').forEach((item) => {
+                const timestamp = item.dataset.activityTime;
+                if (!timestamp) return;
+                item.textContent = `${item.textContent.trim()} - ${formatDashboardDateTime(timestamp)}`;
+            });
+        }
         function applyHomeDateFilter(value) {
             const url = new URL(window.location.href);
             url.search = '';
@@ -676,6 +758,8 @@
         }
         setInterval(updateDateTime, 1000);
         updateDateTime();
+        formatRecentActivityTimes();
     </script>
 </body>
+
 </html>

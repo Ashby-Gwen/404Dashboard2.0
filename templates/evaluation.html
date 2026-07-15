@@ -733,6 +733,92 @@
             overflow: auto;
         }
 
+        .evaluation-results-export-actions {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin: 0 0 1rem;
+        }
+
+        .evaluation-export-field {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            font-weight: 800;
+        }
+
+        .evaluation-export-field select {
+            min-height: 40px;
+            padding: 0.45rem 0.7rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--bg-card, #fff);
+            color: var(--text-main);
+            font: inherit;
+        }
+
+        .evaluation-export-paper {
+            width: var(--evaluation-export-paper-width, 210mm);
+            min-height: var(--evaluation-export-paper-height, 297mm);
+            margin: 0 auto;
+            padding: 12mm;
+            box-sizing: border-box;
+            background: #fff;
+            color: #111;
+            font-family: "Times New Roman", Times, serif;
+            font-size: 14px;
+            line-height: 1.18;
+        }
+
+        .evaluation-export-paper h2 {
+            margin: 0 0 0.8rem;
+            color: #111;
+            font-size: 18px;
+            text-align: center;
+        }
+
+        .evaluation-export-summary {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.6rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .evaluation-export-summary .evaluation-kpi,
+        .evaluation-export-paper .evaluation-respondent-card {
+            border: 1px solid #111;
+            border-radius: 0;
+            background: #fff;
+            color: #111;
+            box-shadow: none;
+        }
+
+        .evaluation-export-paper .evaluation-respondent-card {
+            margin-bottom: 0.9rem;
+        }
+
+        .evaluation-export-category {
+            display: grid;
+            gap: 0.45rem;
+            margin-top: 0.9rem;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .evaluation-export-category .evaluation-category-graph,
+        .evaluation-export-category .evaluation-category-table-wrap {
+            max-width: none;
+            margin: 0;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .evaluation-export-paper .evaluation-category-table {
+            font-size: 13px;
+        }
+
         @media (max-width: 850px) {
             .evaluation-grid-header {
                 display: none;
@@ -825,6 +911,13 @@
                 overflow: visible;
             }
 
+            .evaluation-export-paper {
+                width: auto !important;
+                min-height: auto !important;
+                margin: 0;
+                padding: 0;
+            }
+
             .evaluation-survey,
             .qa-module-section {
                 box-shadow: none;
@@ -904,6 +997,17 @@
                 <h2 id="evaluationResultsTitle">Questionnaire Results</h2>
                 <p>Administrative summary of submitted system evaluations.</p>
             </header>
+            <div class="evaluation-results-export-actions">
+                <label class="evaluation-export-field" for="evaluationExportPaperSize">
+                    Paper
+                    <select id="evaluationExportPaperSize">
+                        <option value="a4-portrait">A4 Portrait (210mm x 297mm)</option>
+                        <option value="long-bond-portrait">Long Bond Portrait (216mm x 330mm)</option>
+                        <option value="short-bond-portrait">Short Bond Portrait (216mm x 279mm)</option>
+                    </select>
+                </label>
+                <button type="button" class="btn btn-primary" id="evaluationResultsExportButton">Export PDF</button>
+            </div>
             <div id="evaluationResultsContent">Loading results...</div>
         </section>
         {% endif %}
@@ -954,13 +1058,19 @@
             <div class="evaluation-print-body" id="evaluationPrintBody"></div>
             <footer class="evaluation-print-footer"><button type="button" class="btn btn-outline"
                     id="evaluationPrintCancel">Cancel</button><button type="button" class="btn btn-primary"
-                    onclick="window.print()">Confirm &amp; Print</button></footer>
+                    id="evaluationPrintConfirm">Confirm &amp; Print</button></footer>
         </section>
     </div>
     <script>
         const canViewEvaluationResults = {{ 'true' if can_view_results else 'false' }};
         let evaluationQuestions = [];
         let evaluationLastFocus = null;
+        let latestEvaluationResultsPayload = null;
+        const evaluationExportPaperSizes = {
+            'a4-portrait': { label: 'A4 Portrait', width: 210, height: 297, pageSize: 'A4 portrait' },
+            'long-bond-portrait': { label: 'Long Bond Portrait', width: 216, height: 330, pageSize: '216mm 330mm' },
+            'short-bond-portrait': { label: 'Short Bond Portrait', width: 216, height: 279, pageSize: 'letter portrait' }
+        };
         const escapeEvaluationHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]));
         const evaluationCategoryDisplayLabel = category => category === 'Design/User Experience' ? 'Usability' : category;
         const qaTestData = [
@@ -1154,6 +1264,7 @@
             const response = await fetch(`/api/evaluation/results?_=${Date.now()}`, { cache: 'no-store' });
             const payload = await response.json();
             if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to load evaluation results.');
+            latestEvaluationResultsPayload = payload;
             document.getElementById('evaluationResultsContent').innerHTML = `
                 <div class="evaluation-result-summary">
                     <div class="evaluation-kpi"><span>Overall Mean</span><strong>${Number(payload.overall_mean || 0).toFixed(2)} / 5</strong></div>
@@ -1185,6 +1296,41 @@
                 </div>`;
         }
 
+        function renderEvaluationCategoryTable(category, options = {}) {
+            const copyAction = options.copyAction === false ? '' : `
+                <div class="evaluation-copy-actions">
+                    <button type="button" class="evaluation-copy-button" onclick="copyEvaluationElementAsImage(this, '.evaluation-category-table-wrap')">Copy Table as Image</button>
+                </div>`;
+            return `
+                ${copyAction}
+                <div class="evaluation-category-table-wrap">
+                    <table class="evaluation-category-table" style="width:100%; max-width:8in; border-collapse:collapse; background:#ffffff !important; color:#000000 !important; font-family:'Times New Roman', Times, serif; font-size: 14px; line-height:1.12;">
+                        <thead>
+                            <tr>
+                                <th style="width:50%; padding:0.42rem 0.45rem; border-top:1px solid #000000 !important; border-bottom:1px solid #000000 !important; border-left:0 !important; border-right:0 !important; background:#ffffff !important; color:#000000 !important; text-align:left; vertical-align:top; font-size:14px !important; font-weight:700 !important;">${escapeEvaluationHtml(evaluationCategoryDisplayLabel(category.category))}</th>
+                                <th style="width:16%; padding:0.42rem 0.45rem; border-top:1px solid #000000 !important; border-bottom:1px solid #000000 !important; border-left:0 !important; border-right:0 !important; background:#ffffff !important; color:#000000 !important; text-align:center; vertical-align:top; font-size:14px !important; font-weight:700 !important;">Mean</th>
+                                <th style="width:34%; padding:0.42rem 0.45rem; border-top:1px solid #000000 !important; border-bottom:1px solid #000000 !important; border-left:0 !important; border-right:0 !important; background:#ffffff !important; color:#000000 !important; text-align:center; vertical-align:top; font-size:14px !important; font-weight:700 !important;">Verbal Interpretation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${(category.questions || []).map(question => `
+                                <tr>
+                                    <td style="width:50%; padding:0.42rem 0.45rem; border:0 !important; background:#ffffff !important; color:#000000 !important; text-align:left; vertical-align:top; font-size:14px !important; font-weight:400 !important;">${escapeEvaluationHtml(question.question_text)}</td>
+                                    <td style="width:16%; padding:0.42rem 0.45rem; border:0 !important; background:#ffffff !important; color:#000000 !important; text-align:center; vertical-align:top; font-size:14px !important; font-weight:400 !important;">${Number(question.mean || 0).toFixed(2)}</td>
+                                    <td style="width:34%; padding:0.42rem 0.45rem; border:0 !important; background:#ffffff !important; color:#000000 !important; text-align:center; vertical-align:top; font-size:14px !important; font-weight:400 !important;">${escapeEvaluationHtml(question.interpretation || 'No responses')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="2" style="padding:0.42rem 0.45rem; border-top:1px solid #000000 !important; border-bottom:1px solid #000000 !important; border-left:0 !important; border-right:0 !important; background:#ffffff !important; color:#000000 !important; text-align:left; vertical-align:top; font-size:14px !important; font-weight:400 !important;">Total Weighted Mean</td>
+                                <td style="width:34%; padding:0.42rem 0.45rem; border-top:1px solid #000000 !important; border-bottom:1px solid #000000 !important; border-left:0 !important; border-right:0 !important; background:#ffffff !important; color:#000000 !important; text-align:center; vertical-align:top; font-size:14px !important; font-weight:700 !important;">${Number(category.total_weighted_mean || 0).toFixed(2)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>`;
+        }
+
         function renderEvaluationCategoryTables(categoryTables) {
             if (!categoryTables.length) return '<div class="qa-card"><p>No category results yet.</p></div>';
             return `
@@ -1198,35 +1344,7 @@
                     ${categoryTables.map((category, index) => `
                         <section class="evaluation-category-result" data-category-index="${index}">
                             <div class="evaluation-view-panel" data-view-panel="table">
-                                <div class="evaluation-copy-actions">
-                                    <button type="button" class="evaluation-copy-button" onclick="copyEvaluationElementAsImage(this, '.evaluation-category-table-wrap')">Copy Table as Image</button>
-                                </div>
-                                <div class="evaluation-category-table-wrap">
-                                    <table class="evaluation-category-table" style="width:100%; max-width:8in; border-collapse:collapse; background:#ffffff !important; color:#000000 !important; font-family:'Times New Roman', Times, serif; font-size: 14px; line-height:1.12;">
-                                        <thead>
-                                            <tr>
-                                                <th style="width:50%; padding:0.42rem 0.45rem; border-top:1px solid #000000 !important; border-bottom:1px solid #000000 !important; border-left:0 !important; border-right:0 !important; background:#ffffff !important; color:#000000 !important; text-align:left; vertical-align:top; font-size:14px !important; font-weight:700 !important;">${escapeEvaluationHtml(evaluationCategoryDisplayLabel(category.category))}</th>
-                                                <th style="width:16%; padding:0.42rem 0.45rem; border-top:1px solid #000000 !important; border-bottom:1px solid #000000 !important; border-left:0 !important; border-right:0 !important; background:#ffffff !important; color:#000000 !important; text-align:center; vertical-align:top; font-size:14px !important; font-weight:700 !important;">Mean</th>
-                                                <th style="width:34%; padding:0.42rem 0.45rem; border-top:1px solid #000000 !important; border-bottom:1px solid #000000 !important; border-left:0 !important; border-right:0 !important; background:#ffffff !important; color:#000000 !important; text-align:center; vertical-align:top; font-size:14px !important; font-weight:700 !important;">Verbal Interpretation</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${(category.questions || []).map(question => `
-                                                <tr>
-                                                    <td style="width:50%; padding:0.42rem 0.45rem; border:0 !important; background:#ffffff !important; color:#000000 !important; text-align:left; vertical-align:top; font-size:14px !important; font-weight:400 !important;">${escapeEvaluationHtml(question.question_text)}</td>
-                                                    <td style="width:16%; padding:0.42rem 0.45rem; border:0 !important; background:#ffffff !important; color:#000000 !important; text-align:center; vertical-align:top; font-size:14px !important; font-weight:400 !important;">${Number(question.mean || 0).toFixed(2)}</td>
-                                                    <td style="width:34%; padding:0.42rem 0.45rem; border:0 !important; background:#ffffff !important; color:#000000 !important; text-align:center; vertical-align:top; font-size:14px !important; font-weight:400 !important;">${escapeEvaluationHtml(question.interpretation || 'No responses')}</td>
-                                                </tr>
-                                            `).join('')}
-                                        </tbody>
-                                        <tfoot>
-                                            <tr>
-                                                <td colspan="2" style="padding:0.42rem 0.45rem; border-top:1px solid #000000 !important; border-bottom:1px solid #000000 !important; border-left:0 !important; border-right:0 !important; background:#ffffff !important; color:#000000 !important; text-align:left; vertical-align:top; font-size:14px !important; font-weight:400 !important;">Total Weighted Mean</td>
-                                                <td style="width:34%; padding:0.42rem 0.45rem; border-top:1px solid #000000 !important; border-bottom:1px solid #000000 !important; border-left:0 !important; border-right:0 !important; background:#ffffff !important; color:#000000 !important; text-align:center; vertical-align:top; font-size:14px !important; font-weight:700 !important;">${Number(category.total_weighted_mean || 0).toFixed(2)}</td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
+                                ${renderEvaluationCategoryTable(category)}
                             </div>
                             <div class="evaluation-view-panel" data-view-panel="graph" hidden>
                                 <div class="evaluation-copy-actions">
@@ -1486,11 +1604,150 @@
             link.remove();
         }
 
+        function selectedEvaluationExportPaper() {
+            const selected = document.getElementById('evaluationExportPaperSize')?.value || 'a4-portrait';
+            return evaluationExportPaperSizes[selected] || evaluationExportPaperSizes['a4-portrait'];
+        }
+
+        function syncEvaluationExportPageStyle() {
+            let style = document.getElementById('evaluationDynamicExportPageStyle');
+            if (!style) {
+                style = document.createElement('style');
+                style.id = 'evaluationDynamicExportPageStyle';
+                document.head.appendChild(style);
+            }
+            const paper = selectedEvaluationExportPaper();
+            style.textContent = `
+                @page { size: ${paper.pageSize}; margin: 12mm; }
+                .evaluation-export-paper {
+                    --evaluation-export-paper-width: ${paper.width}mm;
+                    --evaluation-export-paper-height: ${paper.height}mm;
+                }
+            `;
+        }
+
+        function buildEvaluationResultsExport(payload) {
+            const categoryTables = payload.category_tables || [];
+            return `
+                <section class="evaluation-export-paper" aria-label="Evaluation results PDF export">
+                    <h2>Evaluation Results Summary</h2>
+                    <div class="evaluation-export-summary">
+                        <div class="evaluation-kpi"><span>Overall Mean</span><strong>${Number(payload.overall_mean || 0).toFixed(2)} / 5</strong></div>
+                        <div class="evaluation-kpi"><span>Interpretation</span><strong>${escapeEvaluationHtml(payload.interpretation)}</strong></div>
+                        <div class="evaluation-kpi"><span>Total Responses</span><strong>${Number(payload.response_count || 0).toLocaleString()}</strong></div>
+                    </div>
+                    <div class="evaluation-export-respondent-row">
+                        ${renderRespondentMixChart(payload)}
+                    </div>
+                    <div class="evaluation-export-categories">
+                        ${categoryTables.map(category => `
+                            <section class="evaluation-export-category">
+                                ${renderEvaluationCategoryGraph(category)}
+                                ${renderEvaluationCategoryTable(category, { copyAction: false })}
+                            </section>
+                        `).join('') || '<p>No category results yet.</p>'}
+                    </div>
+                    <p class="evaluation-range-note"><strong>Range:</strong> 1.00-1.49 Strongly Disagree; 1.50-2.49 Disagree; 2.50-3.49 Moderately Agree; 3.50-4.49 Agree; 4.50-5.00 Strongly Agree.</p>
+                </section>`;
+        }
+
+        async function waitForEvaluationExportReady() {
+            if (document.fonts?.ready) await document.fonts.ready;
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        }
+
+        function evaluationExportPrintCss(paper) {
+            return `
+                @page { size: ${paper.pageSize}; margin: 12mm; }
+                * { box-sizing: border-box; }
+                html, body { margin: 0; padding: 0; background: #fff; color: #111; }
+                body { font-family: "Times New Roman", Times, serif; font-size: 14px; line-height: 1.18; }
+                .evaluation-export-paper { width: 100%; min-height: 0; margin: 0; padding: 0; background: #fff; color: #111; }
+                .evaluation-export-paper h2 { margin: 0 0 0.8rem; color: #111; font-size: 18px; text-align: center; }
+                .evaluation-export-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; margin-bottom: 0.8rem; }
+                .evaluation-kpi { padding: 0.75rem; border: 1px solid #111; background: #fff; color: #111; }
+                .evaluation-kpi span { display: block; color: #111; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+                .evaluation-kpi strong { display: block; margin-top: 0.25rem; color: #111; font-size: 18px; }
+                .qa-card, .evaluation-respondent-card { display: grid; gap: 0.7rem; margin-bottom: 0.9rem; padding: 0.75rem; border: 1px solid #111; background: #fff; color: #111; break-inside: avoid; page-break-inside: avoid; }
+                .qa-card h3, .evaluation-category-graph h3 { margin: 0; color: #111; font-size: 14px; }
+                .evaluation-respondent-chart-row { display: grid; grid-template-columns: 38mm minmax(0, 1fr); gap: 0.8rem; align-items: center; }
+                .evaluation-respondent-pie { width: 34mm; aspect-ratio: 1; border-radius: 999px; background: conic-gradient(#2563eb 0deg, #2563eb var(--it-slice, 0deg), #f97316 var(--it-slice, 0deg), #f97316 360deg); border: 1px solid #111; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+                .evaluation-respondent-legend { display: grid; gap: 0.45rem; }
+                .evaluation-respondent-legend-row { display: flex; justify-content: space-between; gap: 0.75rem; padding-bottom: 0.35rem; border-bottom: 1px solid #111; }
+                .evaluation-legend-label { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; }
+                .evaluation-legend-swatch { width: 0.75rem; height: 0.75rem; border-radius: 999px; background: var(--swatch); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+                .evaluation-export-category { display: grid; gap: 0.45rem; margin-top: 0.9rem; break-inside: avoid; page-break-inside: avoid; }
+                .evaluation-category-graph { display: grid; gap: 0.5rem; padding: 0.65rem 0.75rem; border: 1px solid #111; background: #fff; color: #111; break-inside: avoid; page-break-inside: avoid; }
+                .evaluation-likert-landscape { display: grid; gap: 0.5rem; }
+                .evaluation-likert-track { display: flex; width: 100%; min-height: 42px; overflow: hidden; border: 1px solid #111; background: #fff; }
+                .evaluation-likert-segment { min-width: 0; display: grid; place-items: center; padding: 0.25rem 0.1rem; color: #111; font-size: 12px; font-weight: 700; text-align: center; border-right: 1px solid rgba(17,17,17,.22); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+                .evaluation-likert-segment:last-child { border-right: 0; }
+                .evaluation-likert-segment span { display: block; line-height: 1.1; }
+                .evaluation-likert-segment.is-empty span { visibility: hidden; }
+                .evaluation-likert-legend { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.2rem 0.35rem; }
+                .evaluation-likert-legend-item { display: inline-flex; align-items: center; gap: 0.2rem; color: #111; font-size: 12px; }
+                .evaluation-likert-swatch { width: 0.55rem; height: 0.55rem; border: 1px solid #111; background: var(--likert-color); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+                .evaluation-likert-summary { margin: 0; color: #111; font-size: 12px; text-align: center; }
+                .evaluation-category-graph-total { display: flex; justify-content: space-between; gap: 1rem; padding-top: 0.35rem; border-top: 1px solid #111; font-size: 13px; font-weight: 700; }
+                .evaluation-category-table-wrap { width: 100%; overflow: visible; break-inside: avoid; page-break-inside: avoid; }
+                .evaluation-category-table { width: 100% !important; max-width: none !important; border-collapse: collapse; background: #fff !important; color: #000 !important; font-family: "Times New Roman", Times, serif; font-size: 12px !important; line-height: 1.1; }
+                .evaluation-category-table th, .evaluation-category-table td { background: #fff !important; color: #000 !important; }
+                .evaluation-range-note { margin: 0.9rem 0 0; color: #111; font-size: 12px; line-height: 1.3; }
+            `;
+        }
+
+        async function printEvaluationResultsFromFrame(payload) {
+            const paper = selectedEvaluationExportPaper();
+            const html = buildEvaluationResultsExport(payload);
+            const frame = document.createElement('iframe');
+            frame.title = 'Evaluation Results PDF Export';
+            frame.style.position = 'fixed';
+            frame.style.right = '0';
+            frame.style.bottom = '0';
+            frame.style.width = '1px';
+            frame.style.height = '1px';
+            frame.style.border = '0';
+            frame.style.opacity = '0';
+            document.body.appendChild(frame);
+            const printDocument = frame.contentDocument || frame.contentWindow.document;
+            printDocument.open();
+            printDocument.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Evaluation Results PDF Export</title><style>${evaluationExportPrintCss(paper)}</style></head><body>${html}</body></html>`);
+            printDocument.close();
+            await new Promise(resolve => setTimeout(resolve, 250));
+            frame.contentWindow.addEventListener('afterprint', () => frame.remove(), { once: true });
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+            setTimeout(() => {
+                if (frame.isConnected) frame.remove();
+            }, 10000);
+        }
+
+        async function openEvaluationResultsPdfExport() {
+            evaluationLastFocus = document.activeElement;
+            try {
+                if (!latestEvaluationResultsPayload) await loadEvaluationResults();
+                syncEvaluationExportPageStyle();
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = buildEvaluationResultsExport(latestEvaluationResultsPayload);
+                document.getElementById('evaluationPrintTitle').textContent = `Export PDF - ${selectedEvaluationExportPaper().label}`;
+                document.getElementById('evaluationPrintBody').replaceChildren(wrapper.firstElementChild);
+                document.getElementById('evaluationPrintOverlay').hidden = false;
+                document.body.classList.add('evaluation-print-open');
+                await waitForEvaluationExportReady();
+                await printEvaluationResultsFromFrame(latestEvaluationResultsPayload);
+                document.getElementById('evaluationPrintClose').focus();
+            } catch (error) {
+                console.error(error);
+                if (window.SyluxentUI) SyluxentUI.showError(error.message || 'Unable to prepare evaluation PDF export.');
+            }
+        }
+
         function openEvaluationPrintPreview(contentId = 'evaluationSurvey') {
             evaluationLastFocus = document.activeElement;
             const clone = document.getElementById(contentId).cloneNode(true);
             clone.removeAttribute('id');
             clone.style.pointerEvents = 'none';
+            document.getElementById('evaluationPrintTitle').textContent = 'Print Preview Summary';
             document.getElementById('evaluationPrintBody').replaceChildren(clone);
             document.getElementById('evaluationPrintOverlay').hidden = false;
             document.body.classList.add('evaluation-print-open');
@@ -1503,12 +1760,24 @@
             evaluationLastFocus?.focus();
         }
 
+        async function confirmEvaluationPrint() {
+            const printBody = document.getElementById('evaluationPrintBody');
+            if (printBody.querySelector('.evaluation-export-paper') && latestEvaluationResultsPayload) {
+                await printEvaluationResultsFromFrame(latestEvaluationResultsPayload);
+                return;
+            }
+            window.print();
+        }
+
         document.getElementById('evaluationForm').addEventListener('submit', submitEvaluationPage);
         document.getElementById('evaluationPrintButton').addEventListener('click', () => openEvaluationPrintPreview('evaluationSurvey'));
         document.getElementById('qaPrintButton').addEventListener('click', () => openEvaluationPrintPreview('testCasesPanel'));
         document.getElementById('qaDownloadButton').addEventListener('click', downloadQaCsv);
+        document.getElementById('evaluationExportPaperSize')?.addEventListener('change', syncEvaluationExportPageStyle);
+        document.getElementById('evaluationResultsExportButton')?.addEventListener('click', openEvaluationResultsPdfExport);
         document.getElementById('evaluationPrintClose').addEventListener('click', closeEvaluationPrintPreview);
         document.getElementById('evaluationPrintCancel').addEventListener('click', closeEvaluationPrintPreview);
+        document.getElementById('evaluationPrintConfirm').addEventListener('click', confirmEvaluationPrint);
         document.getElementById('evaluationPrintOverlay').addEventListener('click', event => {
             if (event.target.id === 'evaluationPrintOverlay') closeEvaluationPrintPreview();
         });

@@ -9,6 +9,7 @@ if ROOT not in sys.path:
 os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 
 from app import (  # noqa: E402
+    AuditLog,
     Client,
     Role,
     SessionRecord,
@@ -56,6 +57,18 @@ def main():
             role_name='admin',
             login_at=datetime(2026, 7, 6, 0, 3, 5),
             status='ACTIVE',
+        ))
+        db.session.add(AuditLog(
+            username='grid_admin',
+            action='CONCURRENT_DEVICE_LOGIN',
+            table_name='session_records',
+            created_at=datetime(2026, 7, 6, 0, 4, 0),
+        ))
+        db.session.add(AuditLog(
+            username='grid_admin',
+            action='PROMOTE_USER_MANAGER',
+            table_name='session_records',
+            created_at=datetime(2026, 7, 6, 0, 5, 0),
         ))
         db.session.commit()
 
@@ -115,12 +128,45 @@ def main():
             assert sessions['success'] is True
             assert sessions['grid']['rows'][0]['login_at'] == '2026-07-06T00:03:05Z'
 
+            audit_logs = client.get('/admin/audit-logs').get_json()
+            assert audit_logs['success'] is True
+            audit_row = audit_logs['logs'][0]
+            assert audit_row['action'] == 'PROMOTE_USER_MANAGER'
+            assert audit_row['table_name'] == 'session_records'
+            assert audit_row['display_action'] == 'Promoted User To Manager'
+            assert audit_row['display_table_name'] == 'Sessions'
+            concurrent_row = next(log for log in audit_logs['logs'] if log['action'] == 'CONCURRENT_DEVICE_LOGIN')
+            assert concurrent_row['display_action'] == 'Multiple Active Sessions'
+            assert concurrent_row['display_table_name'] == 'Sessions'
+
+            blocked_sql = client.post('/admin/sql-console', json={
+                'sql': 'DROP TABLE clients',
+                'dry_run': True,
+            }).get_json()
+            assert blocked_sql['success'] is False
+            assert 'Blocked SQL keyword: DROP' in blocked_sql['error']
+            assert blocked_sql['details']['type'] == 'blocked_keyword'
+            assert blocked_sql['details']['keyword'] == 'drop'
+
+            invalid_sql = client.post('/admin/sql-console', json={
+                'sql': 'SELECT missing_column FROM clients',
+                'dry_run': True,
+            }).get_json()
+            assert invalid_sql['success'] is False
+            assert invalid_sql['error'] == 'SQL execution failed.'
+            assert invalid_sql['details']['type']
+            assert 'missing_column' in invalid_sql['details']['message']
+
             with client.session_transaction() as session:
                 session['user_id'] = manager.id
                 session['username'] = manager.username
                 session['role'] = 'manager'
             denied = client.get('/admin/data-grid?table=clients')
             assert denied.status_code in {302, 403}
+
+    admin_html = open(os.path.join(ROOT, 'templates', 'admin.html'), encoding='utf-8').read()
+    assert 'display_action || log.action' in admin_html
+    assert 'display_table_name || log.table_name' in admin_html
 
     print('Admin data grid check passed.')
 

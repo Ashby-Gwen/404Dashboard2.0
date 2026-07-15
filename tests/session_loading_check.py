@@ -8,7 +8,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 
-from app import AuditLog, Client, DEVICE_COOKIE_NAME, Invoice, Role, SalesOrder, SessionRecord, User, app, db, init_db  # noqa: E402
+from app import AuditLog, Client, DEVICE_COOKIE_NAME, Invoice, Role, SalesOrder, SessionRecord, User, app, db, humanize_activity_action, init_db  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
 
@@ -84,14 +84,28 @@ def main():
         )
         assert second_login.status_code == 302
 
+        session_records = SessionRecord.query.filter_by(user_id=accounting.id).order_by(SessionRecord.id.asc()).all()
+        assert len(session_records) == 2
+        old_session, new_session = session_records
+        assert old_session.device_id
+        assert new_session.device_id
+        assert old_session.device_id != new_session.device_id
+        assert old_session.status == 'FORCED_LOGOUT'
+        assert old_session.logout_at is not None
+        assert new_session.status == 'ACTIVE'
+        assert new_session.device_label == 'Chrome on Windows'
+        assert new_session.concurrent_note == 'Multiple active sessions: previous session signed out automatically.'
         active_sessions = SessionRecord.query.filter_by(user_id=accounting.id, status='ACTIVE').order_by(SessionRecord.id.asc()).all()
-        assert len(active_sessions) == 2
-        assert active_sessions[0].device_id
-        assert active_sessions[1].device_id
-        assert active_sessions[0].device_id != active_sessions[1].device_id
-        assert active_sessions[1].device_label == 'Chrome on Windows'
-        assert active_sessions[1].concurrent_note == '1 other active device session(s) detected.'
-        assert AuditLog.query.filter_by(action='CONCURRENT_DEVICE_LOGIN', record_id=str(active_sessions[1].id)).first() is not None
+        assert active_sessions == [new_session]
+        concurrent_audit = AuditLog.query.filter_by(action='CONCURRENT_DEVICE_LOGIN', record_id=str(new_session.id)).first()
+        assert concurrent_audit is not None
+        assert humanize_activity_action(concurrent_audit.action) == 'Multiple Active Sessions'
+
+        old_browser_response = first_device.get('/dashboard')
+        assert old_browser_response.status_code == 302
+        assert '/login' in old_browser_response.headers['Location']
+        with first_device.session_transaction() as old_browser_session:
+            assert 'user_id' not in old_browser_session
 
         with second_device.session_transaction() as active_session:
             active_session['last_activity_at'] = datetime.now(UTC).isoformat()
@@ -117,17 +131,8 @@ def main():
         )
         assert timeout_response.status_code == 401
         assert 'timed out' in timeout_response.get_json()['error']
-        db.session.refresh(active_sessions[1])
-        assert active_sessions[1].status == 'TIMED_OUT'
-
-        first_session_id = active_sessions[0].id
-        with first_device.session_transaction() as stale_page_session:
-            stale_page_session['last_activity_at'] = (datetime.now(UTC) - timedelta(minutes=6)).isoformat()
-        page_timeout = first_device.get('/dashboard')
-        assert page_timeout.status_code == 302
-        assert '/login' in page_timeout.headers['Location']
-        first_record = db.session.get(SessionRecord, first_session_id)
-        assert first_record.status == 'TIMED_OUT'
+        db.session.refresh(new_session)
+        assert new_session.status == 'TIMED_OUT'
 
         with app.test_client() as accounting_client:
             with accounting_client.session_transaction() as session:

@@ -17,17 +17,21 @@ def read(path):
 
 def main():
     styles = read(os.path.join('static', 'css', 'styles.css'))
-    analytics = read(os.path.join('templates', 'analytics.html'))
+    analytics_template = read(os.path.join('templates', 'analytics.html'))
+    analytics_css = read(os.path.join('static', 'css', 'analytics-layout.css'))
+    analytics = analytics_template + '\n' + analytics_css
     app_source = read('app.py')
     evaluation = read(os.path.join('templates', 'evaluation.html'))
     admin = read(os.path.join('templates', 'admin.html'))
     invoices = read(os.path.join('templates', 'invoices.html'))
+    reports = read(os.path.join('templates', 'reports.html'))
     sales_order = read(os.path.join('templates', 'sales_order.html'))
     expenses = read(os.path.join('templates', 'purchase_orders.html'))
     generated_theme = build_theme_css(default_theme_settings())
 
     assert '--ui-control-height: 44px' in styles
     assert 'input[type="checkbox"]' in styles
+    assert 'input[type="checkbox"]:checked' in styles
     assert 'width: 20px !important' in styles
     assert '.form-grid-3col' in styles
     assert '.button-group-responsive' in styles
@@ -53,6 +57,9 @@ def main():
     assert 'white-space: nowrap !important' in styles
     assert '.invoice-history-table .invoice-summary-cell' in styles
     assert '.sales-workflow-tabs' in styles
+    assert 'Auto-Generated SO No.' in sales_order
+    assert 'id="field-generatedSoYear"' in sales_order
+    assert 'so_generation_year: generatedSoYear' in sales_order
     assert '.evaluation-page-header' in styles
     assert '.report-filter' in styles
     assert '.table-wrap table' in styles
@@ -80,6 +87,14 @@ def main():
     assert 'display: revert !important' in styles
     assert '.auth-card' in styles
 
+    assert "filename='css/analytics-layout.css'" in analytics_template
+    assert '<style>' not in analytics_template
+    assert '</style>' not in analytics_template
+    assert '/* --- 1. Core Dashboard Layout & Shell --- */' in analytics_css
+    assert '/* --- 2. Interactive & Morph Cards --- */' in analytics_css
+    assert '/* --- 3. Data Tables & Scroll Containers --- */' in analytics_css
+    assert '/* --- 4. Chart Aspect Ratios & Containers --- */' in analytics_css
+    assert '/* --- 5. Print Preview & Print Output Media Queries --- */' in analytics_css
     assert '.recommendation-list' in analytics
     assert '.recommendation-row-metrics' in analytics
     assert '.recommendation-primary-action' in analytics
@@ -94,8 +109,66 @@ def main():
     assert '.recommendation-modal .table-wrap' in analytics
     assert '.recommendation-modal .data-table' in analytics
     assert '.analytics-story-header' in analytics
-    assert '.analytics-purpose-line' in analytics
-    assert '.analytics-key-answer' in analytics
+    assert '@page' in analytics
+    assert 'size: letter landscape' in analytics
+    assert 'analyticsPrintPaperSize' in analytics
+    assert 'analyticsPrintMargin' in analytics
+    assert 'analytics-page-cutoff-guide' in analytics
+    assert 'analytics-print-page-break-before' in analytics
+    assert 'repaginateAnalyticsPrintComponents' in analytics
+    assert 'renderAnalyticsPrintPreviewContent' in analytics
+    assert "baseURL + '/overview/revenue-report'" in analytics
+    assert "['month', 'revenue', 'growth rate', 'top client', 'top client revenue']" in analytics
+    assert 'syluxent-inc-${year}-revenue-report-${analyticsCsvTimestamp()}.csv' in analytics
+    assert '404-dashboard-analytics-${activeAnalyticsSection}' not in analytics
+    assert 'analytics-overview-print-summary-only' in analytics
+    assert 'analytics-overview-print-one-page' in analytics
+    assert "printLayout = 'one-page-landscape'" in analytics
+    assert "printPreviewSource = 'analytics-section-overview'" in analytics
+    assert "printPreviewMode = 'summary-only'" in analytics
+    assert '.analytics-paper .analytics-section.overview>.analytics-story-header' in analytics
+    assert 'border-bottom: 2pt solid #CBD5E1' in analytics
+    assert '.analytics-paper .analytics-section.overview>.overview-asymmetric-layout.overview-morph-grid' in analytics
+    assert '.analytics-paper .analytics-overview-print-one-page>.analytics-story-header' in analytics
+    assert 'grid-template-columns: minmax(0, 1fr) auto !important;' in analytics
+    assert '.analytics-paper .analytics-overview-print-one-page .analytics-story-heading' in analytics
+    assert 'flex-wrap: nowrap !important;' in analytics
+    assert '.analytics-paper .analytics-overview-print-one-page .analytics-story-logo-box' in analytics
+    assert 'width: 42mm !important;' in analytics
+    assert 'min-width: 42mm !important;' in analytics
+    assert 'justify-self: end !important;' in analytics
+    assert '.analytics-paper .analytics-overview-print-one-page>.overview-asymmetric-layout.overview-morph-grid' in analytics
+    assert 'grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) !important;' in analytics
+    assert '.analytics-paper .analytics-overview-print-one-page .overview-left-column' in analytics
+    assert '.analytics-paper .analytics-overview-print-one-page .overview-main-panel' in analytics
+    assert '.analytics-paper .analytics-overview-print-one-page .overview-tier-panel' in analytics
+    assert 'border-right: 0 !important;' in analytics
+    assert 'folio-landscape' in analytics
+    assert "pageSize: '330mm 216mm'" in analytics
+    assert 'Folio Landscape (8.5 x 13)' in analytics
+    assert 'Legal Landscape' not in analytics
+    assert '.analytics-print-content' in analytics
+    assert '.analytics-print-chart-block' in analytics
+    assert 'min-height: auto;' in analytics
+    assert 'max-height: 46mm !important;' in analytics
+    assert 'max-height: 43mm !important;' in analytics
+    assert 'grid-template-columns: 1fr !important' in analytics
+    assert 'display: table-header-group;' in analytics
+    assert 'style="margin-top:16pt;"' not in analytics
+    assert '.analytics-story-heading' in analytics
+    assert '.analytics-story-title' in analytics
+    assert '.analytics-story-year-pill' in analytics
+    assert '.analytics-story-subtitle' in analytics
+    assert '.analytics-story-logo-box' in analytics
+    assert 'background: transparent;' in analytics
+    assert 'max-width: 250px;' in analytics
+    assert 'max-height: 74px;' in analytics
+    assert 'Sales Orders Analysis' in analytics
+    assert 'Revenue Analysis' not in analytics
+    assert 'Monitor Sales Order trends, product distribution, and client health scores to optimize sales performance.' in analytics
+    assert "filename='images/logo/syluxent-logo.jpg'" in analytics
+    assert '[ Company Logo ]' in analytics
+    assert "const selectedYear = document.getElementById('analyticsYear')?.value" in analytics
     assert '.analytics-story-map' in analytics
     assert '.analytics-story-map-row' in analytics
     assert '.analytics-takeaway' in analytics
@@ -173,20 +246,86 @@ def main():
     assert 'buildOverviewSalesOrderTrend' in analytics
     assert 'sales_order_trend' in analytics
     assert "latest_data_source: 'Sales Order'" in analytics
+    assert "dateField: 'date'" in reports
+    assert "{ key: 'so_number', label: 'SO Number' }" in reports
+    assert "{ key: 'sales_order_value', label: 'Sales Order Value', type: 'currency' }" in reports
+    assert "amountField: 'sales_order_value'" in reports
+    assert "Sales Order Revenue" in reports
+    assert "Sales Order Rows" in reports
+    assert "Actual Paid Revenue" not in reports
+    assert "Paid Invoice Rows" not in reports
     assert 'overviewClientsWithZScores' in analytics
     assert 'overviewMorphBody' in analytics
-    assert 'overviewLatestActualForecastPoints' in analytics
+    assert 'overviewForecastChartActualPoints' in analytics
     assert 'overviewMorphShortMonthLabel' in analytics
     assert '.slice(-12)' in analytics
     assert 'overviewSignedForecastTotal' in analytics
     assert 'overviewValueWithNegativeSign' in analytics
-    assert 'const latestActualIndex = Math.min(Math.max(Number(tierData.latestIndex || 0), 0), Math.max(baseLabels.length - 1, 0))' in analytics
+    assert 'overviewForecastValueWithIndicator' in analytics
+    assert 'overviewForecastVarianceSentence' in analytics
+    assert '.overview-forecast-mini-grid' in analytics
+    assert '.overview-forecast-mini-card' in analytics
+    assert '.overview-forecast-mini-label' in analytics
+    assert '.overview-forecast-mini-value' in analytics
+    assert '.overview-forecast-mini-note' in analytics
+    assert '.overview-morph-card[data-overview-card="overview-revenue-summary"].is-expanded' in analytics
+    assert 'overflow: hidden;' in analytics
+    assert 'height: 100%;' in analytics
+    assert 'overview-back-arrow' in analytics
+    assert 'font-size: 1.45rem;' in analytics
+    assert 'color: var(--brand-orange, #F97316) !important;' in analytics
+    assert "card?.dataset?.overviewCard === 'overview-revenue-summary'" in analytics
+    assert "card.closest('.analytics-section.overview')" in analytics
+    assert 'grid-template-columns:minmax(280px,390px) minmax(0,1fr)' in analytics
+    assert 'border-radius:16px' in analytics
+    assert 'box-shadow:0 12px 24px rgba(15,23,42,0.06)' in analytics
+    assert 'min-height:150px' in analytics
+    assert 'grid-template-columns: 1fr !important;' in analytics
+    assert 'grid-template-columns: 1fr !important' in analytics
+    assert 'Actual ${overviewStoryHighlight' in analytics
+    assert 'Forecast &amp; Variance Analysis' in analytics
+    assert 'Forecasted Revenue' in analytics
+    assert 'Final Forecast Revenue' in analytics
+    assert 'Forecast Variance' not in analytics
+    assert 'Next ${horizon} month(s)' in analytics
+    assert 'vs latest month' in analytics
+    assert 'const finalForecastRevenueText = formatCurrency(finalForecastRevenue, { maximumFractionDigits: 0 })' in analytics
+    assert 'const finalForecastPercentText = formatSignedPercent(deltaPercent)' in analytics
+    assert 'font-size:0.78em;font-weight:600;' in analytics
+    assert 'aria-hidden="true" style="display:inline-grid;place-items:center' in analytics
+    assert '<span class="${deltaClass}" style="font-weight:800;">${percent}%</span>' in analytics
+    assert '<strong style="color:#0f172a;font-weight:900;">${finalRevenue}</strong>' in analytics
+    assert 'The final forecast revenue is ${revenueText}, which is ${percentText} lower than the latest actual month' in analytics
+    assert 'The final forecast revenue is ${revenueText}, which is ${percentText} higher than the latest actual month' in analytics
+    assert 'The final forecast revenue is unchanged from the latest actual month' in analytics
+    assert 'const actualTotal = actualPoints.reduce' in analytics
+    assert 'const forecastEndDelta = finalForecastRevenue - latestActualRevenue' in analytics
+    assert 'Showing ${escapeHtml(data?.label || \'the selected view\')} with <strong style="color:#111827;">3 forecast data points</strong>' in analytics
+    assert 'Target Achievement' not in analytics
+    assert 'Chart Troubleshooting' not in analytics
+    assert 'Solver Hub' not in analytics
+    assert "view.value = 'yearly'" in analytics
+    assert 'overviewMorphForecastView' in analytics
+    assert '<option value="yearly">Yearly</option>' in analytics
+    assert '<option value="quarterly">Quarterly</option>' in analytics
+    assert '<option value="monthly">Monthly</option>' in analytics
+    assert 'overviewMorphForecastQuarterField' in analytics
+    assert 'overviewMorphForecastMonthField' in analytics
+    assert '<option value="1">Q1 (Jan-Mar)</option>' in analytics
+    assert '<option value="12">Dec</option>' in analytics
+    assert 'queueOverviewRevenueForecastDrilldown' in analytics
+    assert 'overviewRevenueForecastHoverTimer' in analytics
+    assert "baseURL + '/overview/trend-drilldown'" in analytics
+    assert 'forecast_points' in analytics
+    assert 'overviewMorphMonthYearLabel' in analytics
+    assert 'const baseLabels = actualPoints.map(point => point.label)' in analytics
+    assert 'const latestActualIndex = Math.max(currentBaseValues.length - 1, 0)' in analytics
     assert 'const finalForecastIndex = labels.length - 1' in analytics
-    assert 'const signedForecastLabel = overviewSignedForecastTotal(forecastTotal, forecastDelta)' in analytics
+    assert 'const finalForecastRevenue = forecastPoints.length ? Number(forecastPoints[forecastPoints.length - 1].revenue || 0) : 0' in analytics
+    assert 'const signedForecastLabel = `${formatCurrency(finalForecastRevenue, { maximumFractionDigits: 0 })} (${formatSignedPercent(forecastEndDeltaPercent)})`' in analytics
     assert "const negativeForecastColor = '#dc6b6b'" in analytics
     assert 'const forecastBoundaryIndex = baseLabels.length' in analytics
     assert "ctx.strokeStyle = '#cbd5e1'" in analytics
-    assert "latestActualDate?.getMonth() === 11 ? String(latestActualDate.getFullYear() + 1) : ''" in analytics
     assert 'const labelWidth = ctx.measureText(signedForecastLabel).width' in analytics
     assert 'chartArea.right - labelWidth / 2 - 4' in analytics
     assert '_context.dataIndex === latestActualIndex ? 4 : 0' in analytics
@@ -205,22 +344,14 @@ def main():
     assert 'handleOverviewMorphKeydown' in analytics
     assert 'Back to Executive Grid' in analytics
     assert 'Descriptive' not in analytics
-    assert 'Predictive' not in analytics
     assert 'Prescriptive' not in analytics
-    assert "the ${overviewStoryHighlight('Revenue')} Generated" in analytics
-    assert 'Forecasted ${overviewStoryHighlight' in analytics
-    assert 'forecast <strong style="color:#111827;">Accuracy</strong> of' in analytics
-    assert 'overviewMorphForecastScope' in analytics
-    assert '<option value="all">All data</option>' in analytics
-    assert '<option value="year">Specific year</option>' in analytics
-    assert 'overviewMorphForecastMonths' in analytics
-    assert '<option value="3">3 months</option>' in analytics
-    assert '<option value="6">6 months</option>' in analytics
-    assert '<option value="12">12 months</option>' in analytics
+    assert 'Sales Performance vs Predictive Forecast' in analytics
+    assert "Actual ${overviewStoryHighlight('Revenue')} Generated" in analytics
+    assert 'Forecast &amp; Variance Analysis' in analytics
+    assert 'overviewMorphForecastScope' not in analytics
+    assert '3 forecast data points' in analytics
     assert 'Holt-Winters Forecast' in analytics
-    assert "label: `${tierData.previousYear || 'Previous Year'} Sales Order Revenue`" in analytics
-    assert "label: `${tierData.latestYear || 'Selected Year'} Sales Order Revenue`" in analytics
-    assert "params.forecast_scope = 'all'" in analytics
+    assert "label: `${payload.selected_year || 'Selected Year'} Actual Revenue`" in analytics
     assert 'forecast_scope' in analytics
     assert 'Peak sale' in analytics
     assert 'overviewStoreNameOnly' in analytics
@@ -235,6 +366,12 @@ def main():
     assert "ticks: { callback: value => Number(value) === 0 ? '0%' : '' }" in analytics
     assert 'Top 5 clients driving revenue increase' in analytics
     assert 'Top 5 clients driving revenue decrease' in analytics
+    assert 'overviewTopGainClientRows' in analytics
+    assert 'overviewForecastRowsByTopGainClients' in analytics
+    assert 'payload.client_forecast_lookup' in analytics
+    assert 'overviewRecommendationRowsByTopGainClients' in analytics
+    assert 'payload.purchase_recommendation_lookup' in analytics
+    assert 'driver_row: driverRow' in analytics
     assert 'Recommendation' in analytics
     assert 'overviewMorphRevenueForecastChart' in analytics
     assert 'overviewMorphYearTrendChart' in analytics
@@ -278,7 +415,18 @@ def main():
     assert 'Month-on-Month Sales Order Revenue % Change' in analytics
     assert 'Year-on-Year Sales Order Revenue % Change' in analytics
     assert 'Sales Order value by order date' in analytics
-    assert '... and the trend of' in analytics
+    assert 'Sales Order Revenue Trend:' in analytics
+    assert 'overviewTrendDrilldownMode' in analytics
+    assert 'overviewTrendDrilldownYear' in analytics
+    assert 'overviewTrendDrilldownQuarter' in analytics
+    assert 'overviewTrendDrilldownMonth' in analytics
+    assert 'Q1 (Jan-Mar)' in analytics
+    assert "baseURL + '/overview/trend-drilldown'" in analytics
+    assert 'refreshOverviewTrendDrilldown' in analytics
+    assert 'renderOverviewTrendDrilldownChart' in analytics
+    assert 'overviewTrendHoverHint' in analytics
+    assert 'YoY delta:' in analytics
+    assert '/api/analytics/overview/trend-drilldown' in app_source
     assert 'overviewMonthAxisLabel' in analytics
     assert 'parseOverviewMonthLabel(label) || parseForecastPeriod(label)' in analytics
     assert 'const parsed = parseOverviewMonthLabel(label) || parseForecastPeriod(label)' in analytics
@@ -297,6 +445,11 @@ def main():
     assert 'overviewCategoryMomentumChart' in analytics
     assert analytics.count('border: { display: true }') >= 4
     assert '...where these 5 clients drive the <span class="overview-delta-increase">increase</span> and <span class="overview-delta-decrease">decrease</span> in revenue.' in analytics
+    assert 'Sales Order revenue delta' in analytics
+    assert 'previousByClient' in analytics
+    assert 'const previousClientRevenue = Number(previousByClient[clientKey] || 0)' in analytics
+    assert 'delta: revenue - previousClientRevenue' in analytics
+    assert 'Avg Growth' not in analytics
     assert 'Product Category Manager' in analytics
     assert 'loadProductCategoryManager' in analytics
     assert 'saveProductCategories' in analytics
@@ -322,7 +475,9 @@ def main():
     assert 'Largest particulars reveal where spending is concentrated' in analytics
     assert 'Forecast quality comes first, then product, period, and item details explain the sales plan.' in analytics
     assert 'Forecasted Sales Order value needs stock planning review' in analytics
-    assert 'Expected Sales Orders' in analytics
+    assert 'Revenue Generated' in analytics
+    assert 'Forecasted Total Revenue' in analytics
+    assert 'Forecast End' in analytics
     assert 'When do we experience peak demand?' in analytics
     assert 'Which products drive booked revenue?' in analytics
     assert 'Item-level demand forecast' in analytics
@@ -342,6 +497,13 @@ def main():
     assert 'Rule-based recommendations convert analytics signals into manager actions' in analytics
     assert 'Revenue Forecast' in analytics
     assert 'revenueForecastChart' in analytics
+    assert 'analyticsLineHoverGuide' in analytics
+    assert 'analyticsChartHasLineDataset' in analytics
+    assert "mode: 'index'" in analytics
+    assert 'ctx.roundRect' in analytics
+    assert 'revenueForecastSummary' in analytics
+    assert 'forecastEndDeltaPercent' in analytics
+    assert 'End change vs latest actual' in analytics
     assert 'Top ${productDisplayLimit} products ranked by Sales Order value' in analytics
     assert 'productContributionSummary' in analytics
     assert 'item: \'Other\'' not in analytics
@@ -379,12 +541,60 @@ def main():
     assert 'buildProductContributionInsights' in analytics
     assert 'buildPeakPeriodInsights' in analytics
     assert 'buildItemForecastInsights' in analytics
-    assert analytics.count('analytics-graph-section"') == 3
+    assert analytics.count('analytics-graph-section"') == 4
     assert analytics.count('analytics-table-section') == 1
     assert 'data-analytics-graph="revenue-forecast"' in analytics
     assert 'data-analytics-graph="product-contributions"' in analytics
     assert 'data-analytics-graph="peak-sales-periods"' in analytics
+    assert 'data-analytics-graph="client-forecasting"' in analytics
     assert 'data-analytics-graph="item-forecasts"' in analytics
+    assert 'client_forecasting' in analytics
+    assert 'renderClientForecastingSection' in analytics
+    assert 'client-forecast-toggle' in analytics
+    assert 'data-client-category' in analytics
+    assert 'setRevenueClientCategory' in analytics
+    assert 'clientCategoryTrendChart' in analytics
+    assert 'clientCategoryForecastChart' in analytics
+    assert 'clientForecastChart${index}' in analytics
+    assert 'overviewMorphClientCategoryTrendForecastChart' in analytics
+    assert 'overviewMorphClientCategoryTrendChart' not in analytics
+    assert 'overviewMorphClientCategoryForecastChart' not in analytics
+    assert 'overviewMorphTopClientForecastGrid' in analytics
+    assert 'overviewMorphTopClientRecommendations' in analytics
+    assert 'overviewMorphTopClientForecastChart${index}' in analytics
+    assert 'overview-client-graph-toggle' in analytics
+    assert 'overviewMorphTopClientForecastToggle' in analytics
+    assert 'toggleOverviewClientForecastGrid' in analytics
+    assert 'Graphs <span aria-hidden="true">↓</span>' in analytics
+    assert "nextExpanded ? '↑' : '↓'" in analytics
+    assert 'Graphs <span aria-hidden="true">&darr;</span>' in analytics
+    assert "nextExpanded ? '&uarr;' : '&darr;'" in analytics
+    assert 'overviewMorphTopClientForecastPanel${index}' in analytics
+    assert 'id="overviewMorphTopClientForecastGrid" class="client-forecast-list" hidden' in analytics
+    assert 'class="overview-client-graph-body" hidden' in analytics
+    assert '.overview-client-graph-card .overview-client-graph-toggle' in analytics
+    assert 'setOverviewClientForecastCategory' not in analytics
+    assert 'data-overview-client-category' not in analytics
+    assert 'renderOverviewClientForecastMorphCharts' in analytics
+    assert 'renderOverviewTopClientForecastMorph' in analytics
+    assert 'Client Category Trend and Forecast' in analytics
+    assert 'Top 5 clients driving revenue increase Trend and Forecast' in analytics
+    assert 'Top 5 Client Forecast Behavior' not in analytics
+    assert 'Next 3 Months Product Recommendations' in analytics
+    assert 'Click to see one combined category trend with dashed 3-month forecasts.' in analytics
+    assert "label: `${category} actual`" in analytics
+    assert "label: `${category} forecast`" in analytics
+    assert 'borderDash: [5, 4]' in analytics
+    assert 'overviewMorphMonthYearLabel(period)' in analytics
+    assert 'Click to see one forecast chart per top Store Name plus product confidence signals.' in analytics
+    assert 'client-purchase-strip' in analytics
+    assert 'confidence_score' in analytics
+    assert 'Peak month' in analytics
+    assert "label: 'Peak month'" in analytics
+    assert '% forecast confidence' in analytics
+    assert 'Expandable Store Name forecasts use confidence scores, not accuracy claims.' in analytics
+    assert 'Limited to top 5 for speed.' in analytics
+    assert 'Up to 3 per Store Name.' in analytics
     assert 'analytics-chart-frame-tall' in analytics
     assert 'analytics-chart-frame-compact' in analytics
     assert 'Top ${productDisplayLimit} products ranked by Sales Order value' in analytics
@@ -402,8 +612,31 @@ def main():
     assert 'No recommendations match the selected severity and Store Name.' in analytics
     assert 'analyticsToolsDrawer' in analytics
     assert 'openAnalyticsTools' in analytics
-    assert 'Generate Analytics Report' in analytics
+    assert 'analyticsToolsButton' not in analytics
+    assert 'Generate Analytics Ledger' in analytics
+    assert 'Generate Analytics Report' not in analytics
+    assert "fetch(baseURL + '/generate', { method: 'POST' })" in analytics
+    assert 'Recalculating...' in analytics
+    assert 'analytics-ledger-action' in analytics
     assert 'Upload Historical CSV/Excel' in analytics
+    assert '.analytics-context-visually-hidden' in analytics
+    assert 'toolbar-surface analytics-context-visually-hidden' in analytics
+    assert 'Reporting context remains in the DOM for export/print' in analytics
+    assert '<button class="analytics-tab active" data-section="overview">Overview</button>' in analytics
+    assert 'Legacy Analytics sections are intentionally unused. Keep hidden to avoid accidental future revisions; Overview is the active Analytics surface.' in analytics
+    assert 'data-unused-analytics-section="clients"' in analytics
+    assert 'data-unused-analytics-section="expenses"' in analytics
+    assert 'data-unused-analytics-section="sales"' in analytics
+    assert 'data-unused-analytics-section="recommendations"' in analytics
+    assert 'data-section="clients"' not in analytics
+    assert 'data-section="expenses"' not in analytics
+    assert 'data-section="sales"' not in analytics
+    assert 'data-section="recommendations"' not in analytics
+    assert "const unusedAnalyticsSections = new Set(['clients', 'expenses', 'sales', 'recommendations'])" in analytics
+    assert "const activeAnalyticsSections = new Set(['overview'])" in analytics
+    assert 'function normalizeAnalyticsSection(section)' in analytics
+    assert 'if (unusedAnalyticsSections.has(requestedSection)) return \'overview\';' in analytics
+    assert 'section = normalizeAnalyticsSection(section);' in analytics
     assert 'data-section="evaluation"' not in analytics
     assert 'class="analytics-row-stack"' in analytics
     assert 'class="analytics-flow-row"' in analytics
@@ -420,6 +653,29 @@ def main():
     assert 'id="questionnairePanel"' in evaluation
     assert 'id="questionnaireResultsPanel"' in evaluation
     assert 'Questionnaire Results' in evaluation
+    assert 'id="evaluationResultsExportButton"' in evaluation
+    assert 'Export PDF' in evaluation
+    assert 'id="evaluationExportPaperSize"' in evaluation
+    assert 'A4 Portrait (210mm x 297mm)' in evaluation
+    assert 'Long Bond Portrait (216mm x 330mm)' in evaluation
+    assert 'Short Bond Portrait (216mm x 279mm)' in evaluation
+    assert "'long-bond-portrait': { label: 'Long Bond Portrait', width: 216, height: 330, pageSize: '216mm 330mm' }" in evaluation
+    assert "'short-bond-portrait': { label: 'Short Bond Portrait', width: 216, height: 279, pageSize: 'letter portrait' }" in evaluation
+    assert 'function syncEvaluationExportPageStyle()' in evaluation
+    assert '@page { size: ${paper.pageSize}; margin: 12mm; }' in evaluation
+    assert 'function buildEvaluationResultsExport(payload)' in evaluation
+    assert 'function evaluationExportPrintCss(paper)' in evaluation
+    assert 'async function printEvaluationResultsFromFrame(payload)' in evaluation
+    assert "frame.contentWindow.print();" in evaluation
+    assert "frame.title = 'Evaluation Results PDF Export';" in evaluation
+    assert "frame.style.width = '1px';" in evaluation
+    assert "frame.contentWindow.addEventListener('afterprint', () => frame.remove(), { once: true });" in evaluation
+    assert 'id="evaluationPrintConfirm"' in evaluation
+    assert 'async function confirmEvaluationPrint()' in evaluation
+    assert "document.getElementById('evaluationPrintConfirm').addEventListener('click', confirmEvaluationPrint);" in evaluation
+    export_builder = evaluation.split('function buildEvaluationResultsExport(payload)', 1)[1].split('async function waitForEvaluationExportReady()', 1)[0]
+    assert 'Recent Feedback' not in export_builder
+    assert export_builder.index('renderEvaluationCategoryGraph(category)') < export_builder.index('renderEvaluationCategoryTable(category, { copyAction: false })')
     assert 'id="testCasesPanel"' in evaluation
     assert 'font-family: "Times New Roman", Times, serif' in evaluation
     assert 'font-size: 14px' in evaluation
@@ -480,6 +736,8 @@ def main():
     assert 'downloadQaCsv' in evaluation
     assert 'Screenshot Filename' in evaluation
     assert '#adminTabs' in admin
+    assert 'id="advancedToolsDetails"' in admin
+    assert 'function closeAdvancedPanes()' in admin
     assert 'overflow-x: auto' in admin
     assert '-webkit-overflow-scrolling: touch' in admin
     assert 'min-width: 820px' in admin
@@ -487,6 +745,7 @@ def main():
     assert 'overflow-wrap: anywhere' in admin
     assert '@media (max-width: 700px)' in analytics
     assert 'input[type="checkbox"]' in generated_theme
+    assert 'input[type="checkbox"]:checked' in generated_theme
     assert 'min-height: 44px !important' in generated_theme
     assert 'padding: 16px !important' in generated_theme
     assert '--ui-font-page-title: clamp(1.4rem, 1.8vw, 1.8rem)' in generated_theme
@@ -496,6 +755,11 @@ def main():
     assert '--glass-shadow: none' in generated_theme
     assert '--card-shadow: none' in generated_theme
     assert 'id="tax2307Checked"' in invoices
+    assert '<option value="INSTALLMENT" disabled>Installment</option>' in invoices
+    assert '<option value="FINAL" disabled>Final Payment</option>' in invoices
+    assert 'function paymentScheduleFromReceipts(invoice, receipts)' in invoices
+    assert 'function applyReceiptPaymentState(invoice, receipts)' in invoices
+    assert 'Installment ${schedule.nextPaymentNumber}' in invoices
     assert 'class="invoice-table history-fit-table invoice-history-table"' in invoices
     assert sales_order.count('id="field-companyName"') == 1
     assert sales_order.count('id="salesOrderFormPanel"') == 1

@@ -47,8 +47,8 @@ The SQLAlchemy models define 17 runtime tables, including `system_settings`. Loc
 
 For Supabase, review and apply:
 
-- `docs/supabase_defense_readiness_migration.sql`
-- Other dated migration files under `docs/` when upgrading an older deployment
+- `docs/database/supabase_defense_readiness_migration.sql`
+- Other dated migration files under `docs/database/` when upgrading an older deployment
 
 Always back up the target database before applying a migration.
 
@@ -81,7 +81,7 @@ Default demo accounts are not created unless the corresponding password environm
 
 ## Production Deployment
 
-`render.yaml` defines the Render service and Gunicorn start command. Follow [docs/deployment.md](docs/deployment.md) for GitHub, Render, Supabase, rollback, and post-deployment checks.
+`render.yaml` defines the Render service and Gunicorn start command. Follow [docs/deployment/deployment.md](docs/deployment/deployment.md) for GitHub, Render, Supabase, rollback, and post-deployment checks.
 
 Do not deploy production with SQLite. Render local files are not durable business storage.
 
@@ -101,7 +101,7 @@ Important focused checks include:
 - `tests/render_multi_user_check.py`
 - `tests/analytics_objectives_check.py`
 
-See [SYSTEM_CHECK_REPORT_2026-06-18.md](SYSTEM_CHECK_REPORT_2026-06-18.md) for the latest audit and revision status.
+See [docs/audits/SYSTEM_CHECK_REPORT_2026-06-18.md](docs/audits/SYSTEM_CHECK_REPORT_2026-06-18.md) for the latest audit and revision status.
 
 ## Security and Remaining Work
 
@@ -111,8 +111,10 @@ CSRF protection and login throttling remain release-hardening work. Database-lev
 
 ## Documentation
 
-- [System ERD](SYSTEM_ERD.md)
-- [Latest System Check](SYSTEM_CHECK_REPORT_2026-06-18.md)
-- [System Test Analysis](docs/SYSTEM_TEST_ANALYSIS.md)
-- [Demo Outline and Script](docs/DEMO_OUTLINE_AND_SCRIPT.md)
-- [Deployment Guide](docs/deployment.md)
+- [Documentation Index](docs/README.md)
+- [Python Analytics Documentation](docs/analytics/PYTHON_ANALYTICS_DOCUMENTATION.md)
+- [System ERD](docs/architecture/SYSTEM_ERD.md)
+- [Latest System Check](docs/audits/SYSTEM_CHECK_REPORT_2026-06-18.md)
+- [System Test Analysis](docs/testing/SYSTEM_TEST_ANALYSIS.md)
+- [Demo Outline and Script](docs/capstone-package/DEMO_OUTLINE_AND_SCRIPT.md)
+- [Deployment Guide](docs/deployment/deployment.md)

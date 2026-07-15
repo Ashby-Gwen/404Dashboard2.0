@@ -106,6 +106,7 @@ def main():
                 'filename': 'compiled.xlsx',
                 'rows': rows,
                 'resolutions': {},
+                'so_generation_year': 2025,
             })
             assert committed.status_code == 200, committed.get_data(as_text=True)
             result = committed.get_json()
@@ -114,7 +115,8 @@ def main():
             assert result['created_items'] == 3
 
             maritess = SalesOrder.query.filter_by(sales_staff='MARITESS BALANQUIT').one()
-            assert maritess.so_number == 'SO-001'
+            assert maritess.so_number == 'SO-2025-0001'
+            assert maritess.source_so_number == 'SO-001'
             assert maritess.store_branch == 'MULTIPLE BRANCHES'
             assert SalesOrderBranch.query.filter_by(sales_order_id=maritess.id).count() == 2
             assert SalesOrderItem.query.filter_by(sales_order_id=maritess.id).count() == 2
@@ -130,12 +132,14 @@ def main():
             assert gongcha['branches_count'] == 3
             assert set(gongcha['store_branches']) == {'SM MOA', 'SM TAYTAY', 'SM CEBU'}
 
-            duplicate = web.post('/admin/compiled-sales/commit', json={
+            duplicate_response = web.post('/admin/compiled-sales/commit', json={
                 'filename': 'compiled.xlsx',
                 'rows': rows,
                 'resolutions': {},
-            }).get_json()
-            assert duplicate['created_orders'] == 0
+                'so_generation_year': 2025,
+            })
+            assert duplicate_response.status_code == 409
+            duplicate = duplicate_response.get_json()
             assert len(duplicate['skipped_duplicates']) == 2
             assert SalesOrder.query.count() == 2
             assert SalesOrderItem.query.count() == 3

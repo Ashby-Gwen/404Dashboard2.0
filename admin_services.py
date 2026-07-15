@@ -12,6 +12,7 @@ import csv
 import io
 import json
 import os
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -30,6 +31,13 @@ TABLE_CONFIG = {
 }
 
 BLOCKED_SQL_KEYWORDS = ("drop", "alter", "attach", "detach", "pragma", "vacuum", "analyze", "reindex")
+
+
+class SafeSqlError(ValueError):
+    def __init__(self, message: str, *, code: str = "invalid_sql", keyword: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.keyword = keyword
 
 
 def _json_datetime(value: Any) -> Any:
@@ -153,10 +161,15 @@ def get_schema(db: Any) -> dict[str, Any]:
 def run_safe_sql(db: Any, sql: str, dry_run: bool = True) -> dict[str, Any]:
     statement = (sql or "").strip()
     if not statement:
-        raise ValueError("SQL query is required.")
-    lowered = statement.lower()
-    if any(keyword in lowered.split() for keyword in BLOCKED_SQL_KEYWORDS):
-        raise ValueError("Schema and maintenance commands are blocked here. Use System Maintenance for VACUUM/ANALYZE.")
+        raise SafeSqlError("SQL query is required.", code="empty_query")
+    blocked_keyword = _blocked_sql_keyword(statement)
+    if blocked_keyword:
+        raise SafeSqlError(
+            f"Blocked SQL keyword: {blocked_keyword.upper()}. Schema and maintenance commands are blocked here. "
+            "Use System Maintenance for VACUUM/ANALYZE.",
+            code="blocked_keyword",
+            keyword=blocked_keyword,
+        )
 
     result = db.session.execute(text(statement))
     rows = []
@@ -168,12 +181,19 @@ def run_safe_sql(db: Any, sql: str, dry_run: bool = True) -> dict[str, Any]:
     if dry_run:
         db.session.rollback()
     else:
-        if lowered.startswith("select"):
+        if statement.lower().startswith("select"):
             db.session.rollback()
         else:
             db.session.commit()
 
     return {"dry_run": dry_run, "columns": columns, "rows": rows, "row_count": len(rows)}
+
+
+def _blocked_sql_keyword(statement: str) -> str | None:
+    for keyword in BLOCKED_SQL_KEYWORDS:
+        if re.search(rf"\b{re.escape(keyword)}\b", statement, flags=re.IGNORECASE):
+            return keyword
+    return None
 
 
 def bulk_update_status(db: Any, models: dict[str, Any], table: str, ids: list[int], status: str) -> int:

@@ -82,7 +82,10 @@ def main():
 
             login(client, users['staff'])
             blocked_page = client.get('/evaluation')
-            assert blocked_page.status_code == 302
+            assert blocked_page.status_code == 403
+            blocked_html = blocked_page.get_data(as_text=True)
+            assert 'Access Not Allowed' in blocked_html
+            assert 'Go Home' in blocked_html
             blocked_questions = client.get('/api/evaluation/questions', headers={'Accept': 'application/json'})
             assert blocked_questions.status_code == 403
             blocked_response = client.post('/api/evaluation/responses', json={'responses': []})
@@ -91,9 +94,8 @@ def main():
             assert access_payload['can_access'] is False
             assert access_payload['evaluation_enabled'] is False
 
-            for role_name, user in users.items():
-                if role_name != 'admin':
-                    user.evaluation_enabled = True
+            for user in users.values():
+                user.evaluation_enabled = True
             db.session.commit()
 
             for role_name, user in users.items():
@@ -215,14 +217,16 @@ def main():
             login(client, users['manager'])
             assert client.get('/api/evaluation/results').status_code == 403
             login(client, users['admin'])
-            assert users['admin'].evaluation_enabled is False
+            assert users['admin'].evaluation_enabled is True
             results = client.get('/api/evaluation/results')
             assert results.status_code == 200
             results_payload = results.get_json()
             assert results_payload['filter']['period'] == 'all'
             assert results_payload['filter']['label'] == 'All responses'
             assert results_payload['overall_mean'] == 4
+            assert results_payload['interpretation'] == 'Agree'
             assert results_payload['response_count'] == 2
+            assert results_payload['categories']
             assert len(results_payload['category_tables']) == 9
             assert results_payload['category_tables'][0]['questions']
             assert results_payload['category_tables'][0]['total_weighted_mean'] == 4
@@ -235,6 +239,8 @@ def main():
                 {'label': 'IT Professional', 'count': 1, 'percentage': 50.0},
                 {'label': 'End User', 'count': 1, 'percentage': 50.0},
             ]
+            assert results_payload['respondent_role_counts']
+            assert results_payload['sessions']
 
     print('Evaluation interface checks passed.')
 

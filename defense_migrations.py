@@ -19,12 +19,17 @@ REQUIRED_COLUMNS = {
         "profile_photo_mime": "VARCHAR(80)",
         "disabled_reason": "TEXT",
         "evaluation_enabled": "BOOLEAN NOT NULL DEFAULT 0",
+        "password_updated_at": "DATETIME",
+        "password_change_required": "BOOLEAN NOT NULL DEFAULT 0",
     },
     "evaluation_sessions": {
         "user_id": "INTEGER REFERENCES users(id)",
     },
     "sales_order_items": {
         "sales_order_branch_id": "INTEGER REFERENCES sales_order_branches(id)",
+    },
+    "sales_orders": {
+        "source_so_number": "VARCHAR(50)",
     },
     "session_records": {
         "device_id": "VARCHAR(80)",
@@ -46,6 +51,8 @@ SQLITE_INDEXES = (
     "ON sales_order_items (sales_order_branch_id)",
     "CREATE INDEX IF NOT EXISTS idx_sales_orders_number_staff "
     "ON sales_orders (so_number, sales_staff)",
+    "CREATE INDEX IF NOT EXISTS idx_sales_orders_source_staff_date "
+    "ON sales_orders (source_so_number, sales_staff, order_date)",
     "CREATE INDEX IF NOT EXISTS idx_sales_order_branches_order_id "
     "ON sales_order_branches (sales_order_id)",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_order_branch_key "
@@ -203,6 +210,20 @@ def ensure_defense_schema(db: Any) -> dict[str, Any]:
                       SELECT 1 FROM collection_receipts
                       WHERE collection_receipts.invoice_id = invoices.id
                   )
+                """))
+            sales_order_columns = (
+                {
+                    column["name"]
+                    for column in inspect(connection).get_columns("sales_orders")
+                }
+                if "sales_orders" in current_tables else set()
+            )
+            if {"source_so_number", "so_number"}.issubset(sales_order_columns):
+                connection.execute(text("""
+                UPDATE sales_orders
+                SET source_so_number = so_number
+                WHERE source_so_number IS NULL
+                  AND so_number IS NOT NULL
                 """))
 
     if missing:

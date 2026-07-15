@@ -132,6 +132,25 @@ input[type="radio"] {
     accent-color: var(--orange);
 }
 
+input[type="checkbox"] {
+    border: 2px solid color-mix(in srgb, var(--orange) 65%, var(--border)) !important;
+    background-color: var(--card) !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    background-size: 14px 14px !important;
+}
+
+input[type="checkbox"]:checked {
+    border-color: var(--orange) !important;
+    background-color: var(--orange) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M4.25 10.25 8.15 14 15.75 6' stroke='white' stroke-width='2.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+}
+
+input[type="checkbox"]:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--orange) 35%, transparent) !important;
+    outline-offset: 2px;
+}
+
 .btn,
 button:not(.recommendation-card),
 .filter-btn,

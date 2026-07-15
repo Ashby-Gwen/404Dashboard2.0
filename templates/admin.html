@@ -71,6 +71,49 @@
             padding: 0 1rem 1rem;
         }
 
+        .bulk-actions-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .bulk-evaluation-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+            padding: 0.45rem;
+            border-radius: 8px;
+            background: var(--brand-orange);
+            color: #fff;
+        }
+
+        .bulk-evaluation-actions[hidden] {
+            display: none !important;
+        }
+
+        .bulk-evaluation-label {
+            padding: 0 0.25rem;
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .bulk-evaluation-actions .btn {
+            border: 0 !important;
+            background: #fff !important;
+            color: var(--text-main) !important;
+        }
+
+        .bulk-evaluation-actions .bulk-eval-enable {
+            color: #15803d !important;
+        }
+
+        .bulk-evaluation-actions .bulk-eval-disable {
+            color: #dc6b6b !important;
+        }
+
         .grid-toolbar {
             display: grid;
             grid-template-columns: 180px 1fr 160px auto auto;
@@ -380,6 +423,50 @@
             display: block;
         }
 
+        .compiled-upload-progress {
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 0.75rem;
+            background: var(--surface);
+        }
+
+        .compiled-upload-progress-copy {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            font-size: 0.9rem;
+            margin-bottom: 0.45rem;
+        }
+
+        .compiled-upload-progress-track {
+            height: 0.65rem;
+            border-radius: 999px;
+            overflow: hidden;
+            background: color-mix(in srgb, var(--brand-orange) 14%, var(--border));
+        }
+
+        .compiled-upload-progress-bar {
+            width: 0%;
+            height: 100%;
+            border-radius: inherit;
+            background: var(--brand-orange);
+            transition: width 180ms ease;
+        }
+
+        .generated-credentials-panel {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.85rem;
+            background: var(--surface);
+        }
+
+        .generated-credentials-panel code {
+            display: block;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--text-main);
+        }
+
         .compiled-exception-table input {
             min-width: 90px;
         }
@@ -644,9 +731,9 @@
             <li class="nav-item" role="presentation"><button class="nav-link" id="clientsTab" role="tab"
                     aria-controls="clientListPane" aria-selected="false" data-bs-toggle="tab" data-bs-target="#clientListPane"
                     type="button" onclick="loadAdminClientList()">Clients</button></li>
-            <li class="nav-item" role="presentation"><button class="nav-link" id="compiledSalesTab" role="tab"
+            <!-- <li class="nav-item" role="presentation"><button class="nav-link" id="compiledSalesTab" role="tab"
                     aria-controls="compiledSalesPane" aria-selected="false" data-bs-toggle="tab" data-bs-target="#compiledSalesPane"
-                    type="button">Compiled Sales Import</button></li>
+                    type="button">Compiled Sales Import</button></li> -->
             <li class="nav-item" role="presentation"><button class="nav-link" id="notificationsTab" role="tab"
                     aria-controls="notificationsPane" aria-selected="false" data-bs-toggle="tab" data-bs-target="#notificationsPane"
                     type="button" onclick="loadNotifications()">Requests
@@ -660,7 +747,7 @@
                     type="button" onclick="loadThemeEditor()">Appearance</button></li>
         </ul>
 
-        <details class="admin-advanced-section">
+        <details class="admin-advanced-section" id="advancedToolsDetails">
             <summary>Advanced technical tools</summary>
             <div class="admin-advanced-content">
                 <p class="text-muted">For trained administrators only. Review backups and deployment guidance before running maintenance or SQL operations.</p>
@@ -709,21 +796,26 @@
 
                     <details class="admin-advanced-section">
                         <summary>Bulk record actions</summary>
-                        <div class="admin-advanced-content d-flex flex-wrap gap-2">
-                        <select class="form-select" id="bulkStatus" aria-label="Bulk status" style="max-width: 220px;">
-                            <option value="">Choose status...</option>
-                            <option value="approved">approved</option>
-                            <option value="pending">pending</option>
-                            <option value="rejected">rejected</option>
-                            <option value="disabled">disabled</option>
-                            <option value="PENDING">PENDING</option>
-                            <option value="PARTIAL">PARTIAL</option>
-                            <option value="COMPLETED">COMPLETED</option>
-                            <option value="PAID">PAID</option>
-                            <option value="UNPAID">UNPAID</option>
-                        </select>
-                        <button class="btn btn-outline-primary" type="button" onclick="bulkUpdateStatus()">Update selected status</button>
-                        <button class="btn btn-outline-danger" type="button" onclick="bulkDelete()">Delete selected records</button>
+                        <div class="admin-advanced-content bulk-actions-row">
+                            <select class="form-select" id="bulkStatus" aria-label="Bulk status" style="max-width: 220px;">
+                                <option value="">Choose status...</option>
+                                <option value="approved">approved</option>
+                                <option value="pending">pending</option>
+                                <option value="rejected">rejected</option>
+                                <option value="disabled">disabled</option>
+                                <option value="PENDING">PENDING</option>
+                                <option value="PARTIAL">PARTIAL</option>
+                                <option value="COMPLETED">COMPLETED</option>
+                                <option value="PAID">PAID</option>
+                                <option value="UNPAID">UNPAID</option>
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" onclick="bulkUpdateStatus()">Update selected status</button>
+                            <div class="bulk-evaluation-actions" id="bulkEvaluationActions">
+                                <span class="bulk-evaluation-label">Evaluation access</span>
+                                <button class="btn btn-light bulk-eval-enable" type="button" onclick="bulkEvaluationAccess(true)">Enable selected</button>
+                                <button class="btn btn-light bulk-eval-disable" type="button" onclick="bulkEvaluationAccess(false)">Disable selected</button>
+                            </div>
+                            <button class="btn btn-outline-secondary" type="button" onclick="bulkDelete()">Delete selected records</button>
                         </div>
                     </details>
 
@@ -756,9 +848,13 @@
                         <div class="compiled-import-step"><strong>4. Commit</strong><span>Existing compound orders are skipped and reported.</span></div>
                     </div>
                     <div class="row g-3 align-items-end">
-                        <div class="col-lg-8">
+                        <div class="col-lg-6">
                             <label class="form-label" for="compiledSalesFile">Compiled Excel workbook</label>
-                            <input class="form-control" id="compiledSalesFile" type="file" accept=".xlsx,.xls">
+                            <input class="form-control" id="compiledSalesFile" type="file" accept=".xlsx,.xls" multiple>
+                        </div>
+                        <div class="col-lg-2">
+                            <label class="form-label" for="compiledGeneratedSoYear">Generated SO Year</label>
+                            <input class="form-control" id="compiledGeneratedSoYear" type="number" min="2000" max="{{ current_year + 1 }}" step="1" value="{{ current_year }}">
                         </div>
                         <div class="col-lg-4 d-flex gap-2">
                             <button class="btn btn-primary flex-grow-1" type="button" onclick="previewCompiledSales()">Preview and Validate</button>
@@ -766,6 +862,15 @@
                         </div>
                     </div>
                     <div id="compiledSalesStatus" class="text-muted mt-3">No workbook loaded.</div>
+                    <div class="compiled-upload-progress mt-2" id="compiledUploadProgress" hidden>
+                        <div class="compiled-upload-progress-copy">
+                            <span id="compiledUploadProgressLabel">Processed 0 of 0 files</span>
+                            <strong id="compiledUploadProgressValue">0%</strong>
+                        </div>
+                        <div class="compiled-upload-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                            <div class="compiled-upload-progress-bar" id="compiledUploadProgressBar"></div>
+                        </div>
+                    </div>
                     <div id="compiledSalesSummary" class="compiled-import-summary mt-3"></div>
                 </div>
 
@@ -850,7 +955,7 @@
                 </div>
             </section>
 
-            <section class="tab-pane fade" id="maintenancePane" role="tabpanel" aria-labelledby="maintenanceTab" tabindex="0">
+            <section class="tab-pane fade admin-advanced-pane" id="maintenancePane" role="tabpanel" aria-labelledby="maintenanceTab" tabindex="0">
                 <div class="admin-card">
                     <h2>Database Health Suite</h2>
                     <div class="row g-3 my-2">
@@ -888,7 +993,7 @@
                 </div>
             </section>
 
-            <section class="tab-pane fade" id="schemaPane" role="tabpanel" aria-labelledby="schemaTab" tabindex="0">
+            <section class="tab-pane fade admin-advanced-pane" id="schemaPane" role="tabpanel" aria-labelledby="schemaTab" tabindex="0">
                 <div class="admin-card mb-3">
                     <h2>Schema Browser</h2>
                     <div id="schemaBrowser" class="schema-box"></div>
@@ -958,13 +1063,13 @@
                     </div>
                     <div id="themeEditorStatus" class="text-muted mb-3">Loading theme controls...</div>
                     <div class="theme-preset-grid mb-4" aria-label="Theme presets">
-                        <button class="theme-preset-btn theme-preset-dark btn" type="button" data-theme-preset="dark" onclick="applyThemePreset('dark')">
+                        <!-- <button class="theme-preset-btn theme-preset-dark btn" type="button" data-theme-preset="dark" onclick="applyThemePreset('dark')">
                             <span>
                                 <strong>Dark Mode</strong>
                                 <span>Dark gray surfaces, light text, orange highlight.</span>
                                 <span class="theme-preset-swatches"><i style="background:#151515"></i><i style="background:#2A2A2A"></i><i style="background:#FF6A00"></i></span>
                             </span>
-                        </button>
+                        </button> -->
                         <button class="theme-preset-btn theme-preset-light btn" type="button" data-theme-preset="light" onclick="applyThemePreset('light')">
                             <span>
                                 <strong>Light Mode</strong>
@@ -972,13 +1077,13 @@
                                 <span class="theme-preset-swatches"><i style="background:#F3EFE6"></i><i style="background:#FFF9ED"></i><i style="background:#FF6A00"></i></span>
                             </span>
                         </button>
-                        <button class="theme-preset-btn theme-preset-contrast btn" type="button" data-theme-preset="contrast" onclick="applyThemePreset('contrast')">
+                        <!-- <button class="theme-preset-btn theme-preset-contrast btn" type="button" data-theme-preset="contrast" onclick="applyThemePreset('contrast')">
                             <span>
                                 <strong>High Contrast</strong>
                                 <span>Deep slate surfaces with readable amber highlights.</span>
                                 <span class="theme-preset-swatches"><i style="background:#111827"></i><i style="background:#1F2937"></i><i style="background:#F59E0B"></i></span>
                             </span>
-                        </button>
+                        </button> -->
                         <button class="theme-preset-btn theme-preset-rose btn" type="button" data-theme-preset="rose" onclick="applyThemePreset('rose')">
                             <span>
                                 <strong>Rose Mode</strong>
@@ -1026,11 +1131,14 @@
                         <input class="form-control mb-3" id="newUsername" required>
                         <label class="form-label" for="newEmail">Email</label>
                         <input class="form-control mb-3" id="newEmail" type="email">
-                        <label class="form-label" for="newPassword">Password</label>
-                        <input class="form-control mb-3" id="newPassword" type="password" required>
                         <label class="form-label" for="newRole">Role</label>
                         <select class="form-select" id="newRole" required></select>
-                        <small class="text-muted">Only one admin account is allowed.</small>
+                        <small class="text-muted d-block mt-2">A temporary compliant password will be generated after creation. Only one admin account is allowed.</small>
+                        <div class="generated-credentials-panel mt-3" id="newUserCredentialsPanel" hidden>
+                            <strong>Generated credentials</strong>
+                            <code id="newUserCredentialsText" class="mt-2"></code>
+                            <button class="btn btn-outline-primary btn-sm mt-2" type="button" onclick="copyGeneratedCredentials()">Copy credentials</button>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -1104,8 +1212,10 @@
         let selectedEditUser = null;
         let selectedUserAction = '';
         let editUserTrigger = null;
+        let lastGeneratedCredentials = '';
         const currentAdminUserId = {{ session.get('user_id') | tojson }};
         const adminUserRows = new Map();
+        const advancedPaneIds = ['maintenancePane', 'schemaPane'];
         const businessColumns = {
             users: ['id', 'username', 'email', 'role_name', 'status', 'evaluation_enabled', 'disabled_reason', 'created_at'],
             roles: ['id', 'role_name', 'description'],
@@ -1217,6 +1327,8 @@
         document.addEventListener('DOMContentLoaded', () => {
             activateInitialAdminTab();
             enableAdminTabKeyboardNavigation();
+            bindAdvancedToolsToggle();
+            syncBulkActionVisibility();
         });
         setInterval(() => document.getElementById('datetime').textContent = new Date().toLocaleString(), 1000);
 
@@ -1275,12 +1387,18 @@
             gridSort = 'id';
             gridDirection = 'desc';
             gridColumnFilters = {};
+            syncBulkActionVisibility();
             loadGrid();
         }
 
         function debouncedLoadGrid() {
             clearTimeout(searchTimer);
             searchTimer = setTimeout(resetGrid, 350);
+        }
+
+        function syncBulkActionVisibility() {
+            const evaluationActions = document.getElementById('bulkEvaluationActions');
+            if (evaluationActions) evaluationActions.hidden = gridTable.value !== 'users';
         }
 
         function gridUrl() {
@@ -1413,6 +1531,46 @@
             loadGrid();
         }
 
+        function activateRecordsTab() {
+            const recordsTab = document.getElementById('recordsTab');
+            if (recordsTab && window.bootstrap?.Tab) {
+                bootstrap.Tab.getOrCreateInstance(recordsTab).show();
+                return;
+            }
+            document.querySelectorAll('#adminTabs .nav-link, #maintenanceTab, #schemaTab').forEach(button => {
+                button.classList.remove('active');
+                button.setAttribute('aria-selected', 'false');
+            });
+            recordsTab?.classList.add('active');
+            recordsTab?.setAttribute('aria-selected', 'true');
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('show', 'active'));
+            document.getElementById('gridPane')?.classList.add('show', 'active');
+        }
+
+        function closeAdvancedPanes() {
+            advancedPaneIds.forEach(paneId => {
+                const pane = document.getElementById(paneId);
+                const tab = document.querySelector(`[data-bs-target="#${paneId}"]`);
+                pane?.classList.remove('show', 'active');
+                tab?.classList.remove('active');
+                tab?.setAttribute('aria-selected', 'false');
+            });
+            activateRecordsTab();
+        }
+
+        function bindAdvancedToolsToggle() {
+            const details = document.getElementById('advancedToolsDetails');
+            if (!details) return;
+            details.addEventListener('toggle', () => {
+                if (!details.open) closeAdvancedPanes();
+            });
+            document.querySelectorAll('[data-bs-target="#maintenancePane"], [data-bs-target="#schemaPane"]').forEach(button => {
+                button.addEventListener('click', () => {
+                    details.open = true;
+                });
+            });
+        }
+
         function selectedIds() {
             return Array.from(document.querySelectorAll('.row-check:checked')).map(input => parseInt(input.value));
         }
@@ -1440,6 +1598,35 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ table: gridTable.value, ids: ids, status: bulkStatus.value })
             }).then(r => r.json()).then(handleMutation);
+        }
+
+        async function bulkEvaluationAccess(enabled) {
+            if (gridTable.value !== 'users') return showToast('Switch to Users first.', 'error');
+            const ids = selectedIds();
+            if (!ids.length) return showToast('Select at least one user first.', 'error');
+            const actionLabel = enabled ? 'Enable evaluation access' : 'Disable evaluation access';
+            const adminPassword = await requestAdminPasswordConfirmation({
+                title: actionLabel,
+                actionLabel: enabled ? 'Enable' : 'Disable',
+                helperText: `${actionLabel} for ${ids.length} selected user(s). Active sessions for changed users will be signed out.`
+            });
+            if (!adminPassword) return showToast('Evaluation access update cancelled.', 'info');
+            try {
+                const response = await fetch('/admin/users/bulk-evaluation-access', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids, enabled, admin_password: adminPassword })
+                });
+                const data = await response.json();
+                if (!data.success) return showToast(data.error || 'Unable to update evaluation access.', 'error');
+                ids.forEach(id => adminUserRows.delete(Number(id)));
+                const skippedCount = Array.isArray(data.skipped) ? data.skipped.length : 0;
+                const failedCount = Array.isArray(data.failed) ? data.failed.length : 0;
+                showToast(`${data.message} Skipped ${skippedCount}; failed ${failedCount}.`, failedCount ? 'error' : 'success');
+                loadGrid();
+            } catch (error) {
+                showToast(error.message || 'Unable to update evaluation access.', 'error');
+            }
         }
 
         function bulkDelete() {
@@ -1687,28 +1874,41 @@
         async function previewCompiledSales() {
             const input = document.getElementById('compiledSalesFile');
             if (!input?.files?.length) return showToast('Select the compiled Sales Order workbook first.', 'error');
-            const formData = new FormData();
-            formData.append('file', input.files[0]);
-            compiledSalesStatus.textContent = 'Reading and validating the workbook...';
+            const files = Array.from(input.files);
+            compiledSalesStatus.textContent = `Reading and validating ${files.length} workbook(s)...`;
             compiledCommitButton.disabled = true;
+            setCompiledUploadProgress(0, files.length);
             try {
-                const response = await fetch('/admin/compiled-sales/preview', { method: 'POST', body: formData });
-                const data = await response.json();
-                if (!data.success) throw new Error(data.error || 'Preview failed.');
-                compiledSalesRows = data.rows || [];
-                compiledSalesFilename = data.filename || input.files[0].name;
-                compiledSalesPreview = data;
+                const merged = { rows: [], client_resolutions: [], duplicate_orders: [], summary: {} };
+                for (const [index, file] of files.entries()) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    compiledSalesStatus.textContent = `Processing ${file.name} (${index + 1} of ${files.length})...`;
+                    const response = await fetch('/admin/compiled-sales/preview', { method: 'POST', body: formData });
+                    const data = await response.json();
+                    if (!data.success) throw new Error(data.error || `Preview failed for ${file.name}.`);
+                    merged.rows.push(...(data.rows || []));
+                    merged.client_resolutions.push(...(data.client_resolutions || []));
+                    merged.duplicate_orders.push(...(data.duplicate_orders || []));
+                    Object.entries(data.summary || {}).forEach(([key, value]) => {
+                        merged.summary[key] = (merged.summary[key] || 0) + Number(value || 0);
+                    });
+                    setCompiledUploadProgress(index + 1, files.length);
+                }
+                compiledSalesRows = merged.rows;
+                compiledSalesFilename = files.map(file => file.name).join(', ');
+                compiledSalesPreview = merged;
                 compiledSalesResolutions = {};
-                (data.client_resolutions || []).forEach(item => {
+                merged.client_resolutions.forEach(item => {
                     if (item.status === 'create_new') {
                         compiledSalesResolutions[item.resolution_key] = { action: 'create_new' };
                     }
                 });
-                compiledSalesStatus.textContent = `${compiledSalesFilename} is ready for review.`;
-                renderCompiledSummary(data.summary || {});
+                compiledSalesStatus.textContent = `${files.length} workbook(s) are ready for review.`;
+                renderCompiledSummary(merged.summary || {});
                 renderCompiledExceptions();
-                renderCompiledClients(data.client_resolutions || []);
-                renderCompiledDuplicates(data.duplicate_orders || []);
+                renderCompiledClients(merged.client_resolutions || []);
+                renderCompiledDuplicates(merged.duplicate_orders || []);
                 compiledRepairCard.hidden = false;
                 compiledCommitCard.hidden = false;
                 updateCompiledCommitState();
@@ -1716,6 +1916,20 @@
                 compiledSalesStatus.textContent = 'The workbook could not be prepared.';
                 showToast(error.message || 'Compiled Sales preview failed.', 'error');
             }
+        }
+
+        function setCompiledUploadProgress(processed, total) {
+            const box = document.getElementById('compiledUploadProgress');
+            const label = document.getElementById('compiledUploadProgressLabel');
+            const value = document.getElementById('compiledUploadProgressValue');
+            const bar = document.getElementById('compiledUploadProgressBar');
+            const track = box?.querySelector('[role="progressbar"]');
+            const percent = total ? Math.round((processed / total) * 100) : 0;
+            if (box) box.hidden = false;
+            if (label) label.textContent = `Processed ${processed} of ${total} files`;
+            if (value) value.textContent = `${percent}%`;
+            if (bar) bar.style.width = `${percent}%`;
+            if (track) track.setAttribute('aria-valuenow', String(percent));
         }
 
         function clearCompiledSales() {
@@ -1734,6 +1948,8 @@
             compiledDuplicateCard.hidden = true;
             compiledCommitCard.hidden = true;
             compiledCommitResult.innerHTML = '';
+            setCompiledUploadProgress(0, 0);
+            compiledUploadProgress.hidden = true;
         }
 
         function renderCompiledSummary(summary) {
@@ -1909,6 +2125,7 @@
                         filename: compiledSalesFilename,
                         rows: compiledSalesRows,
                         resolutions: compiledSalesResolutions,
+                        so_generation_year: document.getElementById('compiledGeneratedSoYear')?.value,
                     }),
                 });
                 const data = await response.json();
@@ -2003,14 +2220,35 @@
         }
 
         function runSql() {
+            sqlResult.innerHTML = '<div class="alert alert-info">Running SQL...</div>';
             fetch('/admin/sql-console', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sql: sqlText.value, dry_run: sqlDryRun.checked })
             }).then(r => r.json()).then(data => {
-                if (!data.success) return showToast(data.error, 'error');
+                if (!data.success) {
+                    renderSqlError(data);
+                    return showToast(data.error, 'error');
+                }
                 renderSqlResult(data.result);
-            }).catch(error => showToast(error.message || 'SQL request failed.', 'error'));
+            }).catch(error => {
+                renderSqlError({ error: error.message || 'SQL request failed.' });
+                showToast(error.message || 'SQL request failed.', 'error');
+            });
+        }
+
+        function renderSqlError(data) {
+            const details = data.details || {};
+            const rows = [
+                ['Problem', data.error || 'SQL request failed.'],
+                details.type ? ['Type', details.type] : null,
+                details.keyword ? ['Keyword', String(details.keyword).toUpperCase()] : null,
+                details.message ? ['Database message', details.message] : null
+            ].filter(Boolean);
+            sqlResult.innerHTML = `<div class="alert alert-danger mb-2"><strong>SQL could not run.</strong></div>
+                <table class="table table-sm"><tbody>${rows.map(([name, value]) =>
+                    `<tr><th>${escapeHtml(name)}</th><td>${escapeHtml(value)}</td></tr>`
+                ).join('')}</tbody></table>`;
         }
 
         function renderSqlResult(result) {
@@ -2028,35 +2266,80 @@
             });
             fetch('/admin/audit-logs?' + params.toString()).then(r => r.json()).then(data => {
                 if (!data.success) throw new Error(data.error);
-                auditTable.innerHTML = '<thead><tr><th>User</th><th>Role</th><th>Action</th><th>Table</th><th>Record</th><th>Timestamp</th><th>Old</th><th>New</th></tr></thead><tbody>' +
-                    data.logs.map(log => `<tr><td>${escapeHtml(log.username)}</td><td>${escapeHtml(log.role_name || '-')}</td><td>${escapeHtml(log.action)}</td><td>${escapeHtml(log.table_name)}</td><td>${escapeHtml(log.record_id || '-')}</td><td>${formatAdminDateTime(log.created_at)}</td><td class="audit-diff">${escapeHtml(log.old_value || '')}</td><td class="audit-diff">${escapeHtml(log.new_value || '')}</td></tr>`).join('') +
-                    '</tbody>';
+                auditTable.innerHTML = '<thead><tr><th>User</th><th>Role</th><th>Action</th><th>Area</th><th>Record</th><th>Timestamp</th><!--<th>Old</th><th>New</th>--></tr></thead><tbody>' + //hide lang muan yung old and new headers
+                    data.logs.map(log => `<tr><td>${escapeHtml(log.username)}</td><td>${escapeHtml(log.role_name || '-')}</td><td>${escapeHtml(log.display_action || log.action)}</td><td>${escapeHtml(log.display_table_name || log.table_name)}</td><td>${escapeHtml(log.record_id || '-')}</td><td>${formatAdminDateTime(log.created_at)}</td><!--<td class="audit-diff">${escapeHtml(log.old_value || '')}</td><td class="audit-diff">${escapeHtml(log.new_value || '')}</td>--></tr>`).join('') +
+                    '</tbody>'; //hide din yung data for old and new values
             }).catch(error => showToast(error.message, 'error'));
         }
 
         function loadCreateUserRoles() {
+            lastGeneratedCredentials = '';
+            if (newUserCredentialsPanel) newUserCredentialsPanel.hidden = true;
+            if (newUserCredentialsText) newUserCredentialsText.textContent = '';
             fetch('/get-roles').then(r => r.json()).then(data => {
                 if (!data.success) throw new Error(data.error);
                 newRole.innerHTML = data.roles.map(role => `<option value="${role.id}">${escapeHtml(role.role_name)}</option>`).join('');
             }).catch(error => showToast(error.message, 'error'));
         }
 
+        async function copyTextToClipboard(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            textarea.remove();
+        }
+
+        async function copyGeneratedCredentials() {
+            if (!lastGeneratedCredentials) return showToast('No generated credentials to copy.', 'info');
+            try {
+                await copyTextToClipboard(lastGeneratedCredentials);
+                showToast('Credentials copied.', 'success');
+            } catch (error) {
+                showToast('Unable to copy credentials automatically.', 'error');
+            }
+        }
+
+        function renderGeneratedCredentials(credentials, roleLabel) {
+            if (!credentials?.temporary_password) return;
+            lastGeneratedCredentials = [
+                `Username: ${credentials.username || newUsername.value}`,
+                `Temporary password: ${credentials.temporary_password}`,
+                `Role: ${credentials.role || roleLabel || '-'}`,
+                'Password change required: Yes'
+            ].join('\n');
+            newUserCredentialsText.textContent = lastGeneratedCredentials;
+            newUserCredentialsPanel.hidden = false;
+        }
+
         function createUser(event) {
             event.preventDefault();
+            const roleLabel = newRole.options[newRole.selectedIndex]?.textContent || '';
             fetch('/create-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     username: newUsername.value,
                     email: newEmail.value,
-                    password: newPassword.value,
                     role_id: parseInt(newRole.value)
                 })
             }).then(r => r.json()).then(data => {
                 if (!data.success) return showToast(data.error || 'Unable to create user', 'error');
                 showToast(data.message, 'success');
+                renderGeneratedCredentials(data.credentials, roleLabel);
+                const createdCredentials = lastGeneratedCredentials;
                 createUserForm.reset();
-                bootstrap.Modal.getInstance(createUserModal).hide();
+                lastGeneratedCredentials = createdCredentials;
+                newUserCredentialsText.textContent = createdCredentials;
+                newUserCredentialsPanel.hidden = false;
                 gridTable.value = 'users';
                 resetGrid();
             });
@@ -2239,7 +2522,10 @@
             }).catch(error => showToast(error.message, 'error'));
         }
 
-        function requestAdminPasswordConfirmation() {
+        function requestAdminPasswordConfirmation(options = {}) {
+            const title = options.title || 'Confirm Admin Password';
+            const actionLabel = options.actionLabel || 'Continue';
+            const helperText = options.helperText || 'Enter your own admin password to continue.';
             return new Promise(resolve => {
                 const wrapper = document.createElement('div');
                 wrapper.className = 'modal fade';
@@ -2248,17 +2534,17 @@
                     <div class="modal-dialog">
                         <div class="modal-content">
                             <div class="modal-header">
-                                <h2 class="modal-title fs-5">Confirm Password Reset</h2>
+                                <h2 class="modal-title fs-5">${escapeHtml(title)}</h2>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
                                 <label class="form-label" for="adminResetPasswordConfirm">Admin password</label>
                                 <input class="form-control" id="adminResetPasswordConfirm" type="password" autocomplete="current-password">
-                                <small class="text-muted">Enter your own admin password to continue.</small>
+                                <small class="text-muted">${escapeHtml(helperText)}</small>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <button type="button" class="btn btn-primary" data-confirm-reset>Reset</button>
+                                <button type="button" class="btn btn-primary" data-confirm-reset>${escapeHtml(actionLabel)}</button>
                             </div>
                         </div>
                     </div>`;
@@ -2281,8 +2567,55 @@
             });
         }
 
+        function showTemporaryCredentials(credentials) {
+            if (!credentials?.temporary_password) return;
+            const text = [
+                `Username: ${credentials.username || '-'}`,
+                `Temporary password: ${credentials.temporary_password}`,
+                'Password change required: Yes'
+            ].join('\n');
+            const wrapper = document.createElement('div');
+            wrapper.className = 'modal fade';
+            wrapper.tabIndex = -1;
+            wrapper.innerHTML = `
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 class="modal-title fs-5">Temporary Credentials</h2>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="generated-credentials-panel">
+                                <strong>Share these credentials with the user.</strong>
+                                <code class="mt-2">${escapeHtml(text)}</code>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-primary" data-copy-temp-credentials>Copy credentials</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(wrapper);
+            const modal = new bootstrap.Modal(wrapper);
+            wrapper.querySelector('[data-copy-temp-credentials]').addEventListener('click', async () => {
+                try {
+                    await copyTextToClipboard(text);
+                    showToast('Credentials copied.', 'success');
+                } catch (error) {
+                    showToast('Unable to copy credentials automatically.', 'error');
+                }
+            });
+            wrapper.addEventListener('hidden.bs.modal', () => wrapper.remove());
+            modal.show();
+        }
+
         async function resolvePasswordReset(resetId) {
-            const adminPassword = await requestAdminPasswordConfirmation();
+            const adminPassword = await requestAdminPasswordConfirmation({
+                title: 'Confirm Password Reset',
+                actionLabel: 'Reset',
+                helperText: 'Enter your own admin password to continue.'
+            });
             if (!adminPassword) return showToast('Password reset cancelled.', 'info');
             fetch(`/admin/password-resets/${resetId}/resolve`, {
                 method: 'POST',
@@ -2293,6 +2626,7 @@
                 .then(data => {
                     if (!data.success) return showToast(data.error || 'Unable to reset password', 'error');
                     showToast(data.message, 'success');
+                    showTemporaryCredentials(data.credentials);
                     loadNotifications();
                 });
         }

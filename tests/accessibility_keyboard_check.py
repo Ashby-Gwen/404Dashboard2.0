@@ -115,6 +115,10 @@ def main():
             assert 'Sales Invoices' not in invoice_html
             assert 'Service Invoices' not in invoice_html
             assert 'View / Add Receipts' in invoice_html
+            assert 'value="INSTALLMENT"' in invoice_html
+            assert 'value="FINAL"' in invoice_html
+            assert 'id="paymentTypeFeedback"' in invoice_html
+            assert 'id="editPaymentTypeFeedback"' in invoice_html
             assert 'Print Preview' in analytics_html
             assert 'Review the active' in analytics_html
             assert 'analytics tab before printing.' in analytics_html
@@ -123,11 +127,12 @@ def main():
             assert 'cdn.jsdelivr.net/npm/chart.js' not in analytics_html
             assert 'vendor/chartjs/chart.umd.min.js' not in analytics_html
             assert 'createAnalyticsChart' in analytics_html
-            assert 'data-section="expenses"' in analytics_html
+            assert '<button class="analytics-tab active" data-section="overview">Overview</button>' in analytics_html
+            assert 'data-unused-analytics-section="expenses"' in analytics_html
+            assert 'data-section="expenses"' not in analytics_html
             assert 'analytics-story-header' in analytics_html
             assert 'analytics-story-map' in analytics_html
             assert 'Business goal > Metric > Level of detail > Type of visualization' in analytics_html
-            assert 'Purpose:' in analytics_html
             assert 'Manager action:' in analytics_html
             assert 'Overview revenue dashboard' in analytics_html
             assert 'Core Revenue Trends' in analytics_html
@@ -216,9 +221,11 @@ def main():
     assert 'recommendationModalReturnFocus' in analytics_source
     assert "indexAxis: 'y'" in analytics_source
     assert 'loadOverviewComparison' in analytics_source
-    assert '/api/evaluation/access' in system_states_source
-    assert 'payload.can_access' in system_states_source
-    assert 'evaluationLauncherChecked' in system_states_source
+    assert '/api/evaluation/access' not in system_states_source
+    assert 'payload.can_access' not in system_states_source
+    assert 'evaluationLauncherChecked' not in system_states_source
+    assert 'ashbyVerseToggle' in system_states_source
+    assert 'utility-floater-trigger' not in system_states_source
     dashboard_source = open(os.path.join(ROOT, 'templates', 'dashboard.html'), encoding='utf-8').read()
     assert 'Quick Actions' in dashboard_source
     assert 'Admin Command Center' in dashboard_source

@@ -787,26 +787,8 @@
         dock.className = 'utility-floater-dock';
         dock.setAttribute('aria-label', 'Quick tools');
         dock.innerHTML = `
-            <div class="utility-floater-rail" data-utility-floater-rail></div>
-            <button class="utility-floater-trigger" type="button" aria-label="Show quick tools" title="Show quick tools">
-                <span aria-hidden="true" data-lucide="chevron-left"></span>
-            </button>`;
+            <div class="utility-floater-rail" data-utility-floater-rail></div>`;
         document.body.appendChild(dock);
-
-        const trigger = dock.querySelector('.utility-floater-trigger');
-        trigger.addEventListener('click', () => {
-            dock.classList.toggle('is-pinned-open');
-            trigger.setAttribute(
-                'aria-label',
-                dock.classList.contains('is-pinned-open') ? 'Hide quick tools' : 'Show quick tools'
-            );
-        });
-
-        if (window.lucide?.createIcons) {
-            window.lucide.createIcons();
-        } else {
-            trigger.innerHTML = '<span aria-hidden="true">&lsaquo;</span>';
-        }
         return dock;
     }
 
@@ -815,10 +797,9 @@
         const dock = ensureUtilityDock();
         if (!dock) return;
         const rail = dock.querySelector('[data-utility-floater-rail]');
-        const evaluationRoot = document.getElementById('evaluationModalRoot');
         const ashbyToggle = document.getElementById('ashbyVerseToggle');
 
-        [evaluationRoot, ashbyToggle].forEach(control => {
+        [ashbyToggle].forEach(control => {
             if (control && control.parentElement !== rail) {
                 rail.appendChild(control);
             }
@@ -1054,34 +1035,6 @@
         });
     }
 
-    async function initializeEvaluationModal() {
-        if (!document.body || document.getElementById('evaluationModalRoot')) return;
-        if (!document.querySelector('a[href$="/logout"]')) return;
-        if (document.documentElement.dataset.evaluationLauncherChecked === 'true') return;
-        document.documentElement.dataset.evaluationLauncherChecked = 'true';
-        let canAccess = false;
-        try {
-            const response = await fetch('/api/evaluation/access', {
-                headers: { Accept: 'application/json' }
-            });
-            const payload = await response.json();
-            canAccess = Boolean(response.ok && payload.success && payload.can_access);
-        } catch {
-            canAccess = false;
-        }
-        if (!canAccess) return;
-
-        const root = document.createElement('div');
-        root.id = 'evaluationModalRoot';
-        root.innerHTML = `
-            <a href="/evaluation" class="evaluation-launcher btn btn-outline btn-sm" aria-label="Evaluate System">
-                <img class="evaluation-launcher-icon" src="/static/images/icons/evaluation-icon.png" alt="">
-                <span class="evaluation-launcher-label">Evaluate System</span>
-            </a>`;
-        document.body.appendChild(root);
-        syncUtilityDock();
-    }
-
     function showServerWarnings(warnings = []) {
         if (!Array.isArray(warnings) || !warnings.length) return;
         warnings.slice(0, 5).forEach(item => {
@@ -1153,7 +1106,6 @@
             initializeFutureDateWarnings();
             initializeLogoutCacheCleanup();
             initializeSessionIdleLogout();
-            initializeEvaluationModal();
             updateThemeBranding();
             renderAshbyVerse();
         }, { once: true });
@@ -1164,7 +1116,6 @@
         initializeFutureDateWarnings();
         initializeLogoutCacheCleanup();
         initializeSessionIdleLogout();
-        initializeEvaluationModal();
         updateThemeBranding();
         renderAshbyVerse();
     }
@@ -1172,7 +1123,6 @@
         initializeFutureDateWarnings(event.target || document);
         initializeLogoutCacheCleanup(event.target || document);
         initializeSessionIdleLogout();
-        initializeEvaluationModal();
         updateThemeBranding();
     });
     new MutationObserver(mutations => {

@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link rel="stylesheet" href="{{ url_for('theme_overrides_css') }}">
     <script defer src="{{ url_for('static', filename='js/system-states.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='js/password-strength.js') }}"></script>
     <style>
         .profile-card { max-width: 720px; margin: 2rem auto; background: white; border: 1px solid var(--border-color); border-radius: var(--radius-xl); padding: 2rem; box-shadow: none; }
         .profile-heading { display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem; }
@@ -16,9 +17,12 @@
         .profile-field.full { grid-column: 1 / -1; }
         .profile-field label { display: block; font-weight: 700; margin-bottom: 0.4rem; }
         .profile-field input { width: 100%; padding: 0.7rem; border: 1px solid var(--border-color); border-radius: var(--radius-lg); }
+        .profile-alert { border: 1px solid #F59E0B; background: #FFFBEB; color: #92400E; border-radius: var(--radius-lg); padding: 0.85rem; margin-bottom: 1rem; }
+        .password-policy { display: block; margin-top: 0.45rem; color: var(--text-muted); font-size: 0.85rem; line-height: 1.4; }
         .flash-message { padding: 0.75rem; border-radius: var(--radius-lg); margin-bottom: 0.75rem; }
         .flash-message.success { background: #DCFCE7; color: #166534; }
         .flash-message.error { background: #FEE2E2; color: #991B1B; }
+        .flash-message.warning { background: #FEF3C7; color: #92400E; }
         @media (max-width: 640px) { .profile-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -49,7 +53,12 @@
                     <p>{{ user.role.role_name|title }} account</p>
                 </div>
             </div>
-            <form method="post" enctype="multipart/form-data">
+            {% if user.password_change_required %}
+                <div class="profile-alert">Your temporary password must be replaced before you continue.</div>
+            {% elif not user.password_updated_at %}
+                <div class="profile-alert">Please update your password to meet the current security requirements.</div>
+            {% endif %}
+            <form method="post" enctype="multipart/form-data" data-password-strength data-password-input="#new_password" data-confirm-password-input="#confirm_password" data-password-optional="true">
                 <div class="profile-grid">
                     <div class="profile-field">
                         <label for="username">Username</label>
@@ -70,10 +79,29 @@
                     <div class="profile-field">
                         <label for="new_password">New Password</label>
                         <input id="new_password" name="new_password" type="password" autocomplete="new-password">
+                        <small class="password-policy">{{ password_policy_message }}</small>
                     </div>
                     <div class="profile-field full">
                         <label for="confirm_password">Confirm New Password</label>
                         <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password">
+                        <div class="password-strength-panel" data-strength-panel>
+                            <div class="password-strength-summary">
+                                <span data-strength-label>Password strength: Empty</span>
+                                <span data-strength-score>0/5</span>
+                            </div>
+                            <div class="password-strength-track" role="progressbar" aria-label="Password strength" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0">
+                                <span data-strength-bar></span>
+                            </div>
+                            <p class="password-strength-status" data-strength-status aria-live="polite">Start typing a password.</p>
+                            <ul class="password-strength-checks" aria-label="Password requirements">
+                                <li data-strength-check="length">At least 8 characters</li>
+                                <li data-strength-check="uppercase">Uppercase letter</li>
+                                <li data-strength-check="lowercase">Lowercase letter</li>
+                                <li data-strength-check="number">Number</li>
+                                <li data-strength-check="special">Special character</li>
+                                <li data-strength-check="match">Passwords match</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
                 <button class="btn btn-primary" type="submit">Save Profile</button>

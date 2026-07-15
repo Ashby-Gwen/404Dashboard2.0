@@ -58,8 +58,15 @@ def main():
             role_id=admin_role.id,
             status='ACTIVE',
         )
+        staff_role = Role.query.filter_by(role_name='staff').first()
+        staff = User(
+            username='analytics_staff',
+            password_hash=generate_password_hash('staff123'),
+            role_id=staff_role.id,
+            status='ACTIVE',
+        )
         client_record = Client(client_name='TEST POS CLIENT')
-        db.session.add_all([manager, admin, client_record])
+        db.session.add_all([manager, admin, staff, client_record])
         db.session.flush()
 
         for month in range(1, 9):
@@ -115,6 +122,35 @@ def main():
                 balance=0,
                 status='PAID',
             ))
+        for month in range(1, 5):
+            order = SalesOrder(
+                so_number=f'SO-OLD-{month:02d}',
+                client_id=client_record.id,
+                company_name='TEST POS CLIENT',
+                order_date=pd.Timestamp(2025, month, 1).date(),
+                total_amount=700 + month * 50,
+                status='COMPLETED',
+            )
+            db.session.add(order)
+            db.session.flush()
+            db.session.add(SalesOrderItem(
+                sales_order_id=order.id,
+                particular='LEGACY POS TERMINAL',
+                quantity=month,
+                unit_cost=300,
+                selling_price=500,
+                total=month * 500,
+            ))
+            db.session.add(Invoice(
+                invoice_number=f'INV-OLD-{month:02d}',
+                sales_order_id=order.id,
+                invoice_type='SALES',
+                invoice_date=pd.Timestamp(2025, month, 5).date(),
+                total_amount=700 + month * 50,
+                amount_paid=700 + month * 50,
+                balance=0,
+                status='PAID',
+            ))
         db.session.add_all([
             PurchaseOrder(
                 check_voucher_number='CV-FIXED',
@@ -140,6 +176,19 @@ def main():
         db.session.commit()
 
         with app.test_client() as client:
+            unauthenticated_report = client.get('/api/analytics/overview/revenue-report?year=2026')
+            assert unauthenticated_report.status_code == 401
+            unauthenticated_trend = client.get('/api/analytics/overview/trend-drilldown?year=2026')
+            assert unauthenticated_trend.status_code == 401
+            with client.session_transaction() as session:
+                session['user_id'] = staff.id
+                session['username'] = staff.username
+                session['role'] = 'staff'
+            blocked_report = client.get('/api/analytics/overview/revenue-report?year=2026')
+            assert blocked_report.status_code == 403
+            blocked_trend = client.get('/api/analytics/overview/trend-drilldown?year=2026')
+            assert blocked_trend.status_code == 403
+
             with client.session_transaction() as session:
                 session['user_id'] = manager.id
                 session['username'] = manager.username
@@ -239,6 +288,7 @@ def main():
             sales_payload = client.get('/api/analytics/sales?mape_threshold=25').get_json()
             assert sales_payload['success'] is True
             assert sales_payload['forecast_accuracy']['mape_threshold'] == 25
+            assert sales_payload['kpis']['total_revenue'] == 41600
             assert 'descriptive' in sales_payload and 'predictive' in sales_payload and 'prescriptive' in sales_payload
             assert sales_payload['descriptive']['monthly_trend'][0]['period_label'] == 'Jan'
             assert 'quantity' in sales_payload['descriptive']['peak_periods']['months'][0]
@@ -259,6 +309,147 @@ def main():
             assert not any(item['item'] == 'roll out implementation' for item in product_distribution)
             assert not any(item['item'] == 'rollout implementation' for item in product_distribution)
             assert not any(item['item'] == 'TMU220D JOURNAL PAPER SINGLE PLY' for item in sales_payload['forecast'])
+            client_forecasting = sales_payload['client_forecasting']
+            assert {
+                'category_trends',
+                'category_forecasts',
+                'top_client_trends',
+                'top_client_forecasts',
+                'purchase_recommendations',
+                'client_forecast_lookup',
+                'purchase_recommendation_lookup',
+            } <= set(client_forecasting)
+            assert len(client_forecasting['top_client_forecasts']) <= 5
+            assert len(client_forecasting['top_client_trends']) <= 5
+            assert {row['category'] for row in client_forecasting['category_trends']} == {
+                'A-Class Clients',
+                'B-Class Clients',
+                'C-Class Clients',
+            }
+            assert client_forecasting['top_client_forecasts'][0]['store_name']
+            assert 'forecast_points' in client_forecasting['top_client_forecasts'][0]
+            assert 'peak_month' in client_forecasting['top_client_forecasts'][0]
+            assert client_forecasting['client_forecast_lookup']
+            assert client_forecasting['purchase_recommendation_lookup']
+            top_purchase_row = client_forecasting['purchase_recommendations'][0]
+            assert len(top_purchase_row['recommendations']) <= 3
+            assert top_purchase_row['recommendations']
+            first_purchase = top_purchase_row['recommendations'][0]
+            assert 'confidence_score' in first_purchase
+            assert 'accuracy' not in first_purchase
+            assert first_purchase['status'] in {'High Confidence', 'Needs Review', 'Insufficient History'}
+            specific_sales_payload = client.get('/api/analytics/sales?forecast_filter_mode=year&year=2026').get_json()
+            assert specific_sales_payload['success'] is True
+            specific_periods = [
+                point['period']
+                for point in specific_sales_payload['predictive']['monthly_revenue_forecast']['historical_points']
+            ]
+            assert specific_periods and all(period.startswith('2026-') for period in specific_periods)
+
+            range_sales_payload = client.get('/api/analytics/sales?forecast_filter_mode=range&start_year=2025&end_year=2026').get_json()
+            assert range_sales_payload['success'] is True
+            range_periods = [
+                point['period']
+                for point in range_sales_payload['predictive']['monthly_revenue_forecast']['historical_points']
+            ]
+            assert range_periods == sorted(range_periods)
+            assert range_periods[0].startswith('2025-')
+            assert range_periods[-1].startswith('2026-')
+            assert range_sales_payload['filter']['label'] == '2025-2026'
+
+            all_years_sales_payload = client.get('/api/analytics/sales?forecast_filter_mode=all').get_json()
+            assert all_years_sales_payload['success'] is True
+            all_year_periods = [
+                point['period']
+                for point in all_years_sales_payload['predictive']['monthly_revenue_forecast']['historical_points']
+            ]
+            assert all_years_sales_payload['filter']['label'] == 'All years'
+            assert all_year_periods == sorted(all_year_periods)
+            assert any(period.startswith('2025-') for period in all_year_periods)
+            assert any(period.startswith('2026-') for period in all_year_periods)
+            top_store_order = SalesOrder(
+                so_number='SO-TOP-CLIENT',
+                client_id=client_record.id,
+                company_name='TEST POS CLIENT',
+                store_name='GIGA STORE',
+                order_date=pd.Timestamp(2026, 1, 20).date(),
+                total_amount=5000,
+                status='COMPLETED',
+            )
+            db.session.add(top_store_order)
+            db.session.flush()
+            db.session.add(SalesOrderItem(
+                sales_order_id=top_store_order.id,
+                particular='SUPPORT PACKAGE',
+                quantity=1,
+                unit_cost=1000,
+                selling_price=5000,
+                total=5000,
+            ))
+            db.session.commit()
+
+            revenue_report = client.get('/api/analytics/overview/revenue-report?year=2026').get_json()
+            assert revenue_report['success'] is True
+            assert revenue_report['year'] == 2026
+            assert revenue_report['columns'] == ['month', 'revenue', 'growth rate', 'top client', 'top client revenue']
+            assert len(revenue_report['rows']) == 12
+            assert revenue_report['rows'][0] == {
+                'month': 'Jan 2026',
+                'revenue': 7400.0,
+                'growth_rate': 'N/A',
+                'top_client': 'GIGA STORE',
+                'top_client_revenue': 5000.0,
+            }
+            assert revenue_report['rows'][1]['month'] == 'Feb 2026'
+            assert revenue_report['rows'][1]['revenue'] == 3200.0
+            assert revenue_report['rows'][1]['growth_rate'] == '-56.76%'
+            assert revenue_report['rows'][1]['top_client'] == 'TEST POS CLIENT'
+            assert revenue_report['rows'][1]['top_client_revenue'] == 3200.0
+
+            yearly_trend = client.get('/api/analytics/overview/trend-drilldown?year=2026&mode=yearly').get_json()
+            assert yearly_trend['success'] is True
+            assert yearly_trend['mode'] == 'yearly'
+            assert yearly_trend['selected_year'] == 2026
+            assert yearly_trend['previous_year'] == 2025
+            assert len(yearly_trend['points']) == 12
+            assert yearly_trend['labels'][:3] == ['Jan', 'Feb', 'Mar']
+            assert yearly_trend['current_values'][:3] == [7400.0, 3200.0, 4000.0]
+            assert yearly_trend['previous_values'][:3] == [500.0, 1000.0, 1500.0]
+            assert yearly_trend['points'][0]['quarter'] == 1
+            assert yearly_trend['points'][0]['current_params'] == {'year': 2026, 'period': 'month', 'month': 1}
+            assert yearly_trend['peak']['label'] == 'Aug'
+            assert yearly_trend['forecast_status'] == 'ready'
+            assert len(yearly_trend['forecast_points']) == 3
+            assert yearly_trend['forecast_points'][0]['period'] == '2026-09'
+
+            quarterly_trend = client.get('/api/analytics/overview/trend-drilldown?year=2026&mode=quarterly&quarter=1').get_json()
+            assert quarterly_trend['success'] is True
+            assert quarterly_trend['mode'] == 'quarterly'
+            assert quarterly_trend['label'] == 'Q1 (Jan-Mar) 2026'
+            assert quarterly_trend['labels'] == ['Jan', 'Feb', 'Mar']
+            assert quarterly_trend['current_values'] == [7400.0, 3200.0, 4000.0]
+            assert quarterly_trend['previous_values'] == [500.0, 1000.0, 1500.0]
+            assert quarterly_trend['forecast_status'] == 'ready'
+            assert len(quarterly_trend['forecast_points']) == 3
+            assert quarterly_trend['forecast_points'][0]['period'] == '2026-04'
+
+            monthly_trend = client.get('/api/analytics/overview/trend-drilldown?year=2026&mode=monthly&month=1').get_json()
+            assert monthly_trend['success'] is True
+            assert monthly_trend['mode'] == 'monthly'
+            assert monthly_trend['label'] == 'Jan 2026'
+            assert monthly_trend['labels'][0] == 'W1 (Jan 1-7)'
+            assert monthly_trend['current_values'][:3] == [2400.0, 0.0, 5000.0]
+            assert monthly_trend['previous_values'][:3] == [500.0, 0.0, 0.0]
+            assert monthly_trend['points'][0]['week'] == 1
+            assert monthly_trend['forecast_status'] == 'ready'
+            assert len(monthly_trend['forecast_points']) == 3
+            assert monthly_trend['forecast_points'][0]['label'] == 'Forecast W6'
+
+            invalid_trend = client.get('/api/analytics/overview/trend-drilldown?year=2026&mode=bad&quarter=9&month=99').get_json()
+            assert invalid_trend['success'] is True
+            assert invalid_trend['mode'] == 'yearly'
+            assert invalid_trend['quarter'] == 1
+            assert invalid_trend['month'] == 1
             category_payload = client.get('/api/analytics/item-categories').get_json()
             assert category_payload['success'] is True
             assert category_payload['allowed_categories'] == ['System', 'Hardware', 'Services', 'Office Materials']

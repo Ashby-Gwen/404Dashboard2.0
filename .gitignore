@@ -11,3 +11,6 @@ database.db
 *.sqlite3
 static/uploads/
 /github commands.txt
+
+# Local execution scripts
+start.bat

@@ -6,7 +6,7 @@ Verified against:
 
 - `app.py` SQLAlchemy models
 - Defense-readiness migration requirements in `defense_migrations.py`
-- Supabase migration in `docs/supabase_defense_readiness_migration.sql`
+- Supabase migration in `docs/database/supabase_defense_readiness_migration.sql`
 
 Scope:
 

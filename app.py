@@ -32,9 +32,12 @@ from datetime import UTC, date, datetime, timedelta
 import os
 import json
 import secrets
+import string
 from functools import wraps
 from io import StringIO, TextIOWrapper, BytesIO# <--- MAKE SURE THIS IS HERE
 import re
+import math
+from markupsafe import escape
 
 from analytics_services import (
     build_analytics_payload,
@@ -52,8 +55,11 @@ from analytics_services import (
     analytics_item_category_key,
     analytics_revenue_item_display_name,
     analytics_valid_item_category,
+    deduped_sales_item_revenue_subquery,
+    holt_winters_forecast,
 )
 from admin_services import (
+    SafeSqlError,
     bulk_delete,
     bulk_update_status,
     export_data_grid_csv,
@@ -81,6 +87,11 @@ app.config['SESSION_COOKIE_SECURE'] = bool(IS_PRODUCTION or os.environ.get('SESS
 app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_UPLOAD_BYTES', 10 * 1024 * 1024))
 SESSION_IDLE_TIMEOUT_SECONDS = 5 * 60
 DEVICE_COOKIE_NAME = 'syluxent_device_id'
+PASSWORD_POLICY_MESSAGE = (
+    'Password must be at least 8 characters and include uppercase, lowercase, '
+    'number, and special character.'
+)
+PASSWORD_SPECIAL_CHARACTERS = '!@#$%^&*()-_=+[]{};:,.?'
 basedir = os.path.abspath(os.path.dirname(__file__))
 database_url = os.environ.get("DATABASE_URL")
 if database_url and database_url.startswith("postgres://"):
@@ -121,6 +132,8 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(255), unique=True)
     password_hash = db.Column(db.String(120), nullable=False)
+    password_updated_at = db.Column(db.DateTime)
+    password_change_required = db.Column(db.Boolean, default=False, nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=False)
     status = db.Column(db.String(20), default='pending', nullable=False)
     disabled_reason = db.Column(db.Text)
@@ -172,6 +185,7 @@ class SalesOrder(db.Model):
     __tablename__ = 'sales_orders'
     id = db.Column(db.Integer, primary_key=True)
     so_number = db.Column(db.String(50), nullable=False)
+    source_so_number = db.Column(db.String(50))
     client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=False)
     company_name = db.Column(db.String(200))
     official_client_name = db.Column(db.String(200))
@@ -275,6 +289,17 @@ class CollectionReceipt(db.Model):
         ),
     )
     created_by = db.relationship('User', foreign_keys=[created_by_user_id])
+
+PAYMENT_TYPE_DOWNPAYMENT = 'DOWNPAYMENT'
+PAYMENT_TYPE_FULL = 'FULL'
+PAYMENT_TYPE_INSTALLMENT = 'INSTALLMENT'
+PAYMENT_TYPE_FINAL = 'FINAL'
+PAYMENT_TYPES = {
+    PAYMENT_TYPE_DOWNPAYMENT,
+    PAYMENT_TYPE_FULL,
+    PAYMENT_TYPE_INSTALLMENT,
+    PAYMENT_TYPE_FINAL,
+}
 
 class PurchaseOrder(db.Model):
     __tablename__ = 'purchase_orders'
@@ -529,8 +554,6 @@ def user_has_role(user, allowed_roles):
 def can_access_evaluation(user):
     if not is_user_approved(user):
         return False
-    if user_has_role(user, ('admin',)):
-        return True
     return bool(getattr(user, 'evaluation_enabled', False))
 
 def evaluation_required(f):
@@ -540,8 +563,7 @@ def evaluation_required(f):
         if not can_access_evaluation(user):
             if wants_json_response():
                 return jsonify({'success': False, 'error': 'Evaluation access is not enabled for this account.'}), 403
-            flash('Evaluation access is not enabled for this account.', 'error')
-            return redirect(url_for('dashboard'))
+            return render_error_interface('permission', 403, 'Evaluation access is not enabled for this account.')
         return f(*args, **kwargs)
     return decorated_function
 
@@ -582,6 +604,29 @@ def session_timestamp(value):
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+def validate_password_policy(password):
+    password = password or ''
+    return (
+        len(password) >= 8
+        and any(char.isupper() for char in password)
+        and any(char.islower() for char in password)
+        and any(char.isdigit() for char in password)
+        and any(char in PASSWORD_SPECIAL_CHARACTERS for char in password)
+    )
+
+def generate_compliant_password(length=12):
+    alphabet = string.ascii_letters + string.digits + PASSWORD_SPECIAL_CHARACTERS
+    required = [
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.digits),
+        secrets.choice(PASSWORD_SPECIAL_CHARACTERS),
+    ]
+    remaining = [secrets.choice(alphabet) for _ in range(max(length, 8) - len(required))]
+    chars = required + remaining
+    secrets.SystemRandom().shuffle(chars)
+    return ''.join(chars)
 
 def request_ip_address():
     forwarded_for = (request.headers.get('X-Forwarded-For') or '').split(',')[0].strip()
@@ -645,6 +690,20 @@ def expire_inactive_session_if_needed():
     session['last_activity_at'] = now.isoformat()
     return None
 
+def enforce_active_session_record():
+    session_record_id = session.get('session_record_id')
+    if not session_record_id:
+        return None
+    session_record = db.session.get(SessionRecord, session_record_id)
+    if session_record and session_record.status == 'ACTIVE':
+        return None
+    session.clear()
+    message = 'Your session was signed out because this account was opened on another device or browser.'
+    if wants_json_response():
+        return jsonify({'success': False, 'error': message}), 401
+    flash(message, 'warning')
+    return redirect(url_for('login'))
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -655,6 +714,9 @@ def login_required(f):
         timeout_response = expire_inactive_session_if_needed()
         if timeout_response:
             return timeout_response
+        active_session_response = enforce_active_session_record()
+        if active_session_response:
+            return active_session_response
         user = db.session.get(User, session['user_id'])
         if not is_user_approved(user):
             session.clear()
@@ -662,6 +724,11 @@ def login_required(f):
                 return jsonify({'success': False, 'error': 'Your session is no longer active. Sign in again.'}), 401
             flash(user_access_message(user), 'error')
             return redirect(url_for('login'))
+        if user.password_change_required and request.endpoint not in {'profile', 'logout', 'static', 'theme_overrides_css'}:
+            if wants_json_response():
+                return jsonify({'success': False, 'error': 'Update your temporary password before continuing.'}), 409
+            flash('Please set a new password before continuing.', 'warning')
+            return redirect(url_for('profile'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -676,6 +743,9 @@ def role_required(*allowed_roles):
             timeout_response = expire_inactive_session_if_needed()
             if timeout_response:
                 return timeout_response
+            active_session_response = enforce_active_session_record()
+            if active_session_response:
+                return active_session_response
             
             user = db.session.get(User, session['user_id'])
             if not is_user_approved(user) or not user_has_role(user, allowed_roles):
@@ -1029,6 +1099,25 @@ input[type="radio"] {{
     min-height: 20px !important;
     margin: 0 !important;
     accent-color: var(--orange);
+}}
+
+input[type="checkbox"] {{
+    border: 2px solid color-mix(in srgb, var(--orange) 65%, var(--border)) !important;
+    background-color: var(--card) !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    background-size: 14px 14px !important;
+}}
+
+input[type="checkbox"]:checked {{
+    border-color: var(--orange) !important;
+    background-color: var(--orange) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M4.25 10.25 8.15 14 15.75 6' stroke='white' stroke-width='2.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+}}
+
+input[type="checkbox"]:focus-visible {{
+    outline: 3px solid color-mix(in srgb, var(--orange) 35%, transparent) !important;
+    outline-offset: 2px;
 }}
 
 .btn,
@@ -1724,6 +1813,7 @@ def sales_order_query(statuses=None, outstanding_only=False):
         db.session.query(
             SalesOrder.id.label('id'),
             SalesOrder.so_number.label('so_number'),
+            SalesOrder.source_so_number.label('source_so_number'),
             SalesOrder.client_id.label('client_id'),
             SalesOrder.company_name.label('company_name'),
             SalesOrder.official_client_name.label('official_client_name'),
@@ -1765,6 +1855,7 @@ def sales_order_row_payload(row):
     return {
         'id': row.id,
         'so_number': row.so_number,
+        'source_so_number': row.source_so_number,
         'client_id': row.client_id,
         'company_name': company_name,
         'client_name': row.client_name,
@@ -1847,6 +1938,7 @@ def sales_order_admin_payload(order):
     return {
         'id': order.id,
         'so_number': order.so_number,
+        'source_so_number': order.source_so_number,
         'client_id': order.client_id,
         'company_name': order.company_name or (order.client.client_name if order.client else ''),
         'official_client_name': order.official_client_name,
@@ -2104,34 +2196,345 @@ def previous_year_comparison_filter(filters):
 def date_range_filter(query, column, filters):
     return query.filter(column >= filters['start_date'], column < filters['end_date'])
 
+def analytics_overview_revenue_report_payload(filters):
+    """Build the Overview CSV revenue report from Sales Order analytics data."""
+    selected_year = int(filters['selected_year'])
+    start_date = date(selected_year, 1, 1)
+    end_date = date(selected_year + 1, 1, 1)
+    revenue_source = deduped_sales_item_revenue_subquery(
+        db,
+        SalesOrderItem,
+        SalesOrder,
+        start_date,
+        end_date,
+    )
+    month_key = db_month_key(revenue_source.c.order_date).label('month_key')
+    store_name = func.coalesce(
+        func.nullif(revenue_source.c.store_name, ''),
+        func.nullif(revenue_source.c.company_name, ''),
+        'Unspecified Store',
+    ).label('store_name')
+    monthly_store_rows = (
+        db.session.query(
+            month_key,
+            store_name,
+            func.sum(revenue_source.c.revenue).label('revenue'),
+        )
+        .group_by(month_key, store_name)
+        .order_by(month_key.asc(), func.sum(revenue_source.c.revenue).desc(), store_name.asc())
+        .all()
+    )
+
+    monthly_totals = defaultdict(float)
+    top_clients = {}
+    for row in monthly_store_rows:
+        key = row.month_key
+        if not key:
+            continue
+        revenue = float(row.revenue or 0)
+        monthly_totals[key] += revenue
+        existing = top_clients.get(key)
+        if existing is None or revenue > existing['revenue']:
+            top_clients[key] = {
+                'store_name': row.store_name or 'Unspecified Store',
+                'revenue': revenue,
+            }
+
+    report_rows = []
+    previous_revenue = None
+    for month in range(1, 13):
+        month_date = date(selected_year, month, 1)
+        month_key_value = month_date.strftime('%Y-%m')
+        revenue = round(monthly_totals.get(month_key_value, 0.0), 2)
+        growth_rate = 'N/A'
+        if previous_revenue not in (None, 0):
+            growth_rate = f"{round((revenue - previous_revenue) / previous_revenue * 100, 2)}%"
+        top_client = top_clients.get(month_key_value)
+        report_rows.append({
+            'month': month_date.strftime('%b %Y'),
+            'revenue': revenue,
+            'growth_rate': growth_rate,
+            'top_client': top_client['store_name'] if top_client else 'N/A',
+            'top_client_revenue': round(top_client['revenue'], 2) if top_client else 0.0,
+        })
+        previous_revenue = revenue if month_key_value in monthly_totals else None
+
+    return {
+        'year': selected_year,
+        'columns': ['month', 'revenue', 'growth rate', 'top client', 'top client revenue'],
+        'rows': report_rows,
+    }
+
+def _overview_trend_month_label(month):
+    return date(2000, month, 1).strftime('%b')
+
+def _overview_trend_date_value(value):
+    if isinstance(value, datetime):
+        return value.date()
+    return value
+
+def _overview_sales_order_revenue_by_day(start_date, end_date):
+    revenue_source = deduped_sales_item_revenue_subquery(
+        db,
+        SalesOrderItem,
+        SalesOrder,
+        start_date,
+        end_date,
+    )
+    rows = (
+        db.session.query(
+            revenue_source.c.order_date.label('order_date'),
+            func.sum(revenue_source.c.revenue).label('revenue'),
+        )
+        .filter(
+            revenue_source.c.order_date >= start_date,
+            revenue_source.c.order_date < end_date,
+        )
+        .group_by(revenue_source.c.order_date)
+        .all()
+    )
+    totals = defaultdict(float)
+    for row in rows:
+        order_date = _overview_trend_date_value(row.order_date)
+        if order_date:
+            totals[order_date] += float(row.revenue or 0)
+    return totals
+
+def _overview_trend_percent_delta(current, previous):
+    current = float(current or 0)
+    previous = float(previous or 0)
+    if previous == 0:
+        return None
+    return round((current - previous) / previous * 100, 2)
+
+def _overview_trend_point(label, period, current_value, previous_value, selected_year, previous_year, month=None, quarter=None, week=None):
+    current_value = round(float(current_value or 0), 2)
+    previous_value = round(float(previous_value or 0), 2)
+    params = {'year': selected_year}
+    previous_params = {'year': previous_year}
+    if month:
+        params.update({'period': 'month', 'month': month})
+        previous_params.update({'period': 'month', 'month': month})
+    elif quarter:
+        params.update({'period': 'quarter', 'quarter': quarter})
+        previous_params.update({'period': 'quarter', 'quarter': quarter})
+    return {
+        'label': label,
+        'period': period,
+        'month': month,
+        'quarter': quarter,
+        'week': week,
+        'current_revenue': current_value,
+        'previous_revenue': previous_value,
+        'yoy_delta': round(current_value - previous_value, 2),
+        'yoy_delta_percent': _overview_trend_percent_delta(current_value, previous_value),
+        'current_params': params,
+        'previous_params': previous_params,
+    }
+
+def _overview_drilldown_forecast_points(points, selected_year, mode, quarter=1, month=1):
+    values = [float(point.get('current_revenue') or 0) for point in points]
+    if len(values) < 3:
+        return {
+            'status': 'insufficient_data',
+            'message': 'At least 3 actual data points are needed to forecast this view.',
+            'forecast_points': [],
+        }
+
+    working = list(values)
+    forecast_points = []
+
+    def next_month_label(month_number):
+        month_date = date(selected_year + ((month_number - 1) // 12), ((month_number - 1) % 12) + 1, 1)
+        return month_date.strftime('%b')
+
+    def next_month_period(month_number):
+        month_date = date(selected_year + ((month_number - 1) // 12), ((month_number - 1) % 12) + 1, 1)
+        return month_date.strftime('%Y-%m')
+
+    if mode == 'monthly':
+        base_week = max([int(point.get('week') or 0) for point in points] or [0])
+        for offset in range(1, 4):
+            revenue = round(float(holt_winters_forecast(working)), 2)
+            week_number = base_week + offset
+            forecast_points.append({
+                'label': f'Forecast W{week_number}',
+                'period': f'{selected_year}-{int(month):02d}-FW{week_number}',
+                'revenue': revenue,
+                'type': 'forecast',
+                'week': week_number,
+            })
+            working.append(revenue)
+    else:
+        if mode == 'quarterly':
+            base_month = (int(quarter or 1) * 3)
+        else:
+            non_zero_months = [int(point.get('month') or 0) for point in points if float(point.get('current_revenue') or 0) > 0]
+            base_month = max(non_zero_months) if non_zero_months else max([int(point.get('month') or 0) for point in points] or [12])
+            working = values[:base_month] if base_month <= len(values) else list(values)
+        for offset in range(1, 4):
+            month_number = base_month + offset
+            revenue = round(float(holt_winters_forecast(working)), 2)
+            forecast_points.append({
+                'label': next_month_label(month_number),
+                'period': next_month_period(month_number),
+                'revenue': revenue,
+                'type': 'forecast',
+                'month': ((month_number - 1) % 12) + 1,
+                'quarter': (((month_number - 1) % 12) // 3) + 1,
+            })
+            working.append(revenue)
+
+    return {
+        'status': 'ready',
+        'message': '3-point Holt-Winters forecast generated for this drilldown view.',
+        'forecast_points': forecast_points,
+    }
+
+def analytics_overview_trend_drilldown_payload(year, mode='yearly', quarter=1, month=1):
+    """Build selected-year versus previous-year Sales Order revenue trend drilldown."""
+    available_years = report_available_years()
+    selected_year = int(year or available_years[0])
+    if selected_year not in available_years:
+        selected_year = available_years[0]
+    previous_year = selected_year - 1
+    mode = mode if mode in {'yearly', 'quarterly', 'monthly'} else 'yearly'
+    quarter = int(quarter or 1)
+    if quarter not in (1, 2, 3, 4):
+        quarter = 1
+    month = int(month or 1)
+    if month < 1 or month > 12:
+        month = 1
+
+    current_daily = _overview_sales_order_revenue_by_day(date(selected_year, 1, 1), date(selected_year + 1, 1, 1))
+    previous_daily = _overview_sales_order_revenue_by_day(date(previous_year, 1, 1), date(selected_year, 1, 1))
+
+    def monthly_total(daily_totals, target_year, target_month):
+        return sum(
+            revenue for revenue_date, revenue in daily_totals.items()
+            if revenue_date.year == target_year and revenue_date.month == target_month
+        )
+
+    points = []
+    if mode == 'quarterly':
+        start_month = ((quarter - 1) * 3) + 1
+        for target_month in range(start_month, start_month + 3):
+            label = _overview_trend_month_label(target_month)
+            points.append(_overview_trend_point(
+                label,
+                f'{selected_year}-{target_month:02d}',
+                monthly_total(current_daily, selected_year, target_month),
+                monthly_total(previous_daily, previous_year, target_month),
+                selected_year,
+                previous_year,
+                month=target_month,
+                quarter=quarter,
+            ))
+        label = f'Q{quarter} ({_overview_trend_month_label(start_month)}-{_overview_trend_month_label(start_month + 2)}) {selected_year}'
+    elif mode == 'monthly':
+        month_start = date(selected_year, month, 1)
+        month_end = date(selected_year + 1, 1, 1) if month == 12 else date(selected_year, month + 1, 1)
+        previous_month_start = date(previous_year, month, 1)
+        previous_month_end = date(selected_year, 1, 1) if month == 12 else date(previous_year, month + 1, 1)
+        week_start = month_start
+        week_index = 1
+        while week_start < month_end:
+            week_end = min(week_start + timedelta(days=7), month_end)
+            previous_week_start = previous_month_start + timedelta(days=(week_start - month_start).days)
+            previous_week_end = min(previous_week_start + timedelta(days=(week_end - week_start).days), previous_month_end)
+            current_value = sum(
+                revenue for revenue_date, revenue in current_daily.items()
+                if week_start <= revenue_date < week_end
+            )
+            previous_value = sum(
+                revenue for revenue_date, revenue in previous_daily.items()
+                if previous_week_start <= revenue_date < previous_week_end
+            )
+            label = f"W{week_index} ({week_start.strftime('%b')} {week_start.day}-{(week_end - timedelta(days=1)).day})"
+            points.append(_overview_trend_point(
+                label,
+                f'{selected_year}-{month:02d}-W{week_index}',
+                current_value,
+                previous_value,
+                selected_year,
+                previous_year,
+                month=month,
+                quarter=((month - 1) // 3) + 1,
+                week=week_index,
+            ))
+            week_start = week_end
+            week_index += 1
+        label = f'{_overview_trend_month_label(month)} {selected_year}'
+    else:
+        for target_month in range(1, 13):
+            quarter_value = ((target_month - 1) // 3) + 1
+            points.append(_overview_trend_point(
+                _overview_trend_month_label(target_month),
+                f'{selected_year}-{target_month:02d}',
+                monthly_total(current_daily, selected_year, target_month),
+                monthly_total(previous_daily, previous_year, target_month),
+                selected_year,
+                previous_year,
+                month=target_month,
+                quarter=quarter_value,
+            ))
+        label = str(selected_year)
+
+    peak_index = 0
+    peak_value = 0.0
+    for index, point in enumerate(points):
+        value = float(point['current_revenue'] or 0)
+        if index == 0 or value > peak_value:
+            peak_index = index
+            peak_value = value
+    peak_point = points[peak_index] if points else None
+
+    forecast = _overview_drilldown_forecast_points(points, selected_year, mode, quarter, month)
+
+    return {
+        'mode': mode,
+        'selected_year': selected_year,
+        'previous_year': previous_year,
+        'quarter': quarter,
+        'month': month,
+        'label': label,
+        'available_years': available_years,
+        'labels': [point['label'] for point in points],
+        'current_values': [point['current_revenue'] for point in points],
+        'previous_values': [point['previous_revenue'] for point in points],
+        'points': points,
+        'forecast_status': forecast['status'],
+        'forecast_message': forecast['message'],
+        'forecast_points': forecast['forecast_points'],
+        'peak': {
+            'index': peak_index,
+            'label': peak_point['label'] if peak_point else 'No peak period',
+            'value': round(float(peak_value or 0), 2),
+            'params': peak_point['current_params'] if peak_point else {'year': selected_year},
+        },
+    }
+
 def build_manager_revenue_summary(all_dates=False, selected_year=None, year_start=None, next_year_start=None):
-    revenue_rows = revenue_report_rows(None if all_dates else {
+    revenue_rows = sales_order_revenue_report_rows(None if all_dates else {
         'start_date': year_start,
         'end_date': next_year_start,
     })
 
-    collected_revenue = round(sum(float(row.get('amount_paid') or 0) for row in revenue_rows), 2)
-    paid_invoice_numbers = {
-        row.get('invoice_number')
-        for row in revenue_rows
-        if row.get('invoice_number') and float(row.get('amount_paid') or 0) > MONEY_TOLERANCE
-    }
-    paid_invoice_count = len(paid_invoice_numbers)
-    average_paid_invoice = round(collected_revenue / paid_invoice_count, 2) if paid_invoice_count else 0.0
+    sales_order_revenue = round(sum(float(row.get('sales_order_value') or 0) for row in revenue_rows), 2)
+    sales_order_count = len(revenue_rows)
+    average_sales_order = round(sales_order_revenue / sales_order_count, 2) if sales_order_count else 0.0
 
-    receivable_query = db.session.query(
-        func.coalesce(func.sum(Invoice.balance), 0).label('receivable_total')
-    ).filter(Invoice.balance > MONEY_TOLERANCE)
+    receivable_query = Invoice.query
     if not all_dates:
         receivable_query = receivable_query.filter(Invoice.invoice_date >= year_start, Invoice.invoice_date < next_year_start)
-    receivable_revenue = round(float(receivable_query.scalar() or 0), 2)
+    receivable_revenue = round(sum(invoice_receivable_balance(invoice) for invoice in receivable_query.all()), 2)
 
     if all_dates:
         trend_map = defaultdict(float)
         for row in revenue_rows:
-            date_value = parse_date_value(row.get('invoice_date'), default_today=False)
+            date_value = parse_date_value(row.get('date'), default_today=False)
             if date_value:
-                trend_map[str(date_value.year)] += float(row.get('amount_paid') or 0)
+                trend_map[str(date_value.year)] += float(row.get('sales_order_value') or 0)
         trend_rows = [
             {'label': label, 'value': round(value, 2)}
             for label, value in sorted(trend_map.items())
@@ -2139,9 +2542,9 @@ def build_manager_revenue_summary(all_dates=False, selected_year=None, year_star
     else:
         trend_map = {month: 0.0 for month in range(1, 13)}
         for row in revenue_rows:
-            date_value = parse_date_value(row.get('invoice_date'), default_today=False)
+            date_value = parse_date_value(row.get('date'), default_today=False)
             if date_value and date_value.year == selected_year:
-                trend_map[date_value.month] += float(row.get('amount_paid') or 0)
+                trend_map[date_value.month] += float(row.get('sales_order_value') or 0)
         trend_rows = [
             {
                 'label': date(selected_year, month, 1).strftime('%b'),
@@ -2156,43 +2559,48 @@ def build_manager_revenue_summary(all_dates=False, selected_year=None, year_star
 
     clients = {}
     for row in revenue_rows:
-        amount_paid = float(row.get('amount_paid') or 0)
-        if amount_paid <= MONEY_TOLERANCE:
+        sales_value = float(row.get('sales_order_value') or 0)
+        if sales_value <= MONEY_TOLERANCE:
             continue
         client_name = row.get('client_name') or 'Unassigned Client'
-        invoice_number = row.get('invoice_number') or ''
-        invoice_date = row.get('invoice_date') or ''
+        so_number = row.get('so_number') or ''
+        order_date = row.get('date') or ''
         entry = clients.setdefault(client_name, {
             'client_name': client_name,
-            'paid_amount': 0.0,
-            'invoice_numbers': set(),
+            'sales_order_value': 0.0,
+            'so_numbers': set(),
             'latest_date': ''
         })
-        entry['paid_amount'] += amount_paid
-        if invoice_number:
-            entry['invoice_numbers'].add(invoice_number)
-        if invoice_date > entry['latest_date']:
-            entry['latest_date'] = invoice_date
+        entry['sales_order_value'] += sales_value
+        if so_number:
+            entry['so_numbers'].add(so_number)
+        if order_date > entry['latest_date']:
+            entry['latest_date'] = order_date
 
     top_clients = sorted(
         (
             {
                 'client_name': item['client_name'],
-                'paid_amount': round(item['paid_amount'], 2),
-                'invoice_count': len(item['invoice_numbers']),
+                'sales_order_value': round(item['sales_order_value'], 2),
+                'order_count': len(item['so_numbers']),
                 'latest_date': item['latest_date'],
+                'paid_amount': round(item['sales_order_value'], 2),
+                'invoice_count': len(item['so_numbers']),
             }
             for item in clients.values()
         ),
-        key=lambda item: item['paid_amount'],
+        key=lambda item: item['sales_order_value'],
         reverse=True
     )[:5]
 
     return {
-        'collected_revenue': collected_revenue,
+        'sales_order_revenue': sales_order_revenue,
+        'sales_order_count': sales_order_count,
+        'average_sales_order': average_sales_order,
+        'collected_revenue': sales_order_revenue,
         'receivable_revenue': receivable_revenue,
-        'paid_invoice_count': paid_invoice_count,
-        'average_paid_invoice': average_paid_invoice,
+        'paid_invoice_count': sales_order_count,
+        'average_paid_invoice': average_sales_order,
         'trend_rows': trend_rows,
         'top_clients': top_clients,
         'has_revenue_data': bool(revenue_rows),
@@ -2257,6 +2665,33 @@ def revenue_report_rows(filters=None):
         'status': invoice.status,
     } for invoice, order, client in legacy_query.all())
     return sorted(result, key=lambda item: (item['invoice_date'] or '', item['invoice_number']))
+
+def sales_order_revenue_report_rows(filters=None):
+    query = (
+        db.session.query(SalesOrder, Client)
+        .join(Client, SalesOrder.client_id == Client.id, isouter=True)
+    )
+    if filters:
+        query = date_range_filter(query, SalesOrder.order_date, filters)
+
+    rows = query.order_by(SalesOrder.order_date.asc(), SalesOrder.so_number.asc()).all()
+    result = []
+    for order, client in rows:
+        total_quantity = sum(float(item.quantity or 0) for item in order.items)
+        result.append({
+            'date': order.order_date.isoformat() if order.order_date else None,
+            'so_number': order.so_number,
+            'company_name': order.company_name or (client.client_name if client else ''),
+            'client_name': client.client_name if client else (order.official_client_name or order.company_name or 'Unassigned Client'),
+            'store_name': order.store_name,
+            'store_branch': order.store_branch,
+            'sales_staff': order.sales_staff,
+            'sales_order_value': float(sales_order_total(order)),
+            'item_count': len(order.items),
+            'total_quantity': int(total_quantity) if total_quantity.is_integer() else total_quantity,
+            'status': order.status,
+        })
+    return result
 
 def sales_report_itemized_rows(filters=None):
     query = (
@@ -2559,6 +2994,19 @@ def payment_state(total_amount, amount_paid):
         status = 'PARTIAL'
     return status, balance
 
+def invoice_receivable_balance(invoice):
+    stored_balance = max(float(getattr(invoice, 'balance', 0) or 0), 0)
+    if stored_balance > MONEY_TOLERANCE:
+        return round(stored_balance, 2)
+
+    total = max(float(getattr(invoice, 'total_amount', 0) or 0), 0)
+    paid = max(float(getattr(invoice, 'amount_paid', 0) or 0), 0)
+    derived_balance = max(round(total - paid, 2), 0)
+    status = (getattr(invoice, 'status', '') or '').upper()
+    if status in {'UNPAID', 'PARTIAL', 'PENDING'} and derived_balance > MONEY_TOLERANCE:
+        return derived_balance
+    return 0.0
+
 def collected_payment_amount(cr_number, payment_amount, tax_amount_paid, is_2307_checked):
     payment = parse_nonnegative_amount(payment_amount, 'Payment amount')
     tax = parse_nonnegative_amount(tax_amount_paid, 'Tax amount paid')
@@ -2567,8 +3015,151 @@ def collected_payment_amount(cr_number, payment_amount, tax_amount_paid, is_2307
         raise ValueError('CR number is required when recording a payment.')
     return payment, tax, collected
 
+def normalize_payment_type(value, *, default=None):
+    payment_type = clean_code(value).upper()
+    return payment_type or default
+
+def paid_collection_receipts(invoice):
+    return [
+        receipt
+        for receipt in getattr(invoice, 'collection_receipts', []) or []
+        if float(receipt.collected_total or 0) > MONEY_TOLERANCE
+    ]
+
+def invoice_installment_schedule(invoice):
+    paid_receipts = paid_collection_receipts(invoice)
+    first_downpayment = next(
+        (
+            receipt for receipt in paid_receipts
+            if normalize_payment_type(receipt.payment_type) == PAYMENT_TYPE_DOWNPAYMENT
+        ),
+        None,
+    )
+    base_payment = round(float(first_downpayment.collected_total or 0), 2) if first_downpayment else 0.0
+    total = max(float(invoice.total_amount or 0), 0)
+    expected_count = int(math.ceil(total / base_payment)) if base_payment > MONEY_TOLERANCE else 0
+    next_payment_number = len(paid_receipts) + 1
+    remaining = max(round(total - sum(float(item.collected_total or 0) for item in paid_receipts), 2), 0)
+    final_due = (
+        bool(first_downpayment)
+        and expected_count > 0
+        and (
+            next_payment_number >= expected_count
+            or remaining <= base_payment + MONEY_TOLERANCE
+        )
+    )
+    return {
+        'paid_receipts': paid_receipts,
+        'first_downpayment': first_downpayment,
+        'base_payment': base_payment,
+        'expected_count': expected_count,
+        'next_payment_number': next_payment_number,
+        'remaining': remaining,
+        'final_due': final_due,
+    }
+
+def validate_receipt_payment_type(invoice, payment_type, collected_total, current_paid, remaining=None):
+    remaining = (
+        max(float(remaining), 0)
+        if remaining is not None
+        else max(float(invoice.total_amount or 0) - current_paid, 0)
+    )
+    has_previous_payment = current_paid > MONEY_TOLERANCE
+    schedule = invoice_installment_schedule(invoice)
+
+    if payment_type not in PAYMENT_TYPES:
+        raise ValueError('Payment type must be DOWNPAYMENT, FULL, INSTALLMENT, or FINAL.')
+
+    if not has_previous_payment:
+        if payment_type in {PAYMENT_TYPE_INSTALLMENT, PAYMENT_TYPE_FINAL}:
+            raise ValueError('Installment and Final Payment are available only after a paid Downpayment.')
+        if payment_type == PAYMENT_TYPE_FULL and abs(collected_total - remaining) > MONEY_TOLERANCE:
+            raise ValueError(f'Full Payment must exactly settle the remaining invoice balance of {remaining:.2f}.')
+        if payment_type == PAYMENT_TYPE_DOWNPAYMENT and collected_total >= remaining - MONEY_TOLERANCE:
+            raise ValueError('Use Full Payment when the first payment settles the invoice.')
+        return
+
+    if payment_type == PAYMENT_TYPE_DOWNPAYMENT:
+        raise ValueError('Downpayment is available only before the first paid receipt.')
+    if payment_type == PAYMENT_TYPE_FULL:
+        raise ValueError('Use Final Payment to close an invoice after a Downpayment.')
+
+    if not schedule['first_downpayment']:
+        raise ValueError('Installment and Final Payment require an initial paid Downpayment.')
+
+    if payment_type == PAYMENT_TYPE_INSTALLMENT:
+        if schedule['final_due']:
+            raise ValueError('Final Payment is required for the last scheduled payment.')
+        expected = min(schedule['base_payment'], remaining)
+        if abs(collected_total - expected) > MONEY_TOLERANCE:
+            raise ValueError(f'Installment payment must equal the scheduled amount of {expected:.2f}.')
+
+    if payment_type == PAYMENT_TYPE_FINAL:
+        if not schedule['final_due']:
+            raise ValueError('Final Payment is available only for the last scheduled payment.')
+        if abs(collected_total - remaining) > MONEY_TOLERANCE:
+            raise ValueError(f'Final Payment must exactly settle the remaining invoice balance of {remaining:.2f}.')
+
 def normalize_cr_number(value):
     return clean_code(value).upper()
+
+def invoice_reference_payload(invoice):
+    if not invoice:
+        return None
+    sales_order = getattr(invoice, 'sales_order', None)
+    return {
+        'invoice_id': invoice.id,
+        'invoice_number': clean_code(invoice.invoice_number).upper(),
+        'sales_order_id': sales_order.id if sales_order else None,
+        'so_number': sales_order.so_number if sales_order else None,
+    }
+
+def find_invoice_by_number(invoice_number):
+    value = clean_code(invoice_number).upper()
+    if not value:
+        return None
+    return Invoice.query.filter(func.lower(Invoice.invoice_number) == value.lower()).first()
+
+def find_collection_receipt_reference(cr_number, exclude_invoice_id=None):
+    normalized_cr_number = normalize_cr_number(cr_number)
+    if not normalized_cr_number:
+        return None
+
+    receipt_query = (
+        CollectionReceipt.query
+        .options(selectinload(CollectionReceipt.invoice).selectinload(Invoice.sales_order))
+        .filter(func.upper(CollectionReceipt.normalized_cr_number) == normalized_cr_number)
+    )
+    if exclude_invoice_id:
+        receipt_query = receipt_query.filter(CollectionReceipt.invoice_id != exclude_invoice_id)
+    receipt = receipt_query.first()
+    if receipt:
+        return {
+            'cr_number': receipt.cr_number,
+            'invoice': invoice_reference_payload(receipt.invoice),
+        }
+
+    invoice_query = (
+        Invoice.query
+        .options(selectinload(Invoice.sales_order))
+        .filter(func.upper(func.trim(Invoice.cr_number)) == normalized_cr_number)
+    )
+    if exclude_invoice_id:
+        invoice_query = invoice_query.filter(Invoice.id != exclude_invoice_id)
+    invoice = invoice_query.first()
+    if invoice:
+        return {
+            'cr_number': invoice.cr_number,
+            'invoice': invoice_reference_payload(invoice),
+        }
+    return None
+
+def duplicate_cr_message(cr_number, reference):
+    invoice = (reference or {}).get('invoice') or {}
+    invoice_number = invoice.get('invoice_number') or 'another invoice'
+    so_number = invoice.get('so_number')
+    suffix = f' / Sales Order {so_number}' if so_number else ''
+    return f'CR number {clean_code(cr_number)} is already recorded for invoice {invoice_number}{suffix}.'
 
 def collection_receipt_payload(receipt):
     return {
@@ -2600,10 +3191,10 @@ def ensure_invoice_legacy_receipt(invoice):
         cr_number=legacy_cr,
         normalized_cr_number=normalize_cr_number(legacy_cr),
         payment_type=(
-            'FULL'
-            if str(invoice.payment_type or '').upper() == 'FULL'
+            PAYMENT_TYPE_FULL
+            if normalize_payment_type(invoice.payment_type) == PAYMENT_TYPE_FULL
             or float(invoice.balance or 0) <= MONEY_TOLERANCE
-            else 'DOWNPAYMENT'
+            else PAYMENT_TYPE_DOWNPAYMENT
         ),
         payment_amount=(
             float(invoice.payment_amount or 0)
@@ -2637,6 +3228,7 @@ def append_collection_receipt(
     recorded_by=None,
     existing_paid=None,
     prevalidated=False,
+    expected_remaining=None,
 ):
     if not prevalidated:
         ensure_invoice_legacy_receipt(invoice)
@@ -2650,6 +3242,10 @@ def append_collection_receipt(
     cr_number = raw_cr_number or f'LEGACY-{invoice.id}'
     normalized_cr_number = normalize_cr_number(cr_number)
     if not prevalidated:
+        duplicate_reference = find_collection_receipt_reference(cr_number)
+        duplicate_invoice_id = ((duplicate_reference or {}).get('invoice') or {}).get('invoice_id')
+        if duplicate_reference and duplicate_invoice_id != invoice.id:
+            raise ValueError(duplicate_cr_message(cr_number, duplicate_reference))
         duplicate = CollectionReceipt.query.filter_by(
             invoice_id=invoice.id,
             normalized_cr_number=normalized_cr_number,
@@ -2657,11 +3253,15 @@ def append_collection_receipt(
         if duplicate:
             raise ValueError(f'CR number {cr_number} is already recorded for this invoice.')
 
-    payment_type = clean_code(data.get('payment_type')).upper()
-    if allow_legacy and payment_type not in {'DOWNPAYMENT', 'FULL'}:
-        payment_type = 'FULL' if float(data.get('collected_total') or 0) >= float(invoice.total_amount or 0) else 'DOWNPAYMENT'
-    if payment_type not in {'DOWNPAYMENT', 'FULL'}:
-        raise ValueError('Payment type must be DOWNPAYMENT or FULL.')
+    payment_type = normalize_payment_type(data.get('payment_type'))
+    if allow_legacy and payment_type not in PAYMENT_TYPES:
+        payment_type = (
+            PAYMENT_TYPE_FULL
+            if float(data.get('collected_total') or 0) >= float(invoice.total_amount or 0)
+            else PAYMENT_TYPE_DOWNPAYMENT
+        )
+    if payment_type not in PAYMENT_TYPES:
+        raise ValueError('Payment type must be DOWNPAYMENT, FULL, INSTALLMENT, or FINAL.')
 
     is_2307_checked = bool(data.get('is_2307_checked'))
     payment_amount, tax_amount_paid, collected_total = collected_payment_amount(
@@ -2678,11 +3278,15 @@ def append_collection_receipt(
         if existing_paid is not None
         else receipt_total_for_invoice(invoice)
     )
-    remaining = max(float(invoice.total_amount or 0) - current_paid, 0)
+    remaining = (
+        max(float(expected_remaining), 0)
+        if expected_remaining is not None
+        else max(float(invoice.total_amount or 0) - current_paid, 0)
+    )
     if collected_total > remaining + MONEY_TOLERANCE:
         raise ValueError(f'Payment exceeds the remaining invoice balance of {remaining:.2f}.')
-    if payment_type == 'FULL' and abs(collected_total - remaining) > MONEY_TOLERANCE:
-        raise ValueError(f'Full Payment must exactly settle the remaining invoice balance of {remaining:.2f}.')
+    if not allow_legacy:
+        validate_receipt_payment_type(invoice, payment_type, collected_total, current_paid, remaining)
 
     receipt = CollectionReceipt(
         invoice=invoice,
@@ -2818,6 +3422,28 @@ def normalize_sales_order_number(value):
         return f"SO-{int(numeric):03d}"
     return text
 
+def sales_order_generation_year(value=None):
+    current_year = datetime.now().year
+    if value is None or str(value).strip() == '':
+        return current_year
+    try:
+        parsed = int(float(str(value).strip()))
+    except (TypeError, ValueError):
+        raise ValueError('Generated SO Year must be a valid year.')
+    if parsed < 2000 or parsed > current_year + 1:
+        raise ValueError(f'Generated SO Year must be between 2000 and {current_year + 1}.')
+    return parsed
+
+def next_sales_order_number(generation_year=None):
+    year = sales_order_generation_year(generation_year)
+    highest = 0
+    pattern = re.compile(rf'^SO-{year}-(\d+)$')
+    for (so_number,) in db.session.query(SalesOrder.so_number).all():
+        match = pattern.match(clean_code(so_number).upper())
+        if match:
+            highest = max(highest, int(match.group(1)))
+    return f"SO-{year}-{highest + 1:04d}"
+
 def sales_order_number_key(value):
     text = normalize_sales_order_number(value)
     numeric = re.sub(r'^SO[-\s]*', '', text)
@@ -2826,8 +3452,23 @@ def sales_order_number_key(value):
 def normalized_sales_staff(value):
     return clean_text(value, keep_period=True).upper()
 
-def compiled_sales_order_key(so_number, sales_staff):
-    return f"{sales_order_number_key(so_number)}|{normalize_client_match_key(sales_staff)}"
+def sales_order_source_key(source_so_number, sales_staff, order_date):
+    source_key = sales_order_number_key(source_so_number)
+    if not source_key:
+        return ''
+    parsed_date = parse_date_value(order_date, default_today=False)
+    if not parsed_date:
+        return ''
+    return f"{normalize_client_match_key(sales_staff)}|{source_key}|{parsed_date.isoformat()}"
+
+def compiled_sales_order_key(source_so_number, sales_staff, order_date=None):
+    source_key = sales_order_source_key(source_so_number, sales_staff, order_date)
+    if source_key:
+        return source_key
+    fallback = sales_order_number_key(source_so_number)
+    if fallback:
+        return f"{normalize_client_match_key(sales_staff)}|{fallback}"
+    return ''
 
 def normalized_branch_key(value):
     text = clean_text(value, keep_period=True, keep_ampersand=True).upper().replace('&', ' AND ')
@@ -2863,7 +3504,7 @@ def _compiled_sales_row(raw_row, row_number):
         'source_row': row_number,
         'included': True,
         'order_date': order_date.isoformat() if order_date else None,
-        'so_number': normalize_sales_order_number(lower.get('so_number')),
+        'source_so_number': normalize_sales_order_number(lower.get('so_number')),
         'company_name': clean_text(lower.get('company_name'), keep_period=True, keep_ampersand=True).upper(),
         'store_name': clean_text(lower.get('store_name'), keep_period=True, keep_ampersand=True).upper(),
         'store_branch': clean_text(lower.get('store_branch'), keep_period=True, keep_ampersand=True).upper(),
@@ -2875,7 +3516,8 @@ def _compiled_sales_row(raw_row, row_number):
         'total_revenue': total_revenue,
         'total_cost': total_cost,
     }
-    row['compound_key'] = compiled_sales_order_key(row['so_number'], row['sales_staff'])
+    row['so_number'] = row['source_so_number']
+    row['compound_key'] = compiled_sales_order_key(row['source_so_number'], row['sales_staff'], row['order_date'])
     row['branch_key'] = normalized_branch_key(row['store_branch'])
     return row
 
@@ -2887,7 +3529,6 @@ def validate_compiled_sales_rows(rows):
         if not row.get('order_date'):
             blocking.append('A valid Date is required.')
         for field, label in (
-            ('so_number', 'SO Number'),
             ('company_name', 'Company Name'),
             ('store_name', 'Store Name'),
             ('store_branch', 'Store Branch'),
@@ -2939,9 +3580,11 @@ def group_compiled_sales_rows(rows):
     for row in rows:
         if not row.get('included', True):
             continue
-        group = grouped.setdefault(row['compound_key'], {
-            'compound_key': row['compound_key'],
-            'so_number': row['so_number'],
+        compound_key = row.get('compound_key') or f"source-row-{row.get('source_row') or len(grouped) + 1}"
+        group = grouped.setdefault(compound_key, {
+            'compound_key': compound_key,
+            'so_number': row.get('source_so_number') or row.get('so_number') or '',
+            'source_so_number': row.get('source_so_number') or row.get('so_number') or '',
             'sales_staff': row['sales_staff'],
             'order_date': row['order_date'],
             'company_name': row['company_name'],
@@ -2952,18 +3595,22 @@ def group_compiled_sales_rows(rows):
         for field in ('order_date', 'company_name', 'store_name'):
             if group[field] != row[field]:
                 raise ValueError(
-                    f"Compound order {row['so_number']} / {row['sales_staff']} has conflicting {field.replace('_', ' ')} values."
+                    f"Compound order {row.get('source_so_number') or row.get('so_number') or 'without source SO'} / {row['sales_staff']} has conflicting {field.replace('_', ' ')} values."
                 )
         group['branches'][row['branch_key']] = row['store_branch']
         group['rows'].append(row)
     return list(grouped.values())
 
-def existing_compiled_sales_orders():
+def existing_source_sales_orders():
     existing = {}
     for order in SalesOrder.query.all():
-        key = compiled_sales_order_key(order.so_number, order.sales_staff)
-        existing.setdefault(key, order)
+        key = sales_order_source_key(order.source_so_number, order.sales_staff, order.order_date)
+        if key:
+            existing.setdefault(key, order)
     return existing
+
+def existing_compiled_sales_orders():
+    return existing_source_sales_orders()
 
 def normalize_submitted_compiled_row(raw_row):
     row = {
@@ -2971,7 +3618,7 @@ def normalize_submitted_compiled_row(raw_row):
         'source_row': raw_row.get('source_row') or raw_row.get('row_id'),
         'included': bool(raw_row.get('included', True)),
         'order_date': parse_date_value(raw_row.get('order_date'), default_today=False),
-        'so_number': normalize_sales_order_number(raw_row.get('so_number')),
+        'source_so_number': normalize_sales_order_number(raw_row.get('source_so_number') or raw_row.get('so_number')),
         'company_name': clean_text(raw_row.get('company_name'), keep_period=True, keep_ampersand=True).upper(),
         'store_name': clean_text(raw_row.get('store_name'), keep_period=True, keep_ampersand=True).upper(),
         'store_branch': clean_text(raw_row.get('store_branch'), keep_period=True, keep_ampersand=True).upper(),
@@ -2993,7 +3640,8 @@ def normalize_submitted_compiled_row(raw_row):
         row['total_revenue'] = round(row['quantity'] * row['selling_price'], 2)
     if row['total_cost'] is None and isinstance(row['quantity'], int) and row['unit_cost'] is not None:
         row['total_cost'] = round(row['quantity'] * row['unit_cost'], 2)
-    row['compound_key'] = compiled_sales_order_key(row['so_number'], row['sales_staff'])
+    row['so_number'] = row['source_so_number']
+    row['compound_key'] = compiled_sales_order_key(row['source_so_number'], row['sales_staff'], row['order_date'])
     row['branch_key'] = normalized_branch_key(row['store_branch'])
     return row
 
@@ -3757,6 +4405,95 @@ def log_audit(action, table_name, record_id=None, old_value=None, new_value=None
     )
     db.session.add(entry)
 
+def humanize_identifier(value):
+    value = (value or '').strip()
+    if not value:
+        return '-'
+    return ' '.join(part for part in re.split(r'[_\s]+', value) if part).title()
+
+def humanize_activity_action(action):
+    labels = {
+        'LOGIN': 'Login',
+        'LOGOUT': 'Logout',
+        'SESSION_TIMEOUT': 'Session Timeout',
+        'CONCURRENT_DEVICE_LOGIN': 'Multiple Active Sessions',
+        'REGISTER': 'Registered Account',
+        'UPDATE_PROFILE': 'Updated Profile',
+        'PASSWORD_RESET_REQUEST': 'Requested Password Reset',
+        'PASSWORD_RESET_RESOLVED': 'Resolved Password Reset',
+        'CREATE': 'Created Record',
+        'UPDATE': 'Updated Record',
+        'DELETE': 'Deleted Record',
+        'APPROVE_USER': 'Approved User',
+        'REJECT_USER': 'Rejected User',
+        'PROMOTE_USER_MANAGER': 'Promoted User To Manager',
+        'DEMOTE_USER_STAFF': 'Demoted User To Staff',
+        'DISABLE_USER': 'Disabled User',
+        'ENABLE_USER': 'Enabled User',
+        'ENABLE_EVALUATION_ACCESS': 'Enabled Evaluation Access',
+        'DISABLE_EVALUATION_ACCESS': 'Disabled Evaluation Access',
+        'BULK_ENABLE_EVALUATION_ACCESS': 'Enabled Evaluation Access For Selected Users',
+        'BULK_DISABLE_EVALUATION_ACCESS': 'Disabled Evaluation Access For Selected Users',
+        'BULK_UPDATE_STATUS': 'Updated Selected Records',
+        'BULK_DELETE': 'Deleted Selected Records',
+        'MAINTENANCE': 'Ran Database Maintenance',
+        'SQL_DRY_RUN': 'Checked SQL Query',
+        'SQL_EXECUTE': 'Ran SQL Query',
+        'UPDATE_THEME': 'Updated Theme',
+        'RESET_THEME': 'Reset Theme',
+        'RESET_TRANSACTIONS': 'Reset Transactions',
+        'UPLOAD_COMMIT': 'Committed Upload',
+        'UPLOAD_COMPILED_SALES': 'Uploaded Compiled Sales',
+        'EXPORT_REPORT': 'Exported Report',
+        'EXPORT_REPORT_CSV': 'Exported Report CSV',
+        'GENERATE_ANALYTICS_REPORT': 'Generated Analytics Ledger',
+        'UPLOAD_HISTORICAL_LEDGER': 'Uploaded Historical Ledger',
+        'UPLOAD_HISTORICAL_ANALYTICS': 'Uploaded Historical Analytics',
+        'UPLOAD_HISTORICAL_CSV': 'Uploaded Historical CSV',
+        'UPDATE_ANALYTICS_ITEM_CATEGORIES': 'Updated Analytics Item Categories',
+        'SUBMIT_LIKERT_EVALUATION': 'Submitted Evaluation',
+        'CREATE_COLLECTION_RECEIPT': 'Created Collection Receipt',
+    }
+    return labels.get((action or '').strip().upper(), humanize_identifier(action))
+
+def humanize_activity_table(table_name):
+    labels = {
+        'analytics_data': 'Analytics Ledger',
+        'analytics_item_categories': 'Analytics Item Categories',
+        'clients': 'Clients',
+        'collection_receipts': 'Collection Receipts',
+        'database': 'Database',
+        'evaluation_sessions': 'Evaluation Sessions',
+        'invoices': 'Invoices',
+        'password_resets': 'Password Resets',
+        'purchase_orders': 'Expenses',
+        'reports': 'Reports',
+        'roles': 'Roles',
+        'sales_orders': 'Sales Orders',
+        'session_records': 'Sessions',
+        'theme': 'Theme',
+        'users': 'Users',
+    }
+    return labels.get((table_name or '').strip().lower(), humanize_identifier(table_name))
+
+def audit_activity_payload(log):
+    display_action = humanize_activity_action(log.action)
+    display_table_name = humanize_activity_table(log.table_name)
+    return {
+        'id': log.id,
+        'username': log.username,
+        'role_name': log.user.role.role_name if log.user and log.user.role else 'system',
+        'action': log.action,
+        'table_name': log.table_name,
+        'display_action': display_action,
+        'display_table_name': display_table_name,
+        'activity_text': f'{log.username} - {display_action}',
+        'record_id': log.record_id,
+        'old_value': log.old_value,
+        'new_value': log.new_value,
+        'created_at': isoformat_utc(log.created_at),
+    }
+
 def admin_role():
     return Role.query.filter(func.lower(Role.role_name) == 'admin').first()
 
@@ -3799,6 +4536,7 @@ def inject_user_navigation():
         'current_user': current_user,
         'pending_notification_count': pending_admin_notification_count(),
         'profile_photo_src': profile_photo_src,
+        'password_policy_message': PASSWORD_POLICY_MESSAGE,
     }
 
 # Initialize Database
@@ -3924,6 +4662,8 @@ def init_db():
                     new_user = User(
                         username=user_info["username"],
                         password_hash=generate_password_hash(user_info["password"]),
+                        password_updated_at=datetime.now(UTC),
+                        password_change_required=False,
                         role_id=role.id,
                         status=USER_STATUS_APPROVED,
                         approved_at=datetime.now(UTC)
@@ -3994,24 +4734,29 @@ def login():
             device_id = valid_device_id(request.cookies.get(DEVICE_COOKIE_NAME)) or secrets.token_urlsafe(24)
             user_agent = request.headers.get('User-Agent', '')
             device_label = request_device_label(user_agent)
-            active_other_devices = (
+            active_other_sessions = (
                 SessionRecord.query
                 .filter(
                     SessionRecord.user_id == user.id,
                     SessionRecord.status == 'ACTIVE',
                     or_(SessionRecord.device_id.is_(None), SessionRecord.device_id != device_id),
                 )
-                .count()
+                .all()
             )
+            active_other_devices = len(active_other_sessions)
+            signed_out_at = utc_now()
+            for active_session in active_other_sessions:
+                active_session.logout_at = signed_out_at
+                active_session.status = 'FORCED_LOGOUT'
             concurrent_note = (
-                f'{active_other_devices} other active device session(s) detected.'
+                'Multiple active sessions: previous session signed out automatically.'
                 if active_other_devices else None
             )
             session['user_id'] = user.id
             session['username'] = user.username
             session['role'] = user_role_name(user)
             session['device_id'] = device_id
-            session['last_activity_at'] = utc_now().isoformat()
+            session['last_activity_at'] = signed_out_at.isoformat()
             session_record = SessionRecord(
                 user_id=user.id,
                 username=user.username,
@@ -4095,6 +4840,9 @@ def register():
         if password != confirm_password:
             flash('Passwords do not match', 'error')
             return render_template('register.html')
+        if not validate_password_policy(password):
+            flash(PASSWORD_POLICY_MESSAGE, 'error')
+            return render_template('register.html')
         
         # Check if username already exists
         if username_exists(username):
@@ -4114,6 +4862,8 @@ def register():
             email=email,
             username=username,
             password_hash=generate_password_hash(password),
+            password_updated_at=datetime.now(UTC),
+            password_change_required=False,
             role_id=staff_role.id,
             status=USER_STATUS_PENDING
         )
@@ -4162,7 +4912,12 @@ def profile():
             if new_password != confirm_password:
                 flash('New passwords do not match.', 'error')
                 return render_template('profile.html', user=user)
+            if not validate_password_policy(new_password):
+                flash(PASSWORD_POLICY_MESSAGE, 'error')
+                return render_template('profile.html', user=user)
             user.password_hash = generate_password_hash(new_password)
+            user.password_updated_at = datetime.now(UTC)
+            user.password_change_required = False
 
         photo = request.files.get('profile_photo')
         if photo and photo.filename:
@@ -4183,7 +4938,10 @@ def profile():
         session['username'] = user.username
         log_audit('UPDATE_PROFILE', 'users', user.id, old_value, serialize_record(user))
         db.session.commit()
-        flash('Profile updated successfully.', 'success')
+        if user.password_change_required:
+            flash('Set a new password before continuing.', 'warning')
+        else:
+            flash('Profile updated successfully.', 'success')
         return redirect(url_for('profile'))
 
     return render_template('profile.html', user=user)
@@ -4331,12 +5089,7 @@ def dashboard():
     recent_activity_groups_map = defaultdict(list)
     for item in recent_activities:
         group_date = item.created_at.date().isoformat() if item.created_at else 'No date'
-        recent_activity_groups_map[group_date].append({
-            'username': item.username,
-            'action': item.action,
-            'table_name': item.table_name,
-            'created_at': item.created_at.isoformat() if item.created_at else None
-        })
+        recent_activity_groups_map[group_date].append(audit_activity_payload(item))
     recent_activity_groups = [
         {
             'date': group_date,
@@ -4357,12 +5110,7 @@ def dashboard():
             'pending_password_resets': pending_password_resets,
             'recent_activity_count': recent_activity_count,
             'recent_activities': [
-                {
-                    'username': item.username,
-                    'action': item.action,
-                    'table_name': item.table_name,
-                    'created_at': item.created_at.isoformat() if item.created_at else None
-                }
+                audit_activity_payload(item)
                 for item in recent_activities
             ],
             'recent_activity_groups': recent_activity_groups
@@ -4380,7 +5128,16 @@ def dashboard():
 @login_required
 @role_required(*SALES_ROLES)
 def sales_order():
-    return render_template('sales_order.html')
+    return render_template('sales_order.html', current_year=datetime.now().year)
+
+
+@app.route('/sales-order-audit')
+@app.route('/sales_order_audit')
+@login_required
+@role_required(*SALES_ROLES)
+def sales_order_audit():
+    return render_template('sales_order_audit.html')
+
 
 @app.route('/reports')
 @login_required
@@ -4467,13 +5224,16 @@ def get_expense_reports():
 def get_revenue_reports():
     try:
         filters = parse_report_date_filter()
-        rows = revenue_report_rows(filters)
+        rows = sales_order_revenue_report_rows(filters)
+        total_sales_order_revenue = float(sum(row['sales_order_value'] for row in rows))
         return jsonify({
             'success': True,
             'rows': rows,
-            'total_paid_revenue': float(sum(row['amount_paid'] for row in rows)),
-            'total_invoice_amount': float(sum(row['total_amount'] for row in rows)),
-            'total_balance': float(sum(row['balance'] for row in rows)),
+            'total_sales_order_revenue': total_sales_order_revenue,
+            'total_sales_order_count': len(rows),
+            'total_paid_revenue': total_sales_order_revenue,
+            'total_invoice_amount': total_sales_order_revenue,
+            'total_balance': 0.0,
             'filter': {
                 'available_years': filters['available_years'],
                 'selected_year': filters['selected_year'],
@@ -4688,11 +5448,13 @@ def admin_compiled_sales_preview():
         duplicate_orders = [
             {
                 'compound_key': group['compound_key'],
-                'so_number': group['so_number'],
+                'so_number': group['source_so_number'],
+                'source_so_number': group['source_so_number'],
+                'order_date': group['order_date'],
                 'sales_staff': group['sales_staff'],
                 'existing_id': existing[group['compound_key']].id,
             }
-            for group in groups if group['compound_key'] in existing
+            for group in groups if group['compound_key'] and group['compound_key'] in existing
         ]
         registry = build_client_registry()
         client_resolutions = []
@@ -4781,21 +5543,32 @@ def admin_compiled_sales_commit():
                 'client_resolutions': unresolved,
             }), 409
 
+        generation_year = sales_order_generation_year(payload.get('so_generation_year'))
         existing = existing_compiled_sales_orders()
+        duplicate_orders = [
+            existing[group['compound_key']]
+            for group in groups if group['compound_key'] and group['compound_key'] in existing
+        ]
+        if duplicate_orders:
+            return jsonify({
+                'success': False,
+                'error': 'One or more Sales Orders already exist for the same Sales Staff, source SO Number, and Order Date.',
+                'skipped_duplicates': [
+                    {
+                        'id': order.id,
+                        'so_number': order.so_number,
+                        'source_so_number': order.source_so_number,
+                        'sales_staff': order.sales_staff,
+                        'order_date': order.order_date.isoformat() if order.order_date else None,
+                    }
+                    for order in duplicate_orders
+                ],
+            }), 409
         created_orders = 0
         created_branches = 0
         created_items = 0
-        skipped_duplicates = []
         created_clients = 0
         for group in groups:
-            if group['compound_key'] in existing:
-                skipped_duplicates.append({
-                    'compound_key': group['compound_key'],
-                    'so_number': group['so_number'],
-                    'sales_staff': group['sales_staff'],
-                    'existing_id': existing[group['compound_key']].id,
-                })
-                continue
             resolution = resolve_client_name(
                 group['company_name'],
                 resolutions,
@@ -4809,7 +5582,8 @@ def admin_compiled_sales_commit():
             branch_names = list(group['branches'].values())
             total_amount = round(sum(float(row['total_revenue'] or 0) for row in group['rows']), 2)
             order = SalesOrder(
-                so_number=group['so_number'],
+                so_number=next_sales_order_number(generation_year),
+                source_so_number=group['source_so_number'] or None,
                 client_id=client.id,
                 company_name=resolution['client_name'],
                 official_client_name=resolution['client_name'],
@@ -4856,7 +5630,7 @@ def admin_compiled_sales_commit():
             'created_branches': created_branches,
             'created_items': created_items,
             'created_clients': created_clients,
-            'skipped_duplicates': len(skipped_duplicates),
+            'skipped_duplicates': 0,
             'excluded_rows': excluded_rows,
         })
         refresh_client_financials()
@@ -4868,7 +5642,7 @@ def admin_compiled_sales_commit():
             'created_branches': created_branches,
             'created_items': created_items,
             'created_clients': created_clients,
-            'skipped_duplicates': skipped_duplicates,
+            'skipped_duplicates': [],
             'excluded_rows': excluded_rows,
         })
     except Exception as exc:
@@ -5024,24 +5798,37 @@ def admin_upload_commit(interface):
                     continue
                 client = resolution['client']
                 client_name = resolution['client_name']
-                so_number = normalize_sales_order_number(
-                    row.get('so_number') or f"SO-{SalesOrder.query.count() + created + 1:06d}"
-                )
+                source_so_number = normalize_sales_order_number(row.get('source_so_number') or row.get('so_number'))
                 store_name = clean_text(row.get('store_name', '')) or clean_text(original_company_name, keep_period=True, keep_ampersand=True)
                 branch_name = (clean_text(row.get('store_branch', '')) or DEFAULT_STORE_BRANCH).upper()
                 sales_staff = normalized_sales_staff(row.get('sales_staff') or session.get('username', ''))
-                duplicate = existing_compiled_sales_orders().get(compiled_sales_order_key(so_number, sales_staff))
-                if duplicate:
-                    continue
+                order_date = parse_date_value(row.get('order_date'))
+                generation_year = sales_order_generation_year(row.get('so_generation_year') or payload.get('so_generation_year'))
+                duplicate_key = sales_order_source_key(source_so_number, sales_staff, order_date)
+                duplicate_order = existing_source_sales_orders().get(duplicate_key) if duplicate_key else None
+                if duplicate_order:
+                    db.session.rollback()
+                    return jsonify({
+                        'success': False,
+                        'error': f'This source SO Number, Sales Staff, and Order Date already exists as {duplicate_order.so_number}.',
+                        'skipped_duplicates': [{
+                            'id': duplicate_order.id,
+                            'so_number': duplicate_order.so_number,
+                            'source_so_number': duplicate_order.source_so_number,
+                            'sales_staff': duplicate_order.sales_staff,
+                            'order_date': duplicate_order.order_date.isoformat() if duplicate_order.order_date else None,
+                        }],
+                    }), 409
                 order = SalesOrder(
-                    so_number=so_number,
+                    so_number=next_sales_order_number(generation_year),
+                    source_so_number=source_so_number or None,
                     client_id=client.id,
                     company_name=client_name,
                     official_client_name=client_name,
                     original_entered_client_name=resolution.get('original_entered_client_name') or clean_text(original_company_name, keep_period=True, keep_ampersand=True).upper(),
                     store_name=store_name.upper(),
                     store_branch=branch_name,
-                    order_date=parse_date_value(row.get('order_date')),
+                    order_date=order_date,
                     sales_staff=sales_staff,
                     terms=int(row.get('terms') or 30),
                     total_amount=float(row.get('total_amount') or 0),
@@ -5271,20 +6058,16 @@ def create_sales_order():
             original_company_name = clean_text(company_name or client.client_name, keep_period=True, keep_ampersand=True).upper()
         client_name = client.client_name
         
-        # Generate SO number if not provided
-        so_number = data.get('so_number')
-        if not so_number:
-            last_so = SalesOrder.query.order_by(SalesOrder.id.desc()).first()
-            last_id = last_so.id if last_so else 0
-            so_number = f"SO-{last_id + 1:06d}"
-        so_number = normalize_sales_order_number(so_number)
+        source_so_number = normalize_sales_order_number(data.get('source_so_number') or data.get('so_number'))
+        generation_year = sales_order_generation_year(data.get('so_generation_year'))
+        so_number = next_sales_order_number(generation_year)
         sales_staff = normalized_sales_staff(data.get('sales_staff') or session.get('username', ''))
-        duplicate_key = compiled_sales_order_key(so_number, sales_staff)
-        duplicate_order = existing_compiled_sales_orders().get(duplicate_key)
+        duplicate_key = sales_order_source_key(source_so_number, sales_staff, order_date)
+        duplicate_order = existing_source_sales_orders().get(duplicate_key) if duplicate_key else None
         if duplicate_order:
             return jsonify({
                 'success': False,
-                'error': f'This SO Number and Sales Staff combination already exists as record #{duplicate_order.id}.'
+                'error': f'This source SO Number, Sales Staff, and Order Date already exists as {duplicate_order.so_number}.'
             }), 409
         
         # Create sales order
@@ -5296,6 +6079,7 @@ def create_sales_order():
         branch_name = (clean_text(data.get('store_branch', '')) or DEFAULT_STORE_BRANCH).upper()
         sales_order = SalesOrder(
             so_number=so_number,
+            source_so_number=source_so_number or None,
             order_date=order_date,
             client_id=client.id,
             company_name=client_name,
@@ -5334,7 +6118,11 @@ def create_sales_order():
             db.session.add(order_item)
         
         refresh_client_financials(client)
-        log_audit('CREATE', 'sales_orders', sales_order.id, None, {'so_number': sales_order.so_number, 'total_amount': sales_order.total_amount})
+        log_audit('CREATE', 'sales_orders', sales_order.id, None, {
+            'so_number': sales_order.so_number,
+            'source_so_number': sales_order.source_so_number,
+            'total_amount': sales_order.total_amount,
+        })
         db.session.commit()
         
         return json_success({
@@ -5342,6 +6130,7 @@ def create_sales_order():
             'sales_order': {
                 'id': sales_order.id,
                 'so_number': sales_order.so_number,
+                'source_so_number': sales_order.source_so_number,
                 'company_name': sales_order.company_name,
                 'store_name': sales_order.store_name,
                 'store_branch': sales_order.store_branch,
@@ -5679,6 +6468,47 @@ def generate_invoice_number():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/invoices/validate-reference')
+@login_required
+@role_required(*ACCOUNTING_ROLES)
+def validate_invoice_reference():
+    try:
+        invoice_number = clean_code(request.args.get('invoice_number')).upper()
+        cr_number = clean_code(request.args.get('cr_number'))
+        try:
+            exclude_invoice_id = int(request.args.get('exclude_invoice_id') or 0) or None
+        except (TypeError, ValueError):
+            exclude_invoice_id = None
+
+        invoice_match = find_invoice_by_number(invoice_number)
+        receipt_reference = find_collection_receipt_reference(cr_number, exclude_invoice_id)
+        receipt_message = duplicate_cr_message(cr_number, receipt_reference) if receipt_reference else ''
+
+        return jsonify({
+            'success': True,
+            'invoice_number': {
+                'value': invoice_number,
+                'exists': invoice_match is not None,
+                'invoice': invoice_reference_payload(invoice_match),
+                'message': (
+                    f'Invoice number {invoice_number} already exists.'
+                    if invoice_match else ''
+                ),
+            },
+            'cr_number': {
+                'value': normalize_cr_number(cr_number),
+                'exists': receipt_reference is not None,
+                'reference': receipt_reference,
+                'message': receipt_message,
+            },
+        })
+    except Exception:
+        app.logger.exception('Invoice reference validation failed')
+        return jsonify({
+            'success': False,
+            'error': 'Reference validation failed. Please try again.',
+        }), 500
+
 @app.route('/create-invoice', methods=['POST'])
 @login_required
 @role_required(*ACCOUNTING_ROLES)
@@ -5704,6 +6534,9 @@ def create_invoice():
             return jsonify({'success': False, 'error': 'Sales order not found'}), 404
 
         cr_number = (data.get('cr_number') or '').strip()
+        duplicate_receipt = find_collection_receipt_reference(cr_number)
+        if duplicate_receipt:
+            return jsonify({'success': False, 'error': duplicate_cr_message(cr_number, duplicate_receipt)}), 400
         is_2307_checked = bool(data.get('is_2307_checked'))
         payment_amount, tax_amount_paid, total_paid_now = collected_payment_amount(
             cr_number,
@@ -5713,10 +6546,30 @@ def create_invoice():
         )
         order_total = sales_order_total(sales_order)
         previous_paid = round(sum(float(inv.amount_paid or 0) for inv in sales_order.invoices), 2)
+        remaining_order_balance = max(order_total - previous_paid, 0)
+        payment_type = normalize_payment_type(
+            data.get('payment_type'),
+            default=PAYMENT_TYPE_DOWNPAYMENT if total_paid_now <= MONEY_TOLERANCE else None,
+        )
+        if payment_type not in PAYMENT_TYPES:
+            return jsonify({'success': False, 'error': 'Payment type must be DOWNPAYMENT, FULL, INSTALLMENT, or FINAL.'}), 400
+        if payment_type in {PAYMENT_TYPE_INSTALLMENT, PAYMENT_TYPE_FINAL}:
+            return jsonify({'success': False, 'error': 'Installment and Final Payment are available only after a paid Downpayment.'}), 400
+        if payment_type == PAYMENT_TYPE_FULL and abs(total_paid_now - remaining_order_balance) > MONEY_TOLERANCE:
+            return jsonify({
+                'success': False,
+                'error': f'Full Payment must exactly settle the remaining Sales Order balance of {remaining_order_balance:.2f}.'
+            }), 400
+        if (
+            payment_type == PAYMENT_TYPE_DOWNPAYMENT
+            and total_paid_now > MONEY_TOLERANCE
+            and total_paid_now >= remaining_order_balance - MONEY_TOLERANCE
+        ):
+            return jsonify({'success': False, 'error': 'Use Full Payment when the first payment settles the Sales Order.'}), 400
         if previous_paid + total_paid_now > order_total + MONEY_TOLERANCE:
             return jsonify({
                 'success': False,
-                'error': f'Payment exceeds the remaining Sales Order balance of {max(order_total - previous_paid, 0):.2f}.'
+                'error': f'Payment exceeds the remaining Sales Order balance of {remaining_order_balance:.2f}.'
             }), 400
         
         invoice = Invoice(
@@ -5725,7 +6578,7 @@ def create_invoice():
             invoice_type=invoice_type,
             invoice_date=invoice_date,
             summary=data.get('summary', ''),
-            payment_type=data.get('payment_type', ''),
+            payment_type=payment_type,
             cr_number=cr_number,
             payment_amount=payment_amount,
             tax_amount_paid=tax_amount_paid,
@@ -5742,11 +6595,11 @@ def create_invoice():
             append_collection_receipt(invoice, {
                 'receipt_date': data.get('receipt_date'),
                 'cr_number': cr_number,
-                'payment_type': data.get('payment_type', ''),
+                'payment_type': payment_type,
                 'payment_amount': payment_amount,
                 'tax_amount_paid': tax_amount_paid,
                 'is_2307_checked': is_2307_checked,
-            })
+            }, expected_remaining=remaining_order_balance)
         payment_summary = synchronize_sales_order_payment_state(sales_order)
         
         refresh_client_financials(sales_order.client)
@@ -6143,7 +6996,7 @@ def update_expense_compat(expense_id):
 @login_required
 @role_required('admin')
 def database_interface():
-    return render_template('admin.html', production_mode=IS_PRODUCTION)
+    return render_template('admin.html', production_mode=IS_PRODUCTION, current_year=datetime.now().year)
 
 @app.route('/get-database-stats')
 @login_required
@@ -6374,8 +7227,8 @@ def create_user():
         username = (data.get('username') or '').strip()
         email = data.get('email', '').strip() or None
 
-        if not username or not data.get('password') or not data.get('role_id'):
-            return jsonify({'success': False, 'error': 'Username, password, and role are required'}), 400
+        if not username or not data.get('role_id'):
+            return jsonify({'success': False, 'error': 'Username and role are required'}), 400
         if username_exists(username):
             return jsonify({'success': False, 'error': 'Username already exists'}), 409
         if email and User.query.filter_by(email=email).first():
@@ -6383,10 +7236,12 @@ def create_user():
         if is_admin_role_id(data['role_id']) and User.query.join(Role).filter(func.lower(Role.role_name) == 'admin').count() >= 1:
             return jsonify({'success': False, 'error': 'Only one admin account is allowed'}), 409
         
+        temporary_password = generate_compliant_password()
         user = User(
             username=username,
             email=email,
-            password_hash=generate_password_hash(data['password']),
+            password_hash=generate_password_hash(temporary_password),
+            password_change_required=True,
             role_id=data['role_id'],
             status=USER_STATUS_APPROVED,
             approved_by=session.get('user_id'),
@@ -6398,7 +7253,16 @@ def create_user():
         log_audit('CREATE', 'users', user.id, None, {'username': user.username, 'email': user.email, 'role_id': user.role_id, 'status': user.status})
         db.session.commit()
         
-        return jsonify({'success': True, 'message': 'User created successfully'})
+        return jsonify({
+            'success': True,
+            'message': 'User created successfully',
+            'credentials': {
+                'username': user.username,
+                'temporary_password': temporary_password,
+                'role': user_role_name(user),
+                'password_change_required': True,
+            }
+        })
     
     except Exception as e:
         db.session.rollback()
@@ -6434,7 +7298,11 @@ def update_user(user_id):
         user.username = username
         user.email = email
         if data.get('password'):
+            if not validate_password_policy(data['password']):
+                return jsonify({'success': False, 'error': PASSWORD_POLICY_MESSAGE}), 400
             user.password_hash = generate_password_hash(data['password'])
+            user.password_updated_at = datetime.now(UTC)
+            user.password_change_required = False
         
         log_audit('UPDATE', 'users', user.id, old_value, serialize_record(user))
         db.session.commit()
@@ -6565,8 +7433,6 @@ def admin_user_action(user_id):
             audit_action = 'ENABLE_EVALUATION_ACCESS'
             message = 'Evaluation access enabled successfully.'
         else:
-            if role_name == 'admin':
-                return jsonify({'success': False, 'error': 'Administrator evaluation access is always available.'}), 409
             user.evaluation_enabled = False
             audit_action = 'DISABLE_EVALUATION_ACCESS'
             message = 'Evaluation access disabled successfully.'
@@ -6872,10 +7738,27 @@ def admin_sql_console():
         log_audit('SQL_DRY_RUN' if result['dry_run'] else 'SQL_EXECUTE', 'database', None, None, {'sql': data.get('sql', '')})
         db.session.commit()
         return jsonify({'success': True, 'result': result})
+    except SafeSqlError as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'details': {
+                'type': e.code,
+                'keyword': e.keyword,
+            },
+        }), 400
     except Exception as e:
         db.session.rollback()
-        app.logger.exception('Admin SQL console failed')
-        return jsonify({'success': False, 'error': 'The SQL request was rejected or could not be completed.'}), 400
+        app.logger.warning('Admin SQL console rejected query: %s', e)
+        return jsonify({
+            'success': False,
+            'error': 'SQL execution failed.',
+            'details': {
+                'type': e.__class__.__name__,
+                'message': str(e),
+            },
+        }), 400
 
 @app.route('/admin/theme', methods=['GET'])
 @login_required
@@ -6937,6 +7820,84 @@ def admin_bulk_update():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/admin/users/bulk-evaluation-access', methods=['POST'])
+@login_required
+@role_required('admin')
+def admin_bulk_evaluation_access():
+    try:
+        data = request.get_json(silent=True) or {}
+        ids = data.get('ids') or []
+        enabled = bool(data.get('enabled'))
+        admin_user = db.session.get(User, session.get('user_id'))
+        admin_password = data.get('admin_password') or ''
+        if not admin_user or not check_password_hash(admin_user.password_hash, admin_password):
+            return jsonify({'success': False, 'error': 'Admin password confirmation failed.'}), 403
+        if not isinstance(ids, list) or not ids:
+            return jsonify({'success': False, 'error': 'Select at least one user.'}), 400
+
+        requested_ids = []
+        failed = []
+        for raw_id in ids:
+            try:
+                requested_ids.append(int(raw_id))
+            except (TypeError, ValueError):
+                failed.append({'id': raw_id, 'reason': 'Invalid user id.'})
+
+        users = User.query.filter(User.id.in_(requested_ids)).all() if requested_ids else []
+        users_by_id = {user.id: user for user in users}
+        updated = []
+        skipped = []
+        for user_id in requested_ids:
+            user = users_by_id.get(user_id)
+            if not user:
+                failed.append({'id': user_id, 'reason': 'User not found.'})
+                continue
+            role_name = user_role_name(user)
+            status = normalize_user_status(user.status)
+            if enabled and status != USER_STATUS_APPROVED:
+                skipped.append({'id': user.id, 'username': user.username, 'reason': 'Only approved accounts can receive evaluation access.'})
+                continue
+            if bool(user.evaluation_enabled) == enabled:
+                skipped.append({'id': user.id, 'username': user.username, 'reason': f'Evaluation access is already {"enabled" if enabled else "disabled"}.'})
+                continue
+
+            old_value = {
+                'username': user.username,
+                'role': role_name,
+                'status': status,
+                'evaluation_enabled': bool(user.evaluation_enabled),
+            }
+            user.evaluation_enabled = enabled
+            force_logout_user(user.id)
+            new_value = {
+                'username': user.username,
+                'role': role_name,
+                'status': status,
+                'evaluation_enabled': bool(user.evaluation_enabled),
+            }
+            log_audit(
+                'BULK_ENABLE_EVALUATION_ACCESS' if enabled else 'BULK_DISABLE_EVALUATION_ACCESS',
+                'users',
+                user.id,
+                old_value,
+                new_value,
+            )
+            updated.append({'id': user.id, 'username': user.username})
+
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': f'Evaluation access {"enabled" if enabled else "disabled"} for {len(updated)} user(s).',
+            'updated': len(updated),
+            'skipped': skipped,
+            'failed': failed,
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': public_error_message(e)}), 400
+
 
 @app.route('/admin/bulk-delete', methods=['POST'])
 @login_required
@@ -7029,8 +7990,10 @@ def resolve_password_reset(reset_id):
     if not admin_user or not check_password_hash(admin_user.password_hash, admin_password):
         return jsonify({'success': False, 'error': 'Admin password confirmation failed.'}), 403
 
-    temporary_password = f'{user.username}123'
+    temporary_password = generate_compliant_password()
     user.password_hash = generate_password_hash(temporary_password)
+    user.password_updated_at = None
+    user.password_change_required = True
     reset_request.status = 'RESOLVED'
     reset_request.resolved_at = datetime.now(UTC)
     reset_request.resolved_by_user_id = session['user_id']
@@ -7044,7 +8007,12 @@ def resolve_password_reset(reset_id):
     db.session.commit()
     return jsonify({
         'success': True,
-        'message': 'Password has been reset successfully.'
+        'message': 'Password has been reset successfully.',
+        'credentials': {
+            'username': user.username,
+            'temporary_password': temporary_password,
+            'password_change_required': True,
+        }
     })
 
 @app.route('/admin/audit-logs')
@@ -7063,17 +8031,7 @@ def admin_audit_logs():
         return jsonify({
             'success': True,
             'logs': [
-                {
-                    'id': log.id,
-                    'username': log.username,
-                    'role_name': log.user.role.role_name if log.user and log.user.role else 'system',
-                    'action': log.action,
-                    'table_name': log.table_name,
-                    'record_id': log.record_id,
-                    'old_value': log.old_value,
-                    'new_value': log.new_value,
-                    'created_at': isoformat_utc(log.created_at),
-                } for log in logs
+                audit_activity_payload(log) for log in logs
             ]
         })
     except Exception as e:
@@ -7087,6 +8045,7 @@ def admin_audit_logs():
 @role_required('manager', 'admin')
 def analytics():
     return render_template('analytics.html', available_years=report_available_years(), datetime=datetime)
+
 
 @app.route('/api/analytics/generate', methods=['POST'])
 @login_required
@@ -7110,7 +8069,7 @@ def generate_analytics_report():
         db.session.commit()
         return jsonify({
             'success': True,
-            'message': f'Analytics report generated from live system data. {total_records} historical transaction rows are ready.',
+            'message': f'Analytics ledger recalculated from live system data. {total_records} historical transaction rows are ready.',
             'records': total_records,
             'live_counts': live_counts
         })
@@ -7131,7 +8090,7 @@ def get_overview():
                 "success": True,
                 "is_empty": True,
                 "has_live_data": has_live_data,
-                "message": "Generate Analytics Report" if has_live_data else "Generate Analytics Report. No system data found. Upload Historical Transaction CSV."
+                "message": "Generate Analytics Ledger" if has_live_data else "Generate Analytics Ledger. No system data found. Upload Historical Transaction CSV."
             })
 
         filters = parse_report_date_filter()
@@ -7298,6 +8257,42 @@ def get_overview():
     
     except Exception as e:
         return jsonify({"success": False, "error": public_error_message(e, 'Analytics overview could not be loaded.')}), 500
+
+@app.route('/api/analytics/overview/revenue-report', methods=['GET'])
+@login_required
+@role_required('manager', 'admin')
+def get_overview_revenue_report():
+    try:
+        filters = parse_report_date_filter()
+        payload = analytics_overview_revenue_report_payload(filters)
+        return jsonify({
+            'success': True,
+            'filter': {
+                'selected_year': filters['selected_year'],
+                'period': filters['period'],
+                'quarter': filters['quarter'],
+                'month': filters['month'],
+                'label': str(filters['selected_year']),
+            },
+            **payload,
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': public_error_message(e, 'Analytics revenue report could not be loaded.')}), 500
+
+@app.route('/api/analytics/overview/trend-drilldown', methods=['GET'])
+@login_required
+@role_required('manager', 'admin')
+def get_overview_trend_drilldown():
+    try:
+        available_years = report_available_years()
+        selected_year = request.args.get('year', default=available_years[0], type=int)
+        mode = request.args.get('mode', default='yearly', type=str)
+        quarter = request.args.get('quarter', default=1, type=int)
+        month = request.args.get('month', default=1, type=int)
+        payload = analytics_overview_trend_drilldown_payload(selected_year, mode, quarter, month)
+        return jsonify({'success': True, **payload})
+    except Exception as e:
+        return jsonify({'success': False, 'error': public_error_message(e, 'Analytics trend drilldown could not be loaded.')}), 500
 
 def upload_distribution(values):
     clean = [float(value or 0) for value in values]
@@ -8225,17 +9220,67 @@ def api_analytics_sales():
     try:
         threshold = request.args.get('mape_threshold', default=20.0, type=float)
         filters = parse_report_date_filter()
+        forecast_filter_mode = request.args.get('forecast_filter_mode', type=str)
         forecast_scope = request.args.get('forecast_scope')
-        analysis_start_date = None if forecast_scope == 'all' else filters['start_date']
-        analysis_end_date = None if forecast_scope == 'all' else filters['end_date']
-        forecast_start_date = filters['start_date'] if forecast_scope == 'filter' else None
-        forecast_end_date = filters['end_date'] if forecast_scope == 'filter' else None
-        return jsonify({'success': True, 'filter': {
+        response_filter = {
             'selected_year': filters['selected_year'],
             'period': filters['period'],
             'quarter': filters['quarter'],
             'month': filters['month'],
             'label': filters['label'],
+        }
+        if forecast_filter_mode in {'all', 'year', 'range'}:
+            available_years = filters['available_years']
+            if forecast_filter_mode == 'all':
+                analysis_start_date = None
+                analysis_end_date = None
+                forecast_start_date = None
+                forecast_end_date = None
+                response_filter.update({
+                    'forecast_filter_mode': 'all',
+                    'period': 'year',
+                    'label': 'All years',
+                })
+            elif forecast_filter_mode == 'range':
+                fallback_start = min(available_years)
+                fallback_end = max(available_years)
+                start_year = request.args.get('start_year', default=fallback_start, type=int)
+                end_year = request.args.get('end_year', default=fallback_end, type=int)
+                if start_year not in available_years:
+                    start_year = fallback_start
+                if end_year not in available_years:
+                    end_year = fallback_end
+                if start_year > end_year:
+                    start_year, end_year = end_year, start_year
+                analysis_start_date = date(start_year, 1, 1)
+                analysis_end_date = date(end_year + 1, 1, 1)
+                forecast_start_date = analysis_start_date
+                forecast_end_date = analysis_end_date
+                response_filter.update({
+                    'forecast_filter_mode': 'range',
+                    'selected_year': end_year,
+                    'start_year': start_year,
+                    'end_year': end_year,
+                    'period': 'year',
+                    'label': f'{start_year}-{end_year}',
+                })
+            else:
+                analysis_start_date = filters['start_date']
+                analysis_end_date = filters['end_date']
+                forecast_start_date = filters['start_date']
+                forecast_end_date = filters['end_date']
+                response_filter.update({
+                    'forecast_filter_mode': 'year',
+                    'period': 'year',
+                    'label': str(filters['selected_year']),
+                })
+        else:
+            analysis_start_date = None if forecast_scope == 'all' else filters['start_date']
+            analysis_end_date = None if forecast_scope == 'all' else filters['end_date']
+            forecast_start_date = filters['start_date'] if forecast_scope == 'filter' else None
+            forecast_end_date = filters['end_date'] if forecast_scope == 'filter' else None
+        return jsonify({'success': True, 'filter': {
+            **response_filter,
         }, **get_sales_analysis(
             db,
             app_models(),

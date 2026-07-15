@@ -27,7 +27,7 @@ This guide covers the normal GitHub, Render, and Supabase redeployment flow for 
 ## Supabase Steps
 
 1. Open the Supabase project used by `DATABASE_URL`.
-2. Run any new migration SQL from the `docs/` folder before testing features that depend on it.
+2. Run any new migration SQL from the `docs/database/` folder before testing features that depend on it.
 3. Confirm required tables exist, especially users, roles, sales orders, invoices, expenses, audit logs, and evaluation tables.
 4. Confirm Row Level Security or storage policies do not block the server-side connection used by Render.
 
@@ -54,10 +54,10 @@ Do not expose Supabase service role keys or database passwords in frontend JavaS
 
 Apply migrations manually in Supabase SQL Editor when a fix adds fields or indexes. Current migration files include:
 
-- `docs/supabase_user_approval_migration.sql`
-- `docs/supabase_render_multi_user_migration.sql`
-- `docs/supabase_sales_order_query_indexes.sql`
-- `docs/supabase_evaluation_user_id_migration.sql`
+- `docs/database/supabase_user_approval_migration.sql`
+- `docs/database/supabase_render_multi_user_migration.sql`
+- `docs/database/supabase_sales_order_query_indexes.sql`
+- `docs/database/supabase_evaluation_user_id_migration.sql`
 
 After a migration, redeploy Render and test the affected page.
 

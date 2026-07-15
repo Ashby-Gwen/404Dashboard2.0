@@ -234,14 +234,15 @@
             revenue: {
                 title: 'Revenue Report',
                 endpoint: '{{ url_for('get_revenue_reports') }}',
-                dateField: 'invoice_date',
+                dateField: 'date',
                 columns: [
-                    { key: 'invoice_date', label: 'Date', type: 'date' },
+                    { key: 'date', label: 'Date', type: 'date' },
+                    { key: 'so_number', label: 'SO Number' },
                     { key: 'client_name', label: 'Client Name' },
-                    { key: 'amount_paid', label: 'Amount Paid', type: 'currency' }
+                    { key: 'sales_order_value', label: 'Sales Order Value', type: 'currency' }
                 ],
-                amountField: 'amount_paid',
-                monthlyTotalLabel: 'Revenue Total'
+                amountField: 'sales_order_value',
+                monthlyTotalLabel: 'Sales Order Revenue Total'
             },
             expenses: {
                 title: 'Expense Report',
@@ -415,7 +416,7 @@
             if (activeReport === 'sales') {
                 cards.push(['Sales Total', money(payload.total_revenue)], ['Item Rows', activeRows.length], ['Date Filter', activeFilterLabel || 'All']);
             } else if (activeReport === 'revenue') {
-                cards.push(['Actual Paid Revenue', money(payload.total_paid_revenue)], ['Paid Invoice Rows', activeRows.length], ['Date Filter', activeFilterLabel || 'All']);
+                cards.push(['Sales Order Revenue', money(payload.total_sales_order_revenue)], ['Sales Order Rows', activeRows.length], ['Date Filter', activeFilterLabel || 'All']);
             } else if (activeReport === 'expenses') {
                 cards.push(['Total Expenses', money(payload.total_expenses)], ['Expense Rows', activeRows.length], ['Date Filter', activeFilterLabel || 'All']);
             } else {

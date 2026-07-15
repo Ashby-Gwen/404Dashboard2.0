@@ -90,9 +90,9 @@ def main():
             dashboard_html = manager_client.get('/dashboard').get_data(as_text=True)
             assert "switchTab('clients')" not in dashboard_html
             assert 'id="tab-clients"' not in dashboard_html
-            assert 'Generate Report' in dashboard_html
-            assert 'View Analytics' in dashboard_html
-            assert 'Reporting Workspace' in dashboard_html
+            assert 'Open Revenue Report' in dashboard_html
+            assert 'Open Revenue Analytics' in dashboard_html
+            assert 'Reporting Workspace' not in dashboard_html
             assert 'Cashflow Report' not in dashboard_html
             assert 'Historical Records' not in dashboard_html
 
@@ -103,29 +103,28 @@ def main():
 
     system_states = open(os.path.join(ROOT, 'static', 'js', 'system-states.js'), encoding='utf-8').read()
     assert 'withButtonLoading' in system_states
-    assert 'evaluationModalRoot' in system_states
-    assert 'href="/evaluation"' in system_states
+    assert 'evaluationModalRoot' not in system_states
+    assert 'href="/evaluation"' not in system_states
     assert 'data-evaluation-backdrop' not in system_states
-    assert '/static/images/icons/evaluation-icon.png' in system_states
-    assert 'class="evaluation-launcher-label">Evaluate System</span>' in system_states
-    assert 'aria-label="Evaluate System"' in system_states
+    assert '/static/images/icons/evaluation-icon.png' not in system_states
+    assert 'class="evaluation-launcher-label">Evaluate System</span>' not in system_states
+    assert 'aria-label="Evaluate System"' not in system_states
+    assert 'ashbyVerseToggle' in system_states
+    assert 'utility-floater-trigger' not in system_states
     assert 'system-error-state' in system_states
     for theme_name in ('dark', 'light', 'contrast', 'rose', 'ashby'):
         assert f'{theme_name}:' in system_states
 
     styles = open(os.path.join(ROOT, 'static', 'css', 'styles.css'), encoding='utf-8').read()
-    assert '.evaluation-launcher.btn-outline:hover' in styles
-    assert '.evaluation-launcher.btn-outline:focus-visible' in styles
+    assert '.evaluation-launcher.btn-outline:hover' not in styles
+    assert '.evaluation-launcher.btn-outline:focus-visible' not in styles
+    assert '.utility-floater-trigger' not in styles
+    assert '.utility-floater-dock .ashby-verse-toggle' in styles
     assert 'background: var(--card-bg) !important;' in styles
-    assert 'background: var(--accent-muted) !important;' in styles
-    assert 'width 180ms ease' in styles
-    assert 'box-shadow 180ms ease !important' in styles
-    assert 'max-width 180ms ease' in styles
-    assert 'opacity 120ms ease' in styles
     assert 'bottom: 74px;' in styles
     assert 'bottom: 132px;' in styles
 
-    deployment_doc = open(os.path.join(ROOT, 'docs', 'deployment.md'), encoding='utf-8').read()
+    deployment_doc = open(os.path.join(ROOT, 'docs', 'deployment', 'deployment.md'), encoding='utf-8').read()
     assert 'GitHub Steps' in deployment_doc
     assert 'Render Steps' in deployment_doc
     assert 'Supabase Steps' in deployment_doc

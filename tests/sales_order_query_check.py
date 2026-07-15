@@ -193,6 +193,19 @@ def main():
             assert history_by_so['SO-001']['store_name'] == 'MAIN STORE'
             assert history_by_so['SO-001']['sales_staff'] == 'Alex Sales'
 
+            revenue_payload = manager_app.get('/api/reports/revenue?year=2026&period=year').get_json()
+            assert revenue_payload['success'] is True
+            revenue_by_so = {item['so_number']: item for item in revenue_payload['rows']}
+            assert sorted(revenue_by_so) == ['SO-001', 'SO-002']
+            assert revenue_by_so['SO-001']['sales_order_value'] == 1500
+            assert revenue_by_so['SO-002']['sales_order_value'] == 1500
+            assert revenue_by_so['SO-001']['date'] == '2026-06-01'
+            assert revenue_by_so['SO-001']['client_name'] == 'CANONICAL CLIENT'
+            assert 'invoice_number' not in revenue_by_so['SO-001']
+            assert 'amount_paid' not in revenue_by_so['SO-001']
+            assert revenue_payload['total_sales_order_revenue'] == 3000
+            assert revenue_payload['total_sales_order_count'] == 2
+
     print('Sales order query check passed.')
 
 

@@ -7,7 +7,9 @@ ALTER TABLE public.users
     ADD COLUMN IF NOT EXISTS profile_photo_data text,
     ADD COLUMN IF NOT EXISTS profile_photo_mime varchar(80),
     ADD COLUMN IF NOT EXISTS disabled_reason text,
-    ADD COLUMN IF NOT EXISTS evaluation_enabled boolean NOT NULL DEFAULT false;
+    ADD COLUMN IF NOT EXISTS evaluation_enabled boolean NOT NULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS password_updated_at timestamptz,
+    ADD COLUMN IF NOT EXISTS password_change_required boolean NOT NULL DEFAULT false;
 
 UPDATE public.users
 SET status = CASE
@@ -36,6 +38,14 @@ ALTER TABLE public.session_records
     ADD COLUMN IF NOT EXISTS user_agent text,
     ADD COLUMN IF NOT EXISTS ip_address varchar(80),
     ADD COLUMN IF NOT EXISTS concurrent_note text;
+
+ALTER TABLE public.sales_orders
+    ADD COLUMN IF NOT EXISTS source_so_number varchar(50);
+
+UPDATE public.sales_orders
+SET source_so_number = so_number
+WHERE source_so_number IS NULL
+  AND so_number IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.sales_order_branches (
     id serial PRIMARY KEY,
@@ -162,6 +172,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_order_branch_key
 
 CREATE INDEX IF NOT EXISTS idx_sales_orders_number_staff
     ON public.sales_orders (so_number, sales_staff);
+
+CREATE INDEX IF NOT EXISTS idx_sales_orders_source_staff_date
+    ON public.sales_orders (source_so_number, sales_staff, order_date);
 
 CREATE INDEX IF NOT EXISTS idx_invoices_sales_order_id
     ON public.invoices (sales_order_id);

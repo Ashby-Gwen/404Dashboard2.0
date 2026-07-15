@@ -78,6 +78,15 @@ def main():
                 status='UNPAID',
             ),
             Invoice(
+                invoice_number='HOME-INV-STALE-BALANCE',
+                invoice_type='SALES',
+                invoice_date=date(2026, 1, 4),
+                total_amount=400,
+                amount_paid=100,
+                balance=0,
+                status='PARTIAL',
+            ),
+            Invoice(
                 invoice_number='HOME-INV-PAID',
                 invoice_type='SALES',
                 invoice_date=date(2026, 1, 4),
@@ -136,7 +145,7 @@ def main():
             PasswordReset(user_id=pending_user.id, username=pending_user.username, status='PENDING'),
             AuditLog(
                 username='home_admin',
-                action='LOGIN',
+                action='PROMOTE_USER_MANAGER',
                 table_name='session_records',
                 created_at=datetime.combine(date.today(), datetime.min.time()) + timedelta(hours=9),
             ),
@@ -179,13 +188,20 @@ def main():
             assert 'Open Revenue Report' in manager_html
             assert 'Open Revenue Analytics' in manager_html
             assert 'Revenue Overview for 2026' in manager_html
-            assert 'Collected Revenue' in manager_html
-            assert 'PHP 500.00' in manager_html
-            assert 'Unpaid / Receivable Revenue' in manager_html
-            assert 'Paid Invoice Count' in manager_html
-            assert 'Average Paid Invoice' in manager_html
+            assert 'Sales Order Revenue' in manager_html
+            assert 'PHP 1,600.00' in manager_html
+            assert 'Booked Sales Order value for the selected period.' in manager_html
+            assert 'Accounts Receivable' in manager_html
+            assert 'PHP 1,300.00' in manager_html
+            assert 'Outstanding customer invoice balances that still need collection.' in manager_html
+            assert 'Open client analytics for accounts receivable' in manager_html
+            assert 'Unpaid / Receivable Revenue' not in manager_html
+            assert 'aria-label="Open client analytics for accounts receivable" hidden aria-hidden="true"' not in manager_html
+            assert 'aria-label="Open revenue report for paid invoice count" hidden aria-hidden="true"' in manager_html
+            assert 'aria-label="Open revenue report for average paid invoice" hidden aria-hidden="true"' in manager_html
             assert 'Revenue Trend' in manager_html
             assert 'Top Revenue Clients' in manager_html
+            assert 'Top 5 clients by Sales Order revenue.' in manager_html
             assert '/reports?report=revenue' in manager_html
             assert '/analytics?section=sales' in manager_html
             assert '/analytics?section=clients' in manager_html
@@ -212,8 +228,15 @@ def main():
             assert 'Latest Activity' in admin_html
             assert 'activity-day-group' in admin_html
             assert 'Audit log entries recorded today.' in admin_html
-            assert 'home_admin - LOGIN' in admin_html
+            assert 'home_admin - Promoted User To Manager' in admin_html
+            assert 'data-activity-time=' in admin_html
+            assert 'Sessions</span>' in admin_html
+            assert 'home_admin - PROMOTE_USER_MANAGER' not in admin_html
+            assert '>session_records' not in admin_html
             assert 'old_home_admin - LOGOUT' not in admin_html
+            assert "activity.created_at[:19].replace('T', ' ')" not in admin_html
+            assert "timeZone: 'Asia/Manila'" in admin_html
+            assert 'formatDashboardDateTime' in admin_html
             dashboard_payload = re.search(
                 r'<script id="dashboardData" type="application/json">(.*?)</script>',
                 admin_html,

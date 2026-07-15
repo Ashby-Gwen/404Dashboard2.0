@@ -107,8 +107,8 @@ def main():
                 session['role'] = 'manager'
 
             dashboard_html = client.get('/dashboard?year=2026').get_data(as_text=True)
-            assert 'Generate Report' in dashboard_html
-            assert 'View Analytics' in dashboard_html
+            assert 'Open Revenue Report' in dashboard_html
+            assert 'Open Revenue Analytics' in dashboard_html
             assert 'clients_summary' not in dashboard_html
 
             analytics_response = client.get('/get-analytics?year=2026')

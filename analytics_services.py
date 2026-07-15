@@ -60,6 +60,41 @@ def numeric(value: Any, digits: int | None = None) -> float:
     return round(number, digits) if digits is not None else number
 
 
+def deduped_sales_item_revenue_subquery(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_date: Any = None, end_date: Any = None):
+    """Collapse exact duplicate Sales Order item rows for analytics only."""
+    revenue_value = func.coalesce(SalesOrderItem.total, SalesOrderItem.quantity * SalesOrderItem.selling_price)
+    query = (
+        db.session.query(
+            SalesOrder.order_date.label("order_date"),
+            SalesOrder.so_number.label("so_number"),
+            SalesOrder.sales_staff.label("sales_staff"),
+            SalesOrder.company_name.label("company_name"),
+            SalesOrder.store_name.label("store_name"),
+            SalesOrder.store_branch.label("store_branch"),
+            SalesOrderItem.particular.label("particular"),
+            SalesOrderItem.quantity.label("quantity"),
+            SalesOrderItem.unit_cost.label("unit_cost"),
+            SalesOrderItem.selling_price.label("selling_price"),
+            revenue_value.label("revenue"),
+        )
+        .join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
+    )
+    query = _apply_date_bounds(query, SalesOrder.order_date, start_date, end_date)
+    return query.group_by(
+        SalesOrder.order_date,
+        SalesOrder.so_number,
+        SalesOrder.sales_staff,
+        SalesOrder.company_name,
+        SalesOrder.store_name,
+        SalesOrder.store_branch,
+        SalesOrderItem.particular,
+        SalesOrderItem.quantity,
+        SalesOrderItem.unit_cost,
+        SalesOrderItem.selling_price,
+        revenue_value,
+    ).subquery()
+
+
 def normalize_company_match_key(value: Any) -> str:
     text = str(value or "").upper().replace("&", " AND ")
     text = re_sub_non_company(text)
@@ -1344,13 +1379,263 @@ def get_sales_kpis(db: Any, models: dict[str, Any], start_date: Any = None, end_
         .all()
     )
     
+    deduped_revenue = deduped_sales_item_revenue_subquery(db, SalesOrderItem, SalesOrder, start_date, end_date)
+    revenue_total_query = db.session.query(func.sum(deduped_revenue.c.revenue))
+    total_revenue = _apply_date_bounds(
+        revenue_total_query,
+        deduped_revenue.c.order_date,
+        start_date,
+        end_date,
+    ).scalar() or 0
+
     # Total sales count
     total_sales = _apply_date_bounds(db.session.query(SalesOrder), SalesOrder.order_date, start_date, end_date).count()
     
     return {
         "top_3_clients": [{"name": row.client_name, "amount": round(float(row.total or 0), 2)} for row in top_clients],
         "top_3_items": [{"item": row.particular, "quantity": int(row.qty or 0)} for row in top_items],
-        "total_sales": total_sales
+        "total_sales": total_sales,
+        "total_revenue": round(float(total_revenue or 0), 2),
+    }
+
+
+def build_client_forecasting(
+    db: Any,
+    models: dict[str, Any],
+    clients: list[dict[str, Any]],
+    start_date: Any = None,
+    end_date: Any = None,
+    mape_threshold: float = MAPE_DEFAULT_THRESHOLD,
+) -> dict[str, Any]:
+    """Build Store Name forecasting slices for the Revenue analytics tab."""
+    SalesOrder = models["SalesOrder"]
+    SalesOrderItem = models["SalesOrderItem"]
+    categories = ["A-Class Clients", "B-Class Clients", "C-Class Clients"]
+    category_months: dict[str, dict[str, float]] = {category: defaultdict(float) for category in categories}
+
+    sorted_clients = sorted(
+        clients,
+        key=lambda client: (
+            -float(client.get("sales_order_value") or client.get("total_revenue") or 0),
+            str(client.get("store_name") or ""),
+        ),
+    )
+    top_clients = sorted_clients[:5]
+    clients_by_key = {
+        str(client.get("store_key") or ""): client
+        for client in sorted_clients
+        if client.get("store_key")
+    }
+
+    for client in clients:
+        category = client.get("abc_category") or client.get("cohort") or "C-Class Clients"
+        if category not in category_months:
+            category = "C-Class Clients"
+        for point in client.get("monthly_history") or []:
+            period = point.get("period")
+            if period:
+                category_months[category][period] += float(point.get("sales_order_value") or 0)
+
+    def forecast_from_months(months: dict[str, float]) -> dict[str, Any]:
+        periods = sorted(months)
+        values = [float(months[period] or 0) for period in periods]
+        forecast = build_monthly_revenue_forecast(periods, values, horizon=3)
+        forecast["accuracy"] = backtest_holt_winters(values)
+        return forecast
+
+    category_trends = []
+    category_forecasts = []
+    for category in categories:
+        months = category_months[category]
+        category_trends.append({
+            "category": category,
+            "points": [
+                {
+                    "period": period,
+                    "label": month_label(period),
+                    "revenue": round(float(months[period] or 0), 2),
+                }
+                for period in sorted(months)
+            ],
+        })
+        category_forecasts.append({
+            "category": category,
+            **forecast_from_months(months),
+        })
+
+    client_forecast_lookup: dict[str, dict[str, Any]] = {}
+    client_forecast_rows: list[dict[str, Any]] = []
+    for client in sorted_clients:
+        month_map = {
+            point.get("period"): float(point.get("sales_order_value") or 0)
+            for point in client.get("monthly_history") or []
+            if point.get("period")
+        }
+        forecast = forecast_from_months(month_map)
+        historical_points = [
+            {
+                "period": period,
+                "label": month_label(period),
+                "revenue": round(float(month_map[period] or 0), 2),
+            }
+            for period in sorted(month_map)
+        ]
+        peak_point = max(
+            historical_points,
+            key=lambda point: float(point.get("revenue") or 0),
+            default=None,
+        )
+        summary = {
+            "store_key": client.get("store_key"),
+            "store_name": client.get("store_name"),
+            "abc_category": client.get("abc_category") or client.get("cohort"),
+            "sales_order_value": client.get("sales_order_value") or client.get("total_revenue") or 0,
+            "order_count": client.get("order_count") or 0,
+        }
+        forecast_row = {
+            **summary,
+            "historical_points": historical_points,
+            "peak_month": peak_point,
+            **forecast,
+        }
+        client_forecast_rows.append(forecast_row)
+        lookup_keys = {
+            str(client.get("store_key") or ""),
+            _store_group_key(client.get("store_name") or ""),
+            _display_text(client.get("store_name") or "").upper(),
+        }
+        for key in lookup_keys:
+            if key:
+                client_forecast_lookup[key] = forecast_row
+
+    top_client_trends = [
+        {
+            "store_key": row.get("store_key"),
+            "store_name": row.get("store_name"),
+            "abc_category": row.get("abc_category"),
+            "sales_order_value": row.get("sales_order_value"),
+            "order_count": row.get("order_count"),
+            "points": row.get("historical_points") or [],
+        }
+        for row in client_forecast_rows[:5]
+    ]
+    top_client_forecasts = [
+        row
+        for row in client_forecast_rows[:5]
+    ]
+
+    order_query = _apply_date_bounds(
+        db.session.query(SalesOrder),
+        SalesOrder.order_date,
+        start_date,
+        end_date,
+    )
+    orders = order_query.all()
+    order_ids = [order.id for order in orders]
+    items_by_order: dict[int, list[Any]] = defaultdict(list)
+    if order_ids:
+        for item in db.session.query(SalesOrderItem).filter(SalesOrderItem.sales_order_id.in_(order_ids)).all():
+            items_by_order[item.sales_order_id].append(item)
+
+    item_groups: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
+    for order in orders:
+        client_name = _display_text(order.client.client_name if order.client else "")
+        store_name = _display_text(order.store_name or order.company_name or client_name or "Unspecified Store").upper()
+        store_key = _store_group_key(store_name)
+        if store_key not in clients_by_key or not order.order_date:
+            continue
+        period = order.order_date.strftime("%Y-%m")
+        for item in items_by_order.get(order.id, []):
+            item_name = analytics_revenue_item_display_name(item.particular)
+            quantity = float(item.quantity or 0)
+            selling_price = float(item.selling_price or 0)
+            revenue = float(item.total or 0) or quantity * selling_price
+            group = item_groups[store_key].setdefault(
+                item_name,
+                {
+                    "item": item_name,
+                    "quantity": 0.0,
+                    "revenue": 0.0,
+                    "monthly_quantity": defaultdict(float),
+                    "monthly_revenue": defaultdict(float),
+                },
+            )
+            group["quantity"] += quantity
+            group["revenue"] += revenue
+            group["monthly_quantity"][period] += quantity
+            group["monthly_revenue"][period] += revenue
+
+    purchase_recommendation_lookup: dict[str, dict[str, Any]] = {}
+    purchase_recommendation_rows = []
+    for client in sorted_clients:
+        store_key = str(client.get("store_key") or "")
+        store_sales = float(client.get("sales_order_value") or client.get("total_revenue") or 0)
+        store_items = sorted(
+            item_groups.get(store_key, {}).values(),
+            key=lambda item: (-float(item.get("revenue") or 0), str(item.get("item") or "")),
+        )[:3]
+        recommendations = []
+        for item in store_items:
+            periods = sorted(item["monthly_quantity"])
+            monthly_quantities = [float(item["monthly_quantity"][period] or 0) for period in periods]
+            backtest = backtest_holt_winters(monthly_quantities)
+            if backtest["status"] == "tested":
+                working = monthly_quantities[:]
+                forecast_quantities = []
+                for _ in range(3):
+                    predicted_quantity = max(holt_winters_forecast(working), 0)
+                    forecast_quantities.append(predicted_quantity)
+                    working.append(predicted_quantity)
+                mape = backtest["mape"]
+                confidence_score = round(max(0.0, min(100.0, 100.0 - float(mape or 0))), 1) if mape is not None else 0.0
+                status = "High Confidence" if mape is not None and mape <= float(mape_threshold) else "Needs Review"
+                method = "holt_winters"
+            else:
+                average_quantity = sum(monthly_quantities[-3:]) / min(len(monthly_quantities), 3) if monthly_quantities else 0.0
+                forecast_quantities = [average_quantity, average_quantity, average_quantity]
+                recency_component = float(client.get("recency_ratio") or 0) * 35
+                frequency_component = min(float(client.get("order_count") or 0) / 6, 1) * 25
+                share_component = (float(item.get("revenue") or 0) / store_sales * 30) if store_sales else 0
+                history_component = min(len(periods) / 3, 1) * 10
+                confidence_score = round(min(74.0, recency_component + frequency_component + share_component + history_component), 1)
+                status = "Needs Review" if len(periods) >= 2 else "Insufficient History"
+                method = "fallback_average"
+            total_quantity = max(round(sum(forecast_quantities), 2), 0)
+            average_price = float(item.get("revenue") or 0) / float(item.get("quantity") or 1)
+            recommendations.append({
+                "item": item.get("item"),
+                "expected_next_3_month_qty": total_quantity,
+                "expected_next_3_month_revenue": round(total_quantity * average_price, 2),
+                "confidence_score": confidence_score,
+                "status": status,
+                "method": method,
+                "mape": backtest["mape"],
+                "historical_months": len(periods),
+            })
+        recommendation_row = {
+            "store_key": client.get("store_key"),
+            "store_name": client.get("store_name"),
+            "abc_category": client.get("abc_category") or client.get("cohort"),
+            "recommendations": recommendations,
+        }
+        purchase_recommendation_rows.append(recommendation_row)
+        lookup_keys = {
+            store_key,
+            _store_group_key(client.get("store_name") or ""),
+            _display_text(client.get("store_name") or "").upper(),
+        }
+        for key in lookup_keys:
+            if key:
+                purchase_recommendation_lookup[key] = recommendation_row
+
+    return {
+        "category_trends": category_trends,
+        "category_forecasts": category_forecasts,
+        "top_client_trends": top_client_trends,
+        "top_client_forecasts": top_client_forecasts,
+        "purchase_recommendations": purchase_recommendation_rows[:5],
+        "client_forecast_lookup": client_forecast_lookup,
+        "purchase_recommendation_lookup": purchase_recommendation_lookup,
     }
 
 
@@ -1392,6 +1677,14 @@ def get_sales_analysis(
         clients["clients"],
         pondo,
     )
+    client_forecasting = build_client_forecasting(
+        db,
+        models,
+        clients["clients"],
+        start_date,
+        end_date,
+        mape_threshold,
+    )
     return {
         "kpis": get_sales_kpis(db, models, start_date, end_date),
         "history": get_sales_order_history(db, SalesOrder, Invoice, SalesOrderItem, start_date=start_date, end_date=end_date),
@@ -1406,23 +1699,24 @@ def get_sales_analysis(
         "system_warnings": recommendation_payload["system_warnings"],
         "rule_thresholds": recommendation_payload["rule_thresholds"],
         "recommendations": recommendation_payload["recommendations"],
+        "client_forecasting": client_forecasting,
     }
 
 
 def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_date: Any = None, end_date: Any = None, category_map: dict[str, str] | None = None) -> dict[str, Any]:
     """Build descriptive analytics for products, periods, and trend direction."""
-    month_key = db_month_key(db, SalesOrder.order_date).label('month')
+    deduped_revenue = deduped_sales_item_revenue_subquery(db, SalesOrderItem, SalesOrder, start_date, end_date)
+    month_key = db_month_key(db, deduped_revenue.c.order_date).label('month')
     monthly_query = (
         db.session.query(
             month_key,
-            func.sum(SalesOrderItem.quantity * SalesOrderItem.selling_price).label('revenue'),
-            func.sum(SalesOrderItem.quantity).label('quantity'),
-            func.count(func.distinct(SalesOrder.order_date)).label('active_sales_days'),
+            func.sum(deduped_revenue.c.revenue).label('revenue'),
+            func.sum(deduped_revenue.c.quantity).label('quantity'),
+            func.count(func.distinct(deduped_revenue.c.order_date)).label('active_sales_days'),
         )
-        .join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
     )
     monthly_rows = (
-        _apply_date_bounds(monthly_query, SalesOrder.order_date, start_date, end_date)
+        _apply_date_bounds(monthly_query, deduped_revenue.c.order_date, start_date, end_date)
         .group_by(month_key)
         .order_by(month_key)
         .all()
@@ -1443,16 +1737,15 @@ def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_d
     ]
     item_query = (
         db.session.query(
-            SalesOrderItem.particular,
-            func.sum(SalesOrderItem.quantity).label("quantity"),
-            func.sum(SalesOrderItem.total).label("revenue"),
+            deduped_revenue.c.particular,
+            func.sum(deduped_revenue.c.quantity).label("quantity"),
+            func.sum(deduped_revenue.c.revenue).label("revenue"),
         )
-        .join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
     )
     item_rows = (
-        _apply_date_bounds(item_query, SalesOrder.order_date, start_date, end_date)
-        .group_by(SalesOrderItem.particular)
-        .order_by(func.sum(SalesOrderItem.total).desc())
+        _apply_date_bounds(item_query, deduped_revenue.c.order_date, start_date, end_date)
+        .group_by(deduped_revenue.c.particular)
+        .order_by(func.sum(deduped_revenue.c.revenue).desc())
         .all()
     )
     category_map = category_map or {}
@@ -1474,20 +1767,19 @@ def get_sales_descriptive(db: Any, SalesOrderItem: Any, SalesOrder: Any, start_d
         }
         for item, values in sorted(product_totals.items(), key=lambda entry: entry[1]["revenue"], reverse=True)
     ]
-    weekday_number = db_weekday(db, SalesOrder.order_date).label('weekday')
+    weekday_number = db_weekday(db, deduped_revenue.c.order_date).label('weekday')
     weekday_query = (
         db.session.query(
             weekday_number,
-            func.sum(SalesOrderItem.total).label('revenue'),
-            func.sum(SalesOrderItem.quantity).label('quantity'),
-            func.count(func.distinct(SalesOrder.order_date)).label('active_sales_days'),
+            func.sum(deduped_revenue.c.revenue).label('revenue'),
+            func.sum(deduped_revenue.c.quantity).label('quantity'),
+            func.count(func.distinct(deduped_revenue.c.order_date)).label('active_sales_days'),
         )
-        .join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
     )
     weekday_rows = (
-        _apply_date_bounds(weekday_query, SalesOrder.order_date, start_date, end_date)
+        _apply_date_bounds(weekday_query, deduped_revenue.c.order_date, start_date, end_date)
         .group_by(weekday_number)
-        .order_by(func.sum(SalesOrderItem.quantity).desc())
+        .order_by(func.sum(deduped_revenue.c.quantity).desc())
         .all()
     )
     weekday_names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -1794,21 +2086,27 @@ def get_sales_forecast(
     forecast_monthly_periods = []
     forecast_monthly_revenue = []
     if SalesOrder is not None:
-        month_key = db_month_key(db, SalesOrder.order_date).label('month')
+        deduped_revenue = deduped_sales_item_revenue_subquery(db, SalesOrderItem, SalesOrder, start_date, end_date)
+        month_key = db_month_key(db, deduped_revenue.c.order_date).label('month')
         revenue_query = (
             db.session.query(
                 month_key,
-                func.sum(SalesOrderItem.quantity * SalesOrderItem.selling_price).label('revenue'),
-                func.sum(SalesOrderItem.quantity * (SalesOrderItem.selling_price - SalesOrderItem.unit_cost)).label('profit')
+                func.sum(deduped_revenue.c.revenue).label('revenue'),
+                func.sum(deduped_revenue.c.quantity * (deduped_revenue.c.selling_price - deduped_revenue.c.unit_cost)).label('profit')
             )
-            .join(SalesOrder, SalesOrderItem.sales_order_id == SalesOrder.id)
         )
-        rows = _apply_date_bounds(revenue_query, SalesOrder.order_date, start_date, end_date).group_by(month_key).order_by(month_key).all()
+        rows = _apply_date_bounds(revenue_query, deduped_revenue.c.order_date, start_date, end_date).group_by(month_key).order_by(month_key).all()
         monthly_periods = [row.month for row in rows if row.month]
         monthly_revenue = [float(row.revenue or 0) for row in rows]
         monthly_profit = [float(row.profit or 0) for row in rows]
-        forecast_revenue_query = _apply_date_bounds(revenue_query, SalesOrder.order_date, forecast_start_date, forecast_end_date)
-        all_revenue_rows = forecast_revenue_query.group_by(month_key).order_by(month_key).all()
+        forecast_deduped_revenue = deduped_sales_item_revenue_subquery(db, SalesOrderItem, SalesOrder, forecast_start_date, forecast_end_date)
+        forecast_month_key = db_month_key(db, forecast_deduped_revenue.c.order_date).label('month')
+        forecast_revenue_query = db.session.query(
+            forecast_month_key,
+            func.sum(forecast_deduped_revenue.c.revenue).label('revenue'),
+            func.sum(forecast_deduped_revenue.c.quantity * (forecast_deduped_revenue.c.selling_price - forecast_deduped_revenue.c.unit_cost)).label('profit')
+        )
+        all_revenue_rows = forecast_revenue_query.group_by(forecast_month_key).order_by(forecast_month_key).all()
         forecast_monthly_periods = [row.month for row in all_revenue_rows if row.month]
         forecast_monthly_revenue = [float(row.revenue or 0) for row in all_revenue_rows if row.month]
     else:
