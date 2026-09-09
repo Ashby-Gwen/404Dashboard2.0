@@ -1,0 +1,7 @@
+[2026-09-09 15:03:00,278] WARNING in app: Admin SQL console rejected query: (sqlite3.OperationalError) no such column: missing_column
+[SQL: SELECT missing_column FROM clients]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+Skipped default admin user. Set DEFAULT_ADMIN_PASSWORD to seed it.
+Skipped default manager user. Set DEFAULT_MANAGER_PASSWORD to seed it.
+Skipped default staff user. Set DEFAULT_STAFF_PASSWORD to seed it.
+Admin data grid check passed.

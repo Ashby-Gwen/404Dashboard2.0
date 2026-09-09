@@ -1,0 +1,2219 @@
+[
+  {
+    "role": "anonymous",
+    "route": "/",
+    "status": 200
+  },
+  {
+    "role": "anonymous",
+    "route": "/theme-overrides.css",
+    "status": 200
+  },
+  {
+    "role": "anonymous",
+    "route": "/login",
+    "status": 200
+  },
+  {
+    "role": "anonymous",
+    "route": "/forgot-password",
+    "status": 200
+  },
+  {
+    "role": "anonymous",
+    "route": "/register",
+    "status": 200
+  },
+  {
+    "role": "anonymous",
+    "route": "/profile",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/session-timeout",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/dashboard",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/sales-order",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/sales_order_audit",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/sales-order-audit",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/reports",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/reports/sales-orders",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/reports/expenses",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/reports/revenue",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/reports/historical-transactions",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/reports/historical-transactions/export.csv",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-clients",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-client-references",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/invoices",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-invoices",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-pending-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/generate-invoice-number",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/invoices/validate-reference",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/expenses",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-expenses",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/database-interface",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-database-stats",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-users",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-roles",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-session-records",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-client-basket",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-sales-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-invoices-admin",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-purchase-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/admin/data-grid",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/admin/client-list",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/admin/client-match",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/admin/export",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/admin/db-health",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/admin/transaction-reset",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/admin/schema",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/admin/theme",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/admin/notifications",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/admin/audit-logs",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/analytics",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/analytics/overview",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/analytics/overview/revenue-report",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/analytics/overview/trend-drilldown",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/analytics/clients",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/analytics/expenses",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/analytics/item-categories",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/analytics/sales",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/evaluation",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/evaluation/access",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/evaluation/questions",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/evaluation/results",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/api/analytics/comparative",
+    "status": 401
+  },
+  {
+    "role": "anonymous",
+    "route": "/get-analytics",
+    "status": 302
+  },
+  {
+    "role": "anonymous",
+    "route": "/dev/viewer",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/",
+    "status": 200
+  },
+  {
+    "role": "audit_admin",
+    "route": "/theme-overrides.css",
+    "status": 200
+  },
+  {
+    "role": "audit_admin",
+    "route": "/login",
+    "status": 200
+  },
+  {
+    "role": "audit_admin",
+    "route": "/forgot-password",
+    "status": 200
+  },
+  {
+    "role": "audit_admin",
+    "route": "/register",
+    "status": 200
+  },
+  {
+    "role": "audit_admin",
+    "route": "/profile",
+    "status": 200
+  },
+  {
+    "role": "audit_admin",
+    "route": "/session-timeout",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/dashboard",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/sales-order",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/sales_order_audit",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/sales-order-audit",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/reports",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/reports/sales-orders",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/reports/expenses",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/reports/revenue",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/reports/historical-transactions",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/reports/historical-transactions/export.csv",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-clients",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-client-references",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/invoices",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-invoices",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-pending-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/generate-invoice-number",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/invoices/validate-reference",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/expenses",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-expenses",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/database-interface",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-database-stats",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-users",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-roles",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-session-records",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-client-basket",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-sales-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-invoices-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-purchase-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/admin/data-grid",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/admin/client-list",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/admin/client-match",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/admin/export",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/admin/db-health",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/admin/transaction-reset",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/admin/schema",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/admin/theme",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/admin/notifications",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/admin/audit-logs",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/analytics",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/analytics/overview",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/analytics/overview/revenue-report",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/analytics/overview/trend-drilldown",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/analytics/clients",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/analytics/expenses",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/analytics/item-categories",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/analytics/sales",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/evaluation",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/evaluation/access",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/evaluation/questions",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/evaluation/results",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/api/analytics/comparative",
+    "status": 401
+  },
+  {
+    "role": "audit_admin",
+    "route": "/get-analytics",
+    "status": 302
+  },
+  {
+    "role": "audit_admin",
+    "route": "/dev/viewer",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/",
+    "status": 200
+  },
+  {
+    "role": "audit_manager",
+    "route": "/theme-overrides.css",
+    "status": 200
+  },
+  {
+    "role": "audit_manager",
+    "route": "/login",
+    "status": 200
+  },
+  {
+    "role": "audit_manager",
+    "route": "/forgot-password",
+    "status": 200
+  },
+  {
+    "role": "audit_manager",
+    "route": "/register",
+    "status": 200
+  },
+  {
+    "role": "audit_manager",
+    "route": "/profile",
+    "status": 200
+  },
+  {
+    "role": "audit_manager",
+    "route": "/session-timeout",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/dashboard",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/sales-order",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/sales_order_audit",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/sales-order-audit",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/reports",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/reports/sales-orders",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/reports/expenses",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/reports/revenue",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/reports/historical-transactions",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/reports/historical-transactions/export.csv",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-clients",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-client-references",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/invoices",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-invoices",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-pending-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/generate-invoice-number",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/invoices/validate-reference",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/expenses",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-expenses",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/database-interface",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-database-stats",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-users",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-roles",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-session-records",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-client-basket",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-sales-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-invoices-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-purchase-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/admin/data-grid",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/admin/client-list",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/admin/client-match",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/admin/export",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/admin/db-health",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/admin/transaction-reset",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/admin/schema",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/admin/theme",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/admin/notifications",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/admin/audit-logs",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/analytics",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/analytics/overview",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/analytics/overview/revenue-report",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/analytics/overview/trend-drilldown",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/analytics/clients",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/analytics/expenses",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/analytics/item-categories",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/analytics/sales",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/evaluation",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/evaluation/access",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/evaluation/questions",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/evaluation/results",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/api/analytics/comparative",
+    "status": 401
+  },
+  {
+    "role": "audit_manager",
+    "route": "/get-analytics",
+    "status": 302
+  },
+  {
+    "role": "audit_manager",
+    "route": "/dev/viewer",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/",
+    "status": 200
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/theme-overrides.css",
+    "status": 200
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/login",
+    "status": 200
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/forgot-password",
+    "status": 200
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/register",
+    "status": 200
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/profile",
+    "status": 200
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/session-timeout",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/dashboard",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/sales-order",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/sales_order_audit",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/sales-order-audit",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/reports",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/reports/sales-orders",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/reports/expenses",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/reports/revenue",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/reports/historical-transactions",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/reports/historical-transactions/export.csv",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-clients",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-client-references",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/invoices",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-invoices",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-pending-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/generate-invoice-number",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/invoices/validate-reference",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/expenses",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-expenses",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/database-interface",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-database-stats",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-users",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-roles",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-session-records",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-client-basket",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-sales-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-invoices-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-purchase-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/admin/data-grid",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/admin/client-list",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/admin/client-match",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/admin/export",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/admin/db-health",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/admin/transaction-reset",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/admin/schema",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/admin/theme",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/admin/notifications",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/admin/audit-logs",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/analytics",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/analytics/overview",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/analytics/overview/revenue-report",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/analytics/overview/trend-drilldown",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/analytics/clients",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/analytics/expenses",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/analytics/item-categories",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/analytics/sales",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/evaluation",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/evaluation/access",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/evaluation/questions",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/evaluation/results",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/api/analytics/comparative",
+    "status": 401
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/get-analytics",
+    "status": 302
+  },
+  {
+    "role": "audit_sales_staff",
+    "route": "/dev/viewer",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/",
+    "status": 200
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/theme-overrides.css",
+    "status": 200
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/login",
+    "status": 200
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/forgot-password",
+    "status": 200
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/register",
+    "status": 200
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/profile",
+    "status": 200
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/session-timeout",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/dashboard",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/sales-order",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/sales_order_audit",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/sales-order-audit",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/reports",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/reports/sales-orders",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/reports/expenses",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/reports/revenue",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/reports/historical-transactions",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/reports/historical-transactions/export.csv",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-clients",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-client-references",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/invoices",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-invoices",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-pending-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/generate-invoice-number",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/invoices/validate-reference",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/expenses",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-expenses",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/database-interface",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-database-stats",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-users",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-roles",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-session-records",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-client-basket",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-sales-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-invoices-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-purchase-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/admin/data-grid",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/admin/client-list",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/admin/client-match",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/admin/export",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/admin/db-health",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/admin/transaction-reset",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/admin/schema",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/admin/theme",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/admin/notifications",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/admin/audit-logs",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/analytics",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/analytics/overview",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/analytics/overview/revenue-report",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/analytics/overview/trend-drilldown",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/analytics/clients",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/analytics/expenses",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/analytics/item-categories",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/analytics/sales",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/evaluation",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/evaluation/access",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/evaluation/questions",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/evaluation/results",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/api/analytics/comparative",
+    "status": 401
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/get-analytics",
+    "status": 302
+  },
+  {
+    "role": "audit_accounting_staff",
+    "route": "/dev/viewer",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/",
+    "status": 200
+  },
+  {
+    "role": "audit_staff",
+    "route": "/theme-overrides.css",
+    "status": 200
+  },
+  {
+    "role": "audit_staff",
+    "route": "/login",
+    "status": 200
+  },
+  {
+    "role": "audit_staff",
+    "route": "/forgot-password",
+    "status": 200
+  },
+  {
+    "role": "audit_staff",
+    "route": "/register",
+    "status": 200
+  },
+  {
+    "role": "audit_staff",
+    "route": "/profile",
+    "status": 200
+  },
+  {
+    "role": "audit_staff",
+    "route": "/session-timeout",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/dashboard",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/sales-order",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/sales_order_audit",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/sales-order-audit",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/reports",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/reports/sales-orders",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/reports/expenses",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/reports/revenue",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/reports/historical-transactions",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/reports/historical-transactions/export.csv",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-clients",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-client-references",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/invoices",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-invoices",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-pending-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/generate-invoice-number",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/invoices/validate-reference",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/expenses",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-expenses",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/database-interface",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-database-stats",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-users",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-roles",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-session-records",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-client-basket",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-sales-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-invoices-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-purchase-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/admin/data-grid",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/admin/client-list",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/admin/client-match",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/admin/export",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/admin/db-health",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/admin/transaction-reset",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/admin/schema",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/admin/theme",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/admin/notifications",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/admin/audit-logs",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/analytics",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/analytics/overview",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/analytics/overview/revenue-report",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/analytics/overview/trend-drilldown",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/analytics/clients",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/analytics/expenses",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/analytics/item-categories",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/analytics/sales",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/evaluation",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/evaluation/access",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/evaluation/questions",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/evaluation/results",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/api/analytics/comparative",
+    "status": 401
+  },
+  {
+    "role": "audit_staff",
+    "route": "/get-analytics",
+    "status": 302
+  },
+  {
+    "role": "audit_staff",
+    "route": "/dev/viewer",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/",
+    "status": 200
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/theme-overrides.css",
+    "status": 200
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/login",
+    "status": 200
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/forgot-password",
+    "status": 200
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/register",
+    "status": 200
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/profile",
+    "status": 200
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/session-timeout",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/dashboard",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/sales-order",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/sales_order_audit",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/sales-order-audit",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/reports",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/reports/sales-orders",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/reports/expenses",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/reports/revenue",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/reports/historical-transactions",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/reports/historical-transactions/export.csv",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-clients",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-client-references",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/invoices",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-invoices",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-pending-sales-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/generate-invoice-number",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/invoices/validate-reference",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/expenses",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-expenses",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-purchase-orders",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/database-interface",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-database-stats",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-users",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-roles",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-session-records",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-client-basket",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-sales-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-invoices-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-purchase-orders-admin",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/admin/data-grid",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/admin/client-list",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/admin/client-match",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/admin/export",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/admin/db-health",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/admin/transaction-reset",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/admin/schema",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/admin/theme",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/admin/notifications",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/admin/audit-logs",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/analytics",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/analytics/overview",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/analytics/overview/revenue-report",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/analytics/overview/trend-drilldown",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/analytics/clients",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/analytics/expenses",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/analytics/item-categories",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/analytics/sales",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/evaluation",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/evaluation/access",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/evaluation/questions",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/evaluation/results",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/api/analytics/comparative",
+    "status": 401
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/get-analytics",
+    "status": 302
+  },
+  {
+    "role": "audit_it_evaluator",
+    "route": "/dev/viewer",
+    "status": 302
+  },
+  {
+    "role": "malformed-login",
+    "route": "/login",
+    "status": 500,
+    "error": "'NoneType' object has no attribute 'encode'",
+    "trace": "Traceback (most recent call last):\n  File \"C:\\Users\\ASHBY-~1\\AppData\\Local\\Temp\\capstone_full_audit_routes.py\", line 24, in <module>\n    r=web.post(route,**kwargs); results.append({'role':'malformed-login','route':route,'status':r.status_code})\n      ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\venv\\Lib\\site-packages\\werkzeug\\test.py\", line 1248, in post\n    return self.open(*args, **kw)\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\venv\\Lib\\site-packages\\flask\\testing.py\", line 232, in open\n    response = super().open(\n               ^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\venv\\Lib\\site-packages\\werkzeug\\test.py\", line 1197, in open\n    response = self.run_wsgi_app(request.environ, buffered=buffered)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\venv\\Lib\\site-packages\\werkzeug\\test.py\", line 1069, in run_wsgi_app\n    rv = run_wsgi_app(self.application, environ, buffered=buffered)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\venv\\Lib\\site-packages\\werkzeug\\test.py\", line 1345, in run_wsgi_app\n    app_rv = app(environ, start_response)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\venv\\Lib\\site-packages\\flask\\app.py\", line 2213, in __call__\n    return self.wsgi_app(environ, start_response)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\venv\\Lib\\site-packages\\flask\\app.py\", line 2193, in wsgi_app\n    response = self.handle_exception(e)\n               ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\venv\\Lib\\site-packages\\flask\\app.py\", line 2190, in wsgi_app\n    response = self.full_dispatch_request()\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\venv\\Lib\\site-packages\\flask\\app.py\", line 1486, in full_dispatch_request\n    rv = self.handle_user_exception(e)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\venv\\Lib\\site-packages\\flask\\app.py\", line 1484, in full_dispatch_request\n    rv = self.dispatch_request()\n         ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\venv\\Lib\\site-packages\\flask\\app.py\", line 1469, in dispatch_request\n    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\app.py\", line 4730, in login\n    if user and check_password_hash(user.password_hash, password):\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\venv\\Lib\\site-packages\\werkzeug\\security.py\", line 139, in check_password_hash\n    return hmac.compare_digest(_hash_internal(method, salt, password)[0], hashval)\n                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\A-Development\\Projects\\Capstone\\System\\venv\\Lib\\site-packages\\werkzeug\\security.py\", line 37, in _hash_internal\n    password = password.encode(\"utf-8\")\n               ^^^^^^^^^^^^^^^\nAttributeError: 'NoneType' object has no attribute 'encode'\n"
+  },
+  {
+    "role": "malformed-login",
+    "route": "/login",
+    "status": 200
+  }
+]

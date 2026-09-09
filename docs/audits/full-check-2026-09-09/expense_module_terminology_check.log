@@ -1,0 +1,4 @@
+Skipped default admin user. Set DEFAULT_ADMIN_PASSWORD to seed it.
+Skipped default manager user. Set DEFAULT_MANAGER_PASSWORD to seed it.
+Skipped default staff user. Set DEFAULT_STAFF_PASSWORD to seed it.
+Expense module terminology check passed.

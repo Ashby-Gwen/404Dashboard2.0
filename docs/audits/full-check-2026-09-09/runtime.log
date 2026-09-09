@@ -1,0 +1,325 @@
+[2026-09-09 15:06:57,175] ERROR in app: Exception on /login [POST]
+Traceback (most recent call last):
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\flask\app.py", line 2190, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\flask\app.py", line 1486, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\flask\app.py", line 1484, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\flask\app.py", line 1469, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\app.py", line 4730, in login
+    if user and check_password_hash(user.password_hash, password):
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\werkzeug\security.py", line 139, in check_password_hash
+    return hmac.compare_digest(_hash_internal(method, salt, password)[0], hashval)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\werkzeug\security.py", line 37, in _hash_internal
+    password = password.encode("utf-8")
+               ^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'encode'
+[2026-09-09 15:06:57,190] ERROR in app: Sales Order creation failed
+Traceback (most recent call last):
+  File "C:\A-Development\Projects\Capstone\System\app.py", line 5994, in create_sales_order
+    warnings = future_date_warnings({'Sales Order date': data.get('order_date')})
+                                                         ^^^^^^^^
+AttributeError: 'list' object has no attribute 'get'
+[2026-09-09 15:06:57,196] ERROR in app: Sales Order creation failed
+Traceback (most recent call last):
+  File "C:\A-Development\Projects\Capstone\System\app.py", line 5994, in create_sales_order
+    warnings = future_date_warnings({'Sales Order date': data.get('order_date')})
+                                                         ^^^^^^^^
+AttributeError: 'str' object has no attribute 'get'
+[2026-09-09 15:06:57,203] ERROR in app: Invoice creation failed
+Traceback (most recent call last):
+  File "C:\A-Development\Projects\Capstone\System\app.py", line 6518, in create_invoice
+    warnings = future_date_warnings({'Invoice date': data.get('invoice_date')})
+                                                     ^^^^^^^^
+AttributeError: 'list' object has no attribute 'get'
+[2026-09-09 15:06:57,206] ERROR in app: Invoice creation failed
+Traceback (most recent call last):
+  File "C:\A-Development\Projects\Capstone\System\app.py", line 6518, in create_invoice
+    warnings = future_date_warnings({'Invoice date': data.get('invoice_date')})
+                                                     ^^^^^^^^
+AttributeError: 'str' object has no attribute 'get'
+[2026-09-09 15:06:57,253] ERROR in app: Exception on /admin/transaction-reset [POST]
+Traceback (most recent call last):
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\flask\app.py", line 2190, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\flask\app.py", line 1486, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\flask\app.py", line 1484, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\flask\app.py", line 1469, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\app.py", line 732, in decorated_function
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\app.py", line 756, in decorated_function
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\app.py", line 7672, in admin_transaction_reset
+    selected = set(payload.get('areas') or [])
+                   ^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'get'
+[2026-09-09 15:06:57,259] ERROR in app: Exception on /admin/transaction-reset [POST]
+Traceback (most recent call last):
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\flask\app.py", line 2190, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\flask\app.py", line 1486, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\flask\app.py", line 1484, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\venv\Lib\site-packages\flask\app.py", line 1469, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\app.py", line 732, in decorated_function
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\app.py", line 756, in decorated_function
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\A-Development\Projects\Capstone\System\app.py", line 7672, in admin_transaction_reset
+    selected = set(payload.get('areas') or [])
+                   ^^^^^^^^^^^
+AttributeError: 'str' object has no attribute 'get'
+Skipped default admin user. Set DEFAULT_ADMIN_PASSWORD to seed it.
+Skipped default manager user. Set DEFAULT_MANAGER_PASSWORD to seed it.
+Skipped default staff user. Set DEFAULT_STAFF_PASSWORD to seed it.
+{
+  "tables": [
+    "analytics_data",
+    "analytics_item_categories",
+    "audit_logs",
+    "client_aliases",
+    "clients",
+    "collection_receipts",
+    "evaluation_questions",
+    "evaluation_responses",
+    "evaluation_sessions",
+    "invoices",
+    "password_resets",
+    "purchase_order_debits",
+    "purchase_orders",
+    "roles",
+    "sales_order_branches",
+    "sales_order_items",
+    "sales_orders",
+    "session_records",
+    "system_settings",
+    "users"
+  ],
+  "route_count": 109,
+  "seeded_roles": [
+    "admin",
+    "manager",
+    "staff",
+    "IT Evaluator"
+  ],
+  "malformed_requests": [
+    {
+      "route": "/login",
+      "input": "existing user, missing password",
+      "status": 500
+    },
+    {
+      "route": "/create-sales-order",
+      "input": {},
+      "status": 400,
+      "response": {
+        "error": "Company name is required",
+        "success": false
+      }
+    },
+    {
+      "route": "/create-sales-order",
+      "input": [
+        "unexpected"
+      ],
+      "status": 500,
+      "response": {
+        "error": "'list' object has no attribute 'get'",
+        "error_type": "server",
+        "success": false
+      }
+    },
+    {
+      "route": "/create-sales-order",
+      "input": "unexpected",
+      "status": 500,
+      "response": {
+        "error": "'str' object has no attribute 'get'",
+        "error_type": "server",
+        "success": false
+      }
+    },
+    {
+      "route": "/create-invoice",
+      "input": {},
+      "status": 400,
+      "response": {
+        "error": "Invoice number is required",
+        "success": false
+      }
+    },
+    {
+      "route": "/create-invoice",
+      "input": [
+        "unexpected"
+      ],
+      "status": 500,
+      "response": {
+        "error": "The invoice could not be created. Please review the information and try again.",
+        "success": false
+      }
+    },
+    {
+      "route": "/create-invoice",
+      "input": "unexpected",
+      "status": 500,
+      "response": {
+        "error": "The invoice could not be created. Please review the information and try again.",
+        "success": false
+      }
+    },
+    {
+      "route": "/create-expense",
+      "input": {},
+      "status": 200,
+      "response": {
+        "error": "Check/Cash Voucher Number is required.",
+        "success": false
+      }
+    },
+    {
+      "route": "/create-expense",
+      "input": [
+        "unexpected"
+      ],
+      "status": 200,
+      "response": {
+        "error": "'list' object has no attribute 'get'",
+        "success": false
+      }
+    },
+    {
+      "route": "/create-expense",
+      "input": "unexpected",
+      "status": 200,
+      "response": {
+        "error": "'str' object has no attribute 'get'",
+        "success": false
+      }
+    },
+    {
+      "route": "/create-client",
+      "input": {},
+      "status": 200,
+      "response": {
+        "client_id": 1,
+        "client_name": "UNMAPPED CLIENT",
+        "message": "Client created successfully",
+        "success": true
+      }
+    },
+    {
+      "route": "/create-client",
+      "input": [
+        "unexpected"
+      ],
+      "status": 200,
+      "response": {
+        "error": "'list' object has no attribute 'get'",
+        "success": false
+      }
+    },
+    {
+      "route": "/create-client",
+      "input": "unexpected",
+      "status": 200,
+      "response": {
+        "error": "'str' object has no attribute 'get'",
+        "success": false
+      }
+    },
+    {
+      "route": "/admin/transaction-reset",
+      "input": {},
+      "status": 400,
+      "response": {
+        "error": "Select at least one valid transaction area.",
+        "success": false
+      }
+    },
+    {
+      "route": "/admin/transaction-reset",
+      "input": [
+        "unexpected"
+      ],
+      "status": 500,
+      "response": {
+        "details": "500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.",
+        "error": "Something went wrong while processing the request.",
+        "error_type": "server",
+        "success": false
+      }
+    },
+    {
+      "route": "/admin/transaction-reset",
+      "input": "unexpected",
+      "status": 500,
+      "response": {
+        "details": "500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.",
+        "error": "Something went wrong while processing the request.",
+        "error_type": "server",
+        "success": false
+      }
+    }
+  ],
+  "reset_reproduction": {
+    "status": 200,
+    "invoices_remaining": 0,
+    "receipts_remaining": 1,
+    "foreign_key_violations": [
+      [
+        "collection_receipts",
+        1,
+        "invoices",
+        1
+      ]
+    ]
+  },
+  "template_errors": [],
+  "local_databases": [
+    {
+      "path": "C:\\A-Development\\Projects\\Capstone\\System\\database.db",
+      "quick_check": "ok",
+      "foreign_key_violation_count": 836,
+      "table_count": 21,
+      "missing_model_tables": [],
+      "counts": {
+        "sales_orders": 548,
+        "invoices": 0,
+        "collection_receipts": 836,
+        "purchase_orders": 0,
+        "analytics_data": 1708
+      },
+      "missing_model_columns": {},
+      "extra_tables": [
+        "sqlite_stat1"
+      ]
+    }
+  ]
+}
+GET probes: 434 server errors: 0

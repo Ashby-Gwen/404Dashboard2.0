@@ -1,0 +1,126 @@
+[
+  {
+    "test": "accessibility_keyboard_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "accounts_receivable_client_grouping_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "admin_client_list_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "admin_data_grid_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "admin_mobile_landing_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "admin_user_management_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "analytics_chart_asset_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "analytics_objectives_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "client_matching_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "client_overview_store_grouping_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "client_value_sales_order_only_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "compiled_sales_import_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "dashboard_home_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "defense_readiness_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "evaluation_interface_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "expense_module_terminology_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "gongcha_branch_safeguard_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "historical_upload_schema_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "interface_layout_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "invoice_collection_csv_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "invoice_quantity_print_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "invoice_uploaded_client_bridge_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "purchase_order_upload_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "render_multi_user_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "sales_order_manual_print_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "sales_order_query_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "session_loading_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "smooth_transitions_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "store_recommendations_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "ui_fixes_check.py",
+    "exit_code": 0
+  },
+  {
+    "test": "user_approval_check.py",
+    "exit_code": 0
+  }
+]

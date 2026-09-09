@@ -1,0 +1,21 @@
+{
+  "foreign_keys_enabled": 0,
+  "status": 200,
+  "response": {
+    "deleted": {
+      "invoices": 1
+    },
+    "message": "Selected transaction records were reset.",
+    "success": true
+  },
+  "remaining_invoices": 0,
+  "remaining_receipts": 1,
+  "foreign_key_errors": [
+    [
+      "collection_receipts",
+      1,
+      "invoices",
+      1
+    ]
+  ]
+}

@@ -1,0 +1,21 @@
+[2026-09-09 15:04:09,610] ERROR in app: Admin upload commit failed for invoice
+Traceback (most recent call last):
+  File "C:\A-Development\Projects\Capstone\System\app.py", line 5748, in admin_upload_commit
+    return commit_invoice_upload_batch(rows)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.12_3.12.2800.0_x64__qbz5n2kfra8p0\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+RuntimeError: forced failure
+Skipped default admin user. Set DEFAULT_ADMIN_PASSWORD to seed it.
+Skipped default manager user. Set DEFAULT_MANAGER_PASSWORD to seed it.
+Skipped default staff user. Set DEFAULT_STAFF_PASSWORD to seed it.
+Skipped default admin user. Set DEFAULT_ADMIN_PASSWORD to seed it.
+Skipped default manager user. Set DEFAULT_MANAGER_PASSWORD to seed it.
+Skipped default staff user. Set DEFAULT_STAFF_PASSWORD to seed it.
+Invoice collection CSV check passed.

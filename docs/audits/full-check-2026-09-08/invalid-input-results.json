@@ -1,0 +1,195 @@
+[
+  {
+    "route": "/create-sales-order",
+    "payload": {},
+    "status": 400,
+    "response": {
+      "error": "Company name is required",
+      "success": false
+    }
+  },
+  {
+    "route": "/create-sales-order",
+    "payload": [
+      "invalid"
+    ],
+    "status": 500,
+    "response": {
+      "error": "'list' object has no attribute 'get'",
+      "error_type": "server",
+      "success": false
+    }
+  },
+  {
+    "route": "/create-invoice",
+    "payload": {},
+    "status": 400,
+    "response": {
+      "error": "Invoice number is required",
+      "success": false
+    }
+  },
+  {
+    "route": "/create-invoice",
+    "payload": [
+      "invalid"
+    ],
+    "status": 500,
+    "response": {
+      "error": "The invoice could not be created. Please review the information and try again.",
+      "success": false
+    }
+  },
+  {
+    "route": "/create-expense",
+    "payload": {},
+    "status": 200,
+    "response": {
+      "error": "Check/Cash Voucher Number is required.",
+      "success": false
+    }
+  },
+  {
+    "route": "/create-expense",
+    "payload": [
+      "invalid"
+    ],
+    "status": 200,
+    "response": {
+      "error": "'list' object has no attribute 'get'",
+      "success": false
+    }
+  },
+  {
+    "route": "/api/analytics/generate",
+    "payload": {},
+    "status": 200,
+    "response": {
+      "live_counts": {
+        "invoices": 1,
+        "purchase_orders": 0,
+        "sales_orders": 1
+      },
+      "message": "Analytics ledger recalculated from live system data. 2 historical transaction rows are ready.",
+      "records": 2,
+      "success": true
+    }
+  },
+  {
+    "route": "/api/analytics/generate",
+    "payload": [
+      "invalid"
+    ],
+    "status": 200,
+    "response": {
+      "live_counts": {
+        "invoices": 1,
+        "purchase_orders": 0,
+        "sales_orders": 1
+      },
+      "message": "Analytics ledger recalculated from live system data. 2 historical transaction rows are ready.",
+      "records": 2,
+      "success": true
+    }
+  },
+  {
+    "route": "/create-user",
+    "payload": {},
+    "status": 400,
+    "response": {
+      "error": "Username and role are required",
+      "success": false
+    }
+  },
+  {
+    "route": "/create-user",
+    "payload": [
+      "invalid"
+    ],
+    "status": 200,
+    "response": {
+      "error": "'list' object has no attribute 'get'",
+      "success": false
+    }
+  },
+  {
+    "route": "/create-role",
+    "payload": {},
+    "status": 200,
+    "response": {
+      "error": "'role_name'",
+      "success": false
+    }
+  },
+  {
+    "route": "/create-role",
+    "payload": [
+      "invalid"
+    ],
+    "status": 200,
+    "response": {
+      "error": "list indices must be integers or slices, not str",
+      "success": false
+    }
+  },
+  {
+    "route": "/admin/bulk-update",
+    "payload": {},
+    "status": 200,
+    "response": {
+      "error": "Unsupported table.",
+      "success": false
+    }
+  },
+  {
+    "route": "/admin/bulk-update",
+    "payload": [
+      "invalid"
+    ],
+    "status": 200,
+    "response": {
+      "error": "'list' object has no attribute 'get'",
+      "success": false
+    }
+  },
+  {
+    "route": "/admin/bulk-delete",
+    "payload": {},
+    "status": 200,
+    "response": {
+      "error": "Unsupported table.",
+      "success": false
+    }
+  },
+  {
+    "route": "/admin/bulk-delete",
+    "payload": [
+      "invalid"
+    ],
+    "status": 200,
+    "response": {
+      "error": "'list' object has no attribute 'get'",
+      "success": false
+    }
+  },
+  {
+    "route": "/api/evaluation/responses",
+    "payload": {},
+    "status": 403,
+    "response": {
+      "error": "Evaluation access is not enabled for this account.",
+      "success": false
+    }
+  },
+  {
+    "route": "/api/evaluation/responses",
+    "payload": [
+      "invalid"
+    ],
+    "status": 403,
+    "response": {
+      "error": "Evaluation access is not enabled for this account.",
+      "success": false
+    }
+  }
+]

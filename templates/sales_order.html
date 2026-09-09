@@ -609,6 +609,26 @@
                 grid-template-columns: 1fr;
             }
         }
+        .file-drop-heading { margin: 1.25rem 0 0.8rem; font-size: 1.45rem; font-weight: 800; }
+        .file-drop-zone {
+            position: relative; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 0.3rem; min-height: 200px; padding: 1.5rem;
+            border: 2px dashed #cbd2d6; border-radius: 10px; background: #f8f9f9;
+            color: #667580; text-align: center; cursor: pointer;
+            transition: border-color 150ms, background 150ms;
+        }
+        .file-drop-zone:hover, .file-drop-zone.is-dragging, .file-drop-zone:focus-within {
+            border-color: #8798a3; background: #eef2f4;
+        }
+        .file-drop-zone:focus-within { outline: 2px solid #8798a3; outline-offset: 3px; }
+        .file-drop-zone input[type="file"] {
+            position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;
+        }
+        .file-drop-zone .file-drop-icon { width: 88px; height: 88px; color: #8798a3; margin-bottom: 0.25rem; }
+        .file-drop-title { font-size: 1.2rem; font-weight: 600; }
+        .file-drop-hint { font-size: 1.1rem; }
+        .file-drop-status { margin: 0.5rem 0 0; color: var(--text-muted); overflow-wrap: anywhere; }
+        .file-drop-status:empty { display: none; }
     </style>
 </head>
 
@@ -866,21 +886,29 @@
             <div class="card" style="margin-bottom:1rem;">
                 <h2 style="margin-bottom:0.35rem;">Excel Mapping</h2>
                 <p style="color:var(--text-muted); margin-top:0;">Upload a workbook, inspect its sheets, and map cells into the Sales Order form while keeping the spreadsheet preview visible.</p>
-                <div class="upload-workflow-toolbar">
-                    <input type="file" id="fileInput" class="hidden" accept=".xlsx, .xls, .csv" multiple>
-                    <button type="button" onclick="document.getElementById('fileInput').click()" class="btn btn-primary">
-                        <i data-lucide="upload" style="width:18px; height:18px;"></i>
-                        Choose Files
-                    </button>
-                </div>
+                <h3 class="file-drop-heading">Upload Your Files</h3>
+                <label class="file-drop-zone">
+                    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" multiple aria-label="Upload Excel mapping files" aria-describedby="fileInputStatus">
+                    <i data-lucide="cloud-upload" class="file-drop-icon" aria-hidden="true"></i>
+                    <span class="file-drop-title">Drag and drop Excel files here</span>
+                    <span class="file-drop-hint">or click to browse</span>
+                </label>
+                <p class="file-drop-status" id="fileInputStatus" aria-live="polite"></p>
             </div>
 
             {% if session.role == 'admin' %}
             <div class="card" style="margin-bottom:1rem;">
                 <h2>Batch Upload, Cleaning, and Outlier Review</h2>
                 <p style="color:var(--text-muted); margin-top:0.25rem;">Map every workbook, review client matches and Z-score outliers, then upload the approved Sales Orders.</p>
-                <div class="upload-workflow-toolbar">
-                    <input type="file" id="adminUploadFiles" accept=".xlsx,.xls" multiple>
+                <h3 class="file-drop-heading">Upload Your Files</h3>
+                <label class="file-drop-zone">
+                    <input type="file" id="adminUploadFiles" accept=".xlsx,.xls" multiple aria-label="Upload batch Excel files" aria-describedby="adminUploadFilesStatus">
+                    <i data-lucide="cloud-upload" class="file-drop-icon" aria-hidden="true"></i>
+                    <span class="file-drop-title">Drag and drop Excel files here</span>
+                    <span class="file-drop-hint">or click to browse</span>
+                </label>
+                <p class="file-drop-status" id="adminUploadFilesStatus" aria-live="polite"></p>
+                <div class="upload-workflow-toolbar" style="margin-top:1rem;">
                     <button class="btn btn-primary btn-sm" onclick="previewAdminUpload()">Preview Mapped Orders</button>
                     <button class="btn btn-outline btn-sm" onclick="commitAdminUpload()">Upload Mapped Orders</button>
                 </div>
@@ -1950,6 +1978,34 @@
         function delay(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
         }
+
+        document.querySelectorAll('.file-drop-zone').forEach(zone => {
+            const input = zone.querySelector('input[type="file"]');
+            const status = document.getElementById(`${input.id}Status`);
+            const allowed = input.accept.split(',').map(extension => extension.trim().toLowerCase());
+            ['dragenter', 'dragover'].forEach(type => zone.addEventListener(type, event => {
+                event.preventDefault();
+                zone.classList.add('is-dragging');
+            }));
+            zone.addEventListener('dragleave', event => {
+                if (!zone.contains(event.relatedTarget)) zone.classList.remove('is-dragging');
+            });
+            zone.addEventListener('drop', event => {
+                event.preventDefault();
+                zone.classList.remove('is-dragging');
+                const files = Array.from(event.dataTransfer.files || []);
+                if (!files.length) return;
+                if (files.some(file => !allowed.some(extension => file.name.toLowerCase().endsWith(extension)))) {
+                    status.textContent = `Please choose supported files: ${allowed.join(', ')}. Your previous selection is unchanged.`;
+                    return;
+                }
+                input.files = event.dataTransfer.files;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            input.addEventListener('change', () => {
+                status.textContent = Array.from(input.files || []).map(file => file.name).join(', ');
+            });
+        });
 
         // File upload handling
         document.getElementById('fileInput').addEventListener('change', async function (e) {

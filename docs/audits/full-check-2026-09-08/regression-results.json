@@ -1,0 +1,126 @@
+[
+  {
+    "Check": "accessibility_keyboard_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "accounts_receivable_client_grouping_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "admin_client_list_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "admin_data_grid_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "admin_mobile_landing_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "admin_user_management_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "analytics_chart_asset_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "analytics_objectives_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "client_matching_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "client_overview_store_grouping_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "client_value_sales_order_only_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "compiled_sales_import_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "dashboard_home_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "defense_readiness_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "evaluation_interface_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "expense_module_terminology_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "gongcha_branch_safeguard_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "historical_upload_schema_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "interface_layout_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "invoice_collection_csv_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "invoice_quantity_print_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "invoice_uploaded_client_bridge_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "purchase_order_upload_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "render_multi_user_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "sales_order_manual_print_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "sales_order_query_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "session_loading_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "smooth_transitions_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "store_recommendations_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "ui_fixes_check.py",
+    "ExitCode": 0
+  },
+  {
+    "Check": "user_approval_check.py",
+    "ExitCode": 0
+  }
+]
