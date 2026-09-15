@@ -32,7 +32,8 @@
         .hero-content {
             text-align: center;
             z-index: 1;
-            max-width: 800px;
+            width: 100%;
+            max-width: 1200px;
             padding: 2rem;
         }
         
@@ -40,17 +41,41 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 16px;
+            gap: clamp(16px, 2.4vw, 30px);
             margin-bottom: 2rem;
-            font-size: 4rem;
+            font-size: clamp(2rem, 6.1vw, 4.75rem);
             font-weight: 900;
             font-style: italic;
             color: var(--brand-orange);
             animation: fadeInUp 0.8s ease-out;
         }
+
+        .hero-logo-mark {
+            position: relative;
+            width: clamp(110px, 23vw, 290px);
+            aspect-ratio: 966 / 580;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .hero-logo-mark img {
+            position: absolute;
+            width: 111.8%;
+            max-width: none;
+            height: auto;
+            left: -6.6%;
+            top: -62.1%;
+        }
+
+        .hero-brand-name {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            line-height: 1.1;
+        }
         
         .hero-title {
-            font-size: 3rem;
+            font-size: clamp(2rem, 5.1vw, 4rem);
             font-weight: 800;
             color: var(--text-main);
             margin-bottom: 1rem;
@@ -193,7 +218,11 @@
             }
             
             .hero-logo {
-                font-size: 3rem;
+                font-size: clamp(1.75rem, 6.1vw, 3rem);
+            }
+
+            .hero-content {
+                padding: 2rem 1rem;
             }
             
             .features-grid {
@@ -206,8 +235,10 @@
     <section class="hero">
         <div class="hero-content">
             <div class="hero-logo">
-                <img src="{{ url_for('static', filename='images/logo/404 Logo.png') }}" alt="" width="64" height="64" style="object-fit: contain; flex-shrink: 0;">
-                404 Dashboard
+                <span class="hero-logo-mark">
+                    <img src="{{ url_for('static', filename='images/logo/404 Logo.png') }}" alt="" width="1080" height="1080">
+                </span>
+                <span class="hero-brand-name"><span>404</span><span>Dashboard</span></span>
             </div>
             <h1 class="hero-title">Enterprise Resource Planning</h1>
             <p class="hero-subtitle">Streamline your business operations with our comprehensive ERP solution</p>
