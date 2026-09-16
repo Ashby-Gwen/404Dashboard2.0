@@ -298,3 +298,65 @@ body.landing-page { margin: 0;
  }
 
 #landing-proposal #main-content { max-width: none; margin: 0; padding: 0; }
+
+/* A fixed footprint keeps scrolling stable while the brand condenses. */
+#landing-proposal .lp-header-space { height: 360px; }
+#landing-proposal .lp-nav {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 1100;
+    height: var(--header-height, 360px);
+    padding: 0;
+    background: var(--bg-canvas);
+    border-bottom: 1px solid var(--line);
+}
+#landing-proposal .lp-brand {
+    position: absolute;
+    left: var(--brand-left, 50%);
+    top: var(--brand-top, 132px);
+    transform: translateY(-50%) scale(var(--brand-scale, 1));
+    transform-origin: left center;
+    width: max-content;
+    gap: 24px;
+    white-space: nowrap;
+}
+#landing-proposal .lp-nav:not(.is-ready) .lp-brand { transform: translate(-50%, -50%); }
+#landing-proposal .lp-brand-mark { width: 210px; }
+#landing-proposal .lp-brand-name { font-size: 30px; line-height: 1.3; max-width: none; }
+#landing-proposal .lp-navlinks {
+    position: absolute;
+    right: auto;
+    left: var(--links-left, 50%);
+    top: var(--links-top, 278px);
+    white-space: nowrap;
+}
+#landing-proposal .lp-nav:not(.is-ready) .lp-navlinks { transform: translateX(-50%); }
+#landing-proposal .lp-header-tagline {
+    position: absolute;
+    top: 218px;
+    left: 5%;
+    width: 90%;
+    text-align: center;
+    font-size: clamp(17px, 3.4vw, 25px) !important;
+    line-height: 1.35;
+    font-weight: 600;
+    color: var(--text-main);
+    opacity: var(--tagline-opacity, 1);
+    transform: translateY(var(--tagline-offset, 0px));
+    pointer-events: none;
+}
+#landing-proposal .lp-header-tagline span { color: var(--brand-orange); }
+#landing-proposal .lp-brand .lp-brand-name { max-width: none; flex-shrink: 0; }
+#landing-proposal .lp-navlinks a:first-child { display: inline; }
+#landing-proposal #lp-features, #landing-proposal #main-content { scroll-margin-top: 96px; }
+#landing-proposal .lp-skip { position: fixed; z-index: 1200; }
+@media(max-width:600px) {
+    #landing-proposal .lp-brand-mark { width: 130px; }
+    #landing-proposal .lp-brand-name { font-size: 22px; }
+    #landing-proposal .lp-brand { gap: 16px; }
+}
+@media(max-width:440px) {
+    #landing-proposal .lp-brand-mark { width: 94px; }
+    #landing-proposal .lp-brand-name { font-size: 16px; }
+    #landing-proposal .lp-brand { gap: 12px; }
+}
