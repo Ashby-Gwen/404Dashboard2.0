@@ -247,6 +247,21 @@ def main():
             assert 'Admin Shortcuts' in admin_html
             assert 'Admin Center' in admin_html
 
+        with app.test_client() as client:
+            landing = client.get('/')
+            assert landing.status_code == 200
+            assert 'href="/dashboard/"' in landing.get_data(as_text=True)
+            for path in ('/dashboard', '/dashboard/'):
+                response = client.get(path)
+                assert response.status_code == 302
+                assert response.location.endswith('/login')
+                assert client.get(path, headers={'Accept': 'application/json'}).status_code == 401
+            response = client.post('/login', data={'username': staff.username, 'password': 'test123'})
+            assert response.status_code == 302
+            assert response.location.endswith('/dashboard/')
+            assert client.get(response.location).status_code == 200
+            assert client.get('/').status_code == 200
+
     print('Dashboard home check passed.')
 
 

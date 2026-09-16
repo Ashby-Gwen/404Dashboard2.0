@@ -4970,7 +4970,7 @@ def session_timeout():
     flash('Your session timed out. Please sign in again.', 'warning')
     return redirect(url_for('login'))
 
-@app.route('/dashboard')
+@app.route('/dashboard/', strict_slashes=False)
 @login_required
 def dashboard():
     today = datetime.now().date()
