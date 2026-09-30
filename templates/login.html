@@ -39,6 +39,13 @@
             color: var(--brand-orange);
         }
 
+        .auth-logo img {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
         .auth-header {
             text-align: center;
             margin-bottom: 2rem;
@@ -177,9 +184,7 @@
     <div class="auth-container">
         <div class="auth-card">
             <div class="auth-logo">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                </svg>
+                <img src="{{ url_for('static', filename='images/logo/project-logo-orange.png') }}" alt="" width="48" height="48">
                 404 Dashboard
             </div>
 
