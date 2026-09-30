@@ -9,6 +9,13 @@
     let dimensions;
 
     function measure() {
+        // Measure untransformed text so scrolling cannot change the fitted size.
+        const textWidth = header.querySelector('.lp-brand-name').clientWidth;
+        header.querySelectorAll('.lp-brand-title, .lp-brand-subtitle').forEach(line => {
+            line.style.fontSize = '100px';
+            const naturalWidth = line.offsetWidth;
+            if (naturalWidth) line.style.fontSize = `${100 * textWidth / naturalWidth}px`;
+        });
         const width = header.clientWidth;
         const padding = width * 0.05;
         const brandWidth = brand.offsetWidth;

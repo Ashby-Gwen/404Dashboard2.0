@@ -189,7 +189,6 @@
 }
 @media(max-width:440px){#landing-proposal .lp-grid{grid-template-columns:1fr}
 #landing-proposal .lp-navlinks{gap:8px}
-#landing-proposal .lp-brand span{max-width:100px}
 #landing-proposal .lp-bottom{padding:22px}
 #landing-proposal footer{flex-direction:column;
     gap:4px}
@@ -359,4 +358,48 @@ body.landing-page { margin: 0;
     #landing-proposal .lp-brand-mark { width: 94px; }
     #landing-proposal .lp-brand-name { font-size: 16px; }
     #landing-proposal .lp-brand { gap: 12px; }
+}
+
+/* A shared text column keeps the two lines aligned as the header scales. */
+#landing-proposal .lp-brand {
+    width: min(90vw, 720px);
+    gap: clamp(12px, 3vw, 24px);
+}
+#landing-proposal .lp-brand-mark {
+    width: 20%;
+    aspect-ratio: 1;
+    overflow: visible;
+}
+#landing-proposal .lp-brand-mark img {
+    position: static;
+    display: block;
+    width: 100%;
+    height: auto;
+}
+#landing-proposal .lp-brand .lp-brand-name {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: clamp(4px, 1vw, 10px);
+    font-family: Montserrat, "Segoe UI", Arial, sans-serif;
+    letter-spacing: 0;
+    line-height: 1.2;
+}
+#landing-proposal .lp-brand-title,
+#landing-proposal .lp-brand-subtitle {
+    display: block;
+    width: max-content;
+    max-width: none;
+    white-space: nowrap;
+}
+#landing-proposal .lp-brand-title {
+    font-size: clamp(18px, 5.8vw, 56px);
+    font-weight: 700;
+    font-style: normal;
+}
+#landing-proposal .lp-brand-subtitle {
+    font-size: clamp(14px, 4.6vw, 44px);
+    font-weight: 400;
+    font-style: italic;
 }
